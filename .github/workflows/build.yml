@@ -1,0 +1,64 @@
+name: Team build
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  plan:
+    name: CI configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      count: ${{ steps.plan.outputs.count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test CI planner
+        run: python -m unittest discover -s .github/scripts -p 'test_*.py' -v
+      - name: Validate project settings
+        id: plan
+        run: python .github/scripts/ci.py plan
+  build:
+    name: Build / ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.count != '0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python_version }}
+      - uses: actions/setup-node@v4
+        if: matrix.runtime == 'node'
+        with:
+          node-version: ${{ matrix.version }}
+      - name: Install
+        env:
+          PROJECT: ${{ matrix.name }}
+        run: python .github/scripts/ci.py run "$PROJECT" install
+      - name: Check
+        env:
+          PROJECT: ${{ matrix.name }}
+        run: python .github/scripts/ci.py run "$PROJECT" check
+      - name: Build
+        env:
+          PROJECT: ${{ matrix.name }}
+        run: python .github/scripts/ci.py run "$PROJECT" build

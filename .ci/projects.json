@@ -1,0 +1,84 @@
+{
+  "projects": [
+    {
+      "name": "api",
+      "path": "services/api",
+      "runtime": "python",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "vision",
+      "path": "services/vision",
+      "runtime": "python",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "recommendation",
+      "path": "services/recommendation",
+      "runtime": "python",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "collector",
+      "path": "services/collector",
+      "runtime": "python",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "web",
+      "path": "apps/web",
+      "runtime": "node",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "extension",
+      "path": "apps/extension",
+      "runtime": "node",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "mobile",
+      "path": "apps/mobile",
+      "runtime": "node",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "admin",
+      "path": "apps/admin",
+      "runtime": "node",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    }
+  ]
+}

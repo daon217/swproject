@@ -9,12 +9,14 @@
 
 | 담당 | 브랜치 | 기본 코드 위치 |
 | --- | --- | --- |
-| 소병선 | part/backend | services/api |
-| 이다온 | part/vision | services/vision |
-| 박정우 | part/recommendation | services/recommendation |
-| 최준서 | part/collector | services/collector |
-| 김호진 | part/web | apps/web |
-| 서지웅 | part/extension | apps/extension |
+| 소병선 | part/소병선-backend | services/api |
+| 이다온 | part/이다온-vision | services/vision |
+| 박정우 | part/박정우-recommendation | services/recommendation |
+| 최준서 | part/최준서-collector | services/collector |
+| 김호진 | part/김호진-web | apps/web |
+| 서지웅 | part/서지웅-extension | apps/extension |
+
+작업에는 위의 이름 포함 브랜치를 사용합니다. 이전 영문 전용 part/backend, part/vision, part/recommendation, part/collector, part/web, part/extension은 보존되어 있으나 신규 작업에 사용하지 않습니다.
 
 브랜치는 폴더 접근 권한을 제한하지 않습니다. 다른 파트 파일도 보이므로 담당 영역을 중심으로 수정합니다.
 모바일·관리자는 담당 확정 후 브랜치를 추가합니다.

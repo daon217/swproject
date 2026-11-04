@@ -1,6 +1,6 @@
-# 환경 구성
+# 개발환경
 
-개발용 컨테이너·배포·운영 설정을 배치할 영역입니다.
-팀원 코드의 실행 방식과 버전 확정 후 실행 설정을 추가합니다.
-현재 DB·Redis·서비스 컨테이너·배포 파이프라인은 구성하지 않았습니다.
-DB 구축과 마이그레이션은 후속 작업입니다.
+[DB 실행 안내](db/README.md): PostgreSQL 서버 1개, 독립 DB 3개(member/catalog/support), catalog pgvector.
+
+로컬 개발용 Docker Compose 환경이며 실제 공용 DB 서버를 배포한 것은 아닙니다.
+업무 테이블/Alembic, FastAPI, Redis, Celery는 다음 단계에서 추가합니다.

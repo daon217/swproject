@@ -1,0 +1,112 @@
+{
+  "projects": [
+    {
+      "name": "api",
+      "path": "services/api",
+      "runtime": "python",
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "requirements-dev.txt"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_contract.py"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
+    },
+    {
+      "name": "vision",
+      "path": "services/vision",
+      "runtime": "python",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "recommendation",
+      "path": "services/recommendation",
+      "runtime": "python",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "collector",
+      "path": "services/collector",
+      "runtime": "python",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "web",
+      "path": "apps/web",
+      "runtime": "node",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "extension",
+      "path": "apps/extension",
+      "runtime": "node",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "mobile",
+      "path": "apps/mobile",
+      "runtime": "node",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    },
+    {
+      "name": "admin",
+      "path": "apps/admin",
+      "runtime": "node",
+      "enabled": false,
+      "version": "",
+      "install": [],
+      "check": [],
+      "build": []
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+services:
+  migrate:
+    build: ../../services/api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      CATALOG_PASSWORD: ${CATALOG_OWNER_PASSWORD:?missing owner credential}
+    command: ["alembic", "upgrade", "head"]
+  api:
+    build: ../../services/api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      CATALOG_PASSWORD: ${CATALOG_APP_PASSWORD:?missing runtime credential}
+      COLLECTOR_TOKEN: ${COLLECTOR_TOKEN:?run python services/api/dev.py init}
+      CATALOG_URL_HOSTS: ${CATALOG_URL_HOSTS:-store.example.test}
+      DEV_ORIGINS: ${DEV_ORIGINS:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).read()"]
+      interval: 4s
+      timeout: 5s
+      retries: 30

@@ -15,7 +15,7 @@ def upgrade():
 
 
 def downgrade():
-    op.execute("DROP FUNCTION app.vector_guard(), app.freeze_contract() CASCADE")
+    op.execute("DROP FUNCTION app.vector_guard(), app.freeze_contract(), app.check_item_subtype() CASCADE")
     op.execute("DROP TABLE app.ingredient_embeddings, app.food_embeddings, app.product_embeddings, "
                "app.embedding_models, app.ingredients, app.offer_url_history, app.price_history, "
                "app.crawl_observations, app.crawl_runs, app.offers, app.foods, app.products, app.catalog_items")

@@ -5,12 +5,12 @@ from fastapi import HTTPException
 from sqlalchemy import text
 
 
-async def one(c, sql, **params):
-    return (await c.execute(text(sql), params)).mappings().first()
+async def one(connection, sql, **params):
+    return (await connection.execute(text(sql), params)).mappings().first()
 
 
-async def run(c, sql, **params):
-    await c.execute(text(sql), params)
+async def run(connection, sql, **params):
+    await connection.execute(text(sql), params)
 
 
 async def accept(c, rid, obs):

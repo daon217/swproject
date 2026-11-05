@@ -23,7 +23,7 @@ async def lifespan(app):
     if len(key) < 32:
         raise RuntimeError("COLLECTOR_TOKEN must have at least 32 characters")
     app.state.token = key
-    app.state.engine = create_async_engine(url("app"), pool_pre_ping=True, pool_size=4, max_overflow=2)
+    app.state.engine = create_async_engine(url("app"), hide_parameters=True, pool_pre_ping=True, pool_size=4, max_overflow=2)
     try:
         yield
     finally:

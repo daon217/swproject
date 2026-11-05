@@ -1,6 +1,4 @@
 # 개발환경
-
-[DB 실행 안내](db/README.md): PostgreSQL 서버 1개, 독립 DB 3개(member/catalog/support), catalog pgvector.
-
-로컬 개발용 Docker Compose 환경이며 실제 공용 DB 서버를 배포한 것은 아닙니다.
-업무 테이블/Alembic, FastAPI, Redis, Celery는 다음 단계에서 추가합니다.
+- [DB 단독 실행](db/README.md): 독립 DB 3개와 catalog pgvector를 초기화합니다.
+- [DB + 상품 API 실행](../services/api/README.md): catalog 마이그레이션, 가상 수집 데이터 적재, 가격·URL 변경 및 조회, 모델별 벡터 저장·검색을 포함합니다.
+- 각 PC에서 실행하는 개발 환경입니다. 공용 배포·실제 수집기·모델 가중치는 포함하지 않습니다.

@@ -3,10 +3,27 @@ CREATE TABLE app.catalog_items (
  name text NOT NULL, description text, content_version bigint NOT NULL DEFAULT 1 CHECK(content_version>0),
  identity_status text NOT NULL DEFAULT 'source_only', UNIQUE(item_id,kind)
 );
-CREATE TABLE app.products (item_id uuid PRIMARY KEY REFERENCES app.catalog_items ON DELETE CASCADE,
- kind text GENERATED ALWAYS AS ('product'::text) STORED, FOREIGN KEY(item_id,kind) REFERENCES app.catalog_items(item_id,kind));
-CREATE TABLE app.foods (item_id uuid PRIMARY KEY REFERENCES app.catalog_items ON DELETE CASCADE,
- kind text GENERATED ALWAYS AS ('food'::text) STORED, FOREIGN KEY(item_id,kind) REFERENCES app.catalog_items(item_id,kind));
+CREATE TABLE app.products (item_id uuid PRIMARY KEY REFERENCES app.catalog_items ON DELETE CASCADE);
+CREATE TABLE app.foods (item_id uuid PRIMARY KEY REFERENCES app.catalog_items ON DELETE CASCADE);
+-- At commit, the item has exactly one subtype, matching its parent's kind.
+CREATE FUNCTION app.check_item_subtype() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE ident uuid; k text; product_exists boolean; food_exists boolean;
+BEGIN
+ IF TG_OP='UPDATE' AND OLD.item_id<>NEW.item_id THEN RAISE EXCEPTION 'immutable item id'; END IF;
+ ident:=CASE WHEN TG_OP='DELETE' THEN OLD.item_id ELSE NEW.item_id END;
+ SELECT kind INTO k FROM app.catalog_items WHERE item_id=ident FOR UPDATE;
+ IF NOT FOUND THEN RETURN NULL; END IF;
+ SELECT EXISTS(SELECT 1 FROM app.products WHERE item_id=ident), EXISTS(SELECT 1 FROM app.foods WHERE item_id=ident)
+   INTO product_exists,food_exists;
+ IF product_exists<>(k='product') OR food_exists<>(k='food') THEN RAISE EXCEPTION 'item subtype mismatch'; END IF;
+ RETURN NULL;
+END $$;
+CREATE CONSTRAINT TRIGGER verify_item AFTER INSERT OR UPDATE ON app.catalog_items
+ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION app.check_item_subtype();
+CREATE CONSTRAINT TRIGGER verify_product AFTER INSERT OR UPDATE OR DELETE ON app.products
+ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION app.check_item_subtype();
+CREATE CONSTRAINT TRIGGER verify_food AFTER INSERT OR UPDATE OR DELETE ON app.foods
+ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION app.check_item_subtype();
 CREATE TABLE app.ingredients (ingredient_id uuid PRIMARY KEY DEFAULT gen_random_uuid(), code text NOT NULL UNIQUE,
  canonical_name text NOT NULL, content_version bigint NOT NULL DEFAULT 1 CHECK(content_version>0));
 CREATE TABLE app.offers (

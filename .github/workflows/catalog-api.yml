@@ -31,5 +31,8 @@ jobs:
           set +a
           cd services/api
           CATALOG_INTEGRATION=1 CATALOG_PASSWORD="$CATALOG_APP_PASSWORD" python -m pytest -q
+      - name: Diagnose failure using disposable API logs
+        if: failure()
+        run: docker compose --env-file infra/db/.env --env-file services/api/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml logs --tail 100 api migrate
       - if: always()
         run: python services/api/dev.py down

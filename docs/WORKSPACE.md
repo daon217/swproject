@@ -117,7 +117,7 @@ iOS 네이티브 빌드는 macOS/Xcode 환경이 필요합니다. CI의 `expo ex
 ## 협업·검증·남은 작업
 
 - 각자의 이름 브랜치에서 담당 코드를 수정하고 PR로 공유합니다. 공통 변경은 팀원 1명 리뷰 후 main에 병합하고 각자 origin/main을 가져옵니다.
-- `.ci/projects.json`은 API·웹·관리자·확장·모바일 빌드를 활성화합니다. OCR/추천/수집의 연결 틀·큐·실제 CPU 라이브러리 이미지는 Full development workspace 워크플로에서 검증합니다. 실제 담당 기능의 CI는 코드 반입 후 추가합니다.
+- `.ci/projects.json`은 API·OCR·추천·수집·공통 실행 틀·웹·관리자·확장·모바일의 9개 프로젝트 빌드를 활성화합니다. 큐·서비스 통합·실제 CPU 라이브러리 이미지는 Full development workspace 워크플로에서도 검증합니다. 실제 담당 기능의 CI는 코드 반입 후 추가합니다.
 - 공통 환경 Python 의존성은 requirements.lock, Node는 각 package-lock.json을 커밋합니다. 기존 업무 API 의존성은 기존 명세를 유지합니다.
 - `infra/workspace/.env`, 이미지, 모델 캐시, DB 백업은 Git/Docker 빌드 컨텍스트에서 제외합니다.
 - 비공개 임시 이미지 TTL은 개발 초기값 1시간입니다. 실제 이미지 수명주기는 소유권·완료/실패/취소 삭제까지 구현해야 합니다. 현재 볼륨은 호스트 1대용이며 여러 서버로 확장할 때 공유 저장소로 교체합니다.

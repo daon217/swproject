@@ -31,6 +31,17 @@ class PlannerTests(unittest.TestCase):
     def test_enabled_project_is_selected(self):
         self.enable()
         self.assertEqual(ci.plan(self.root)[0][0]["python_version"], "3.12")
+    def test_node_lts_major_is_supported(self):
+        self.enable()
+        self.project.update(runtime="node", version="22")
+        self.write()
+        self.assertEqual(ci.plan(self.root)[0][0]["version"], "22")
+    def test_python_still_requires_minor_version(self):
+        self.enable()
+        self.project["version"] = "3"
+        self.write()
+        with self.assertRaises(ValueError):
+            ci.plan(self.root)
     def test_missing_check_is_error(self):
         self.enable()
         self.project["check"] = []

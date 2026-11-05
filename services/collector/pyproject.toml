@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kkulpick-collector-dev"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["kkulpick-dev-runtime==0.1.0"]
+
+[tool.setuptools]
+packages = ["services.collector"]
+
+[tool.setuptools.package-dir]
+"services.collector" = "."

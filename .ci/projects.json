@@ -42,31 +42,109 @@
       "name": "vision",
       "path": "services/vision",
       "runtime": "python",
-      "enabled": false,
-      "version": "",
-      "install": [],
-      "check": [],
-      "build": []
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "../dev_runtime/requirements.lock"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "../../tools/check_adapter.py",
+          "vision"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
     },
     {
       "name": "recommendation",
       "path": "services/recommendation",
       "runtime": "python",
-      "enabled": false,
-      "version": "",
-      "install": [],
-      "check": [],
-      "build": []
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "../dev_runtime/requirements.lock"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "../../tools/check_adapter.py",
+          "recommendation"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
     },
     {
       "name": "collector",
       "path": "services/collector",
       "runtime": "python",
-      "enabled": false,
-      "version": "",
-      "install": [],
-      "check": [],
-      "build": []
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "../dev_runtime/requirements.lock"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "../../tools/check_adapter.py",
+          "collector"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
     },
     {
       "name": "web",
@@ -173,6 +251,45 @@
           "npm",
           "run",
           "build"
+        ]
+      ]
+    },
+    {
+      "name": "dev-runtime",
+      "path": "services/dev_runtime",
+      "runtime": "python",
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "requirements.lock",
+          "pytest==9.2.0"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "test_service.py"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
         ]
       ]
     }

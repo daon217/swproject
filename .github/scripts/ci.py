@@ -35,7 +35,8 @@ def plan(root):
             continue
         if not has_code:
             raise ValueError(f"{name}: enabled without code")
-        if not re.fullmatch(r"\d+\.\d+(?:\.\d+)?", p["version"]):
+        version_pattern = r"\d+(?:\.\d+){0,2}" if p["runtime"] == "node" else r"\d+\.\d+(?:\.\d+)?"
+        if not re.fullmatch(version_pattern, p["version"]):
             raise ValueError(f"{name}: runtime version required")
         for phase in ("install", "check", "build"):
             commands = p[phase]

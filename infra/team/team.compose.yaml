@@ -1,0 +1,14 @@
+services:
+  gateway:
+    build: ../team/gateway
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${TEAM_BIND_IP:?set a private host address}:2222:2222"
+    volumes:
+      - ../team/local:/enrolled:ro
+      - team_host_key:/var/lib/team-ssh
+    restart: unless-stopped
+volumes:
+  team_host_key:

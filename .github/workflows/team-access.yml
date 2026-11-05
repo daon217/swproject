@@ -1,0 +1,45 @@
+name: Team development access
+on:
+  pull_request:
+    paths: ['infra/team/**','infra/db/**','services/api/**','.github/workflows/team-access.yml']
+  push:
+    branches: [main]
+    paths: ['infra/team/**','infra/db/**','services/api/**','.github/workflows/team-access.yml']
+permissions:
+  contents: read
+jobs:
+  shared-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare disposable catalog and test keys
+        run: |
+          python services/api/dev.py init
+          ssh-keygen -q -t ed25519 -N '' -f "$RUNNER_TEMP/enrolled"
+          ssh-keygen -q -t ed25519 -N '' -f "$RUNNER_TEMP/other"
+          python infra/team/team.py enroll demo "$RUNNER_TEMP/enrolled.pub"
+          python infra/team/team.py up 127.0.0.1
+          python services/api/dev.py seed
+      - name: Verify host identity, shared rows and access boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          C=(docker compose --env-file infra/db/.env --env-file services/api/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/team/team.compose.yaml)
+          export TEAM_BIND_IP=127.0.0.1
+          printf '[127.0.0.1]:2222 ' > "$RUNNER_TEMP/known_hosts"
+          "${C[@]}" exec -T gateway cat /var/lib/team-ssh/ssh_host_ed25519_key.pub >> "$RUNNER_TEMP/known_hosts"
+          opts=(-p 2222 -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/known_hosts")
+          ssh "${opts[@]}" -i "$RUNNER_TEMP/enrolled" -o ExitOnForwardFailure=yes -fN -L 127.0.0.1:18000:api:8000 tunnel@127.0.0.1
+          curl -fsS http://127.0.0.1:18000/health
+          curl -fsS 'http://127.0.0.1:18000/v2/offers?selected_domain=product' | python -c 'import json,sys; assert any(x["price"]=="11500.0000" for x in json.load(sys.stdin)["items"])'
+          if ssh "${opts[@]}" -i "$RUNNER_TEMP/other" -W api:8000 tunnel@127.0.0.1 </dev/null 2>"$RUNNER_TEMP/denied"; then exit 1; fi
+          grep -qi 'Permission denied' "$RUNNER_TEMP/denied"
+          if ssh "${opts[@]}" -i "$RUNNER_TEMP/enrolled" -W postgres:5432 tunnel@127.0.0.1 </dev/null 2>"$RUNNER_TEMP/blocked"; then exit 1; fi
+          grep -qi 'administratively prohibited' "$RUNNER_TEMP/blocked"
+          python infra/team/team.py revoke demo
+          if curl -fsS --max-time 3 http://127.0.0.1:18000/health; then exit 1; fi
+      - if: failure()
+        run: TEAM_BIND_IP=127.0.0.1 docker compose --env-file infra/db/.env --env-file services/api/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/team/team.compose.yaml logs --tail 50 gateway

@@ -1,0 +1,128 @@
+x-runtime: &runtime
+  build:
+    context: ../..
+    dockerfile: services/dev_runtime/Dockerfile
+  environment: &runtime-env
+    REDIS_PASSWORD: ${REDIS_PASSWORD:?run tools/workspace.py init}
+    WORKSPACE_TOKEN: ${WORKSPACE_TOKEN:?run tools/workspace.py init}
+    TEMP_IMAGE_TTL_SECONDS: ${TEMP_IMAGE_TTL_SECONDS:-3600}
+    LLM_MODE: disabled
+  volumes:
+    - private_images:/var/lib/kkulpick/images
+    - ../../services/dev_runtime:/workspace/services/dev_runtime:ro
+    - ../../services/vision/devapp.py:/workspace/services/vision/devapp.py:ro
+    - ../../services/recommendation/devapp.py:/workspace/services/recommendation/devapp.py:ro
+    - ../../services/collector/devapp.py:/workspace/services/collector/devapp.py:ro
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "2"}
+x-worker: &worker
+  <<: *runtime
+  depends_on:
+    broker: {condition: service_healthy}
+    cache: {condition: service_healthy}
+    image-init: {condition: service_completed_successfully}
+
+services:
+  image-init:
+    <<: *runtime
+    user: root
+    restart: "no"
+    command: [sh, -c, "chown 10001:10001 /var/lib/kkulpick/images && chmod 700 /var/lib/kkulpick/images"]
+  api:
+    volumes:
+      - private_images:/var/lib/kkulpick/images
+  broker:
+    image: redis:7.4.7-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?run tools/workspace.py init}
+    command: [sh, -c, 'exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --maxmemory 128mb --maxmemory-policy noeviction']
+    volumes: [broker_data:/data]
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  cache:
+    image: redis:7.4.7-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?run tools/workspace.py init}
+    command: [sh, -c, 'exec redis-server --requirepass "$$REDIS_PASSWORD" --save "" --appendonly no --maxmemory 64mb --maxmemory-policy allkeys-lru']
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  vision:
+    <<: *runtime
+    command: [uvicorn, services.vision.devapp:app, --host, 0.0.0.0, --port, "8000", --reload]
+    healthcheck: &http-health
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+  recommendation:
+    <<: *runtime
+    command: [uvicorn, services.recommendation.devapp:app, --host, 0.0.0.0, --port, "8000", --reload]
+    healthcheck: *http-health
+  collector:
+    <<: *runtime
+    command: [uvicorn, services.collector.devapp:app, --host, 0.0.0.0, --port, "8000", --reload]
+    healthcheck: *http-health
+  worker:
+    <<: *worker
+    command: [celery, -A, "services.dev_runtime.tasks:app", worker, --concurrency=1, --loglevel=WARNING, -Q, development, -n, "worker@development"]
+  vision-worker:
+    <<: *worker
+    command: [celery, -A, "services.dev_runtime.tasks:app", worker, --concurrency=1, --loglevel=WARNING, -Q, vision, -n, "worker@vision"]
+  recommendation-worker:
+    <<: *worker
+    command: [celery, -A, "services.dev_runtime.tasks:app", worker, --concurrency=1, --loglevel=WARNING, -Q, recommendation, -n, "worker@recommendation"]
+  collector-worker:
+    <<: *worker
+    command: [celery, -A, "services.dev_runtime.tasks:app", worker, --concurrency=1, --loglevel=WARNING, -Q, collector, -n, "worker@collector"]
+  image-cleanup:
+    <<: *runtime
+    depends_on:
+      image-init: {condition: service_completed_successfully}
+    command: [python, -m, services.dev_runtime.cleanup]
+  web:
+    build: ../../apps/web
+    environment:
+      INTERNAL_API_URL: http://api:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports: ["127.0.0.1:${WEB_PORT:-3000}:3000"]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/dev/status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+  admin:
+    build: ../../apps/admin
+    environment:
+      INTERNAL_API_URL: http://api:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports: ["127.0.0.1:3001:3000"]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/dev/status').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    restart: unless-stopped
+  smoke:
+    <<: *runtime
+    profiles: [tools]
+    restart: "no"
+    command: [python, -m, services.dev_runtime.smoke]
+
+volumes:
+  broker_data:
+  private_images:

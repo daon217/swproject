@@ -1,0 +1,3 @@
+# The Dockerfile installs CPU-only torch before this dependency set.
+sentence-transformers==6.2.0
+anthropic==2.5.0

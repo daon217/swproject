@@ -1,0 +1,46 @@
+name: Full development workspace
+on:
+  pull_request:
+    paths: ['services/**', 'apps/**', 'infra/**', 'tools/**', '.github/workflows/workspace.yml']
+  push:
+    branches: [main]
+    paths: ['services/**', 'apps/**', 'infra/**', 'tools/**', '.github/workflows/workspace.yml']
+permissions:
+  contents: read
+jobs:
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Validate scaffold authentication and explicit unimplemented state
+        run: |
+          pip install -r services/dev_runtime/requirements.lock pytest==9.2.0
+          python -m pytest -q services/dev_runtime/test_service.py
+      - name: Start the entire isolated development workspace
+        run: |
+          python tools/workspace.py init
+          python tools/workspace.py up
+      - name: Test web, API, queues, adapters, cache and private storage
+        run: python tools/workspace.py check
+      - if: failure()
+        run: python tools/workspace.py logs
+      - if: always()
+        run: python tools/workspace.py stop
+  cpu-libraries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [vision, recommendation]
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Build the isolated CPU dependency environment
+        run: docker build -f services/${{ matrix.role }}/Dockerfile.cpu -t kkulpick-cpu:${{ matrix.role }} .
+      - name: Import actual libraries without network or paid calls
+        run: docker run --rm --network none kkulpick-cpu:${{ matrix.role }}

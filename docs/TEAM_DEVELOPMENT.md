@@ -1,5 +1,7 @@
 # 공동개발 시작 안내
 
+전체 서비스 실행은 [WORKSPACE.md](WORKSPACE.md)를 먼저 확인하세요. 이 문서는 VPN·SSH와 기존 DB/API 접속의 상세 안내입니다.
+
 ## 사용하는 구조
 
 GitHub는 코드를 공유하고, 소병선 PC의 Docker는 공통 개발 API와 DB를 실행합니다.

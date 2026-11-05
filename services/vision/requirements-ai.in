@@ -1,0 +1,3 @@
+# CPU environment, isolated from recommendation dependencies. No model is downloaded by installation.
+paddleocr==3.7.0
+paddlepaddle==3.3.1

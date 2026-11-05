@@ -71,7 +71,7 @@ def doctor(role):
     return int(failed)
 
 
-def connect(host, local_port, key):
+def connect(host, local_port, key, web=False):
     key = Path(key).expanduser().resolve()
     if not key.is_file():
         raise ValueError('Private key missing. Generate your own kkulpick_team key first; do not send it to anyone.')
@@ -79,10 +79,16 @@ def connect(host, local_port, key):
         pass
     print('Compare the first SSH host fingerprint with the value supplied by the host.', flush=True)
     print(f'Keep this window open. In another window: python tools/team_dev.py check --port {local_port}', flush=True)
-    run(['ssh', '-p', '2222', '-i', str(key), '-o', 'IdentitiesOnly=yes',
+    command = ['ssh', '-p', '2222', '-i', str(key), '-o', 'IdentitiesOnly=yes',
          '-o', 'StrictHostKeyChecking=ask', '-o', 'ExitOnForwardFailure=yes',
          '-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3',
-         '-N', '-L', f'127.0.0.1:{local_port}:api:8000', f'tunnel@{host}'])
+         '-N', '-L', f'127.0.0.1:{local_port}:api:8000']
+    if web:
+        if local_port == 18080:
+            raise ValueError('API local port must differ from the web port 18080')
+        command += ['-L', '127.0.0.1:18080:web:3000']
+        print('Shared development web: http://127.0.0.1:18080', flush=True)
+    run(command + [f'tunnel@{host}'])
 
 
 def check(local_port):
@@ -146,13 +152,14 @@ def main():
     c = sub.add_parser('connect'); c.add_argument('host', type=private_ip)
     c.add_argument('--port', type=port, default=18000)
     c.add_argument('--key', default=str(Path.home() / '.ssh/kkulpick_team'))
+    c.add_argument('--web', action='store_true', help='Also forward the shared web to localhost:18080')
     h = sub.add_parser('check'); h.add_argument('--port', type=port, default=18000)
     sub.add_parser('backup')
     args = parser.parse_args()
     if args.action == 'doctor':
         return doctor(args.role)
     if args.action == 'connect':
-        connect(args.host, args.port, args.key)
+        connect(args.host, args.port, args.key, args.web)
     elif args.action == 'check':
         check(args.port)
     else:

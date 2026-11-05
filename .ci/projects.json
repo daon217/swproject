@@ -72,41 +72,109 @@
       "name": "web",
       "path": "apps/web",
       "runtime": "node",
-      "enabled": false,
-      "version": "",
-      "install": [],
-      "check": [],
-      "build": []
+      "enabled": true,
+      "version": "22",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "check": [
+        [
+          "npm",
+          "run",
+          "typecheck"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ]
     },
     {
       "name": "extension",
       "path": "apps/extension",
       "runtime": "node",
-      "enabled": false,
-      "version": "",
-      "install": [],
-      "check": [],
-      "build": []
+      "enabled": true,
+      "version": "22",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "check": [
+        [
+          "npm",
+          "run",
+          "check"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ]
     },
     {
       "name": "mobile",
       "path": "apps/mobile",
       "runtime": "node",
-      "enabled": false,
-      "version": "",
-      "install": [],
-      "check": [],
-      "build": []
+      "enabled": true,
+      "version": "22",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "check": [
+        [
+          "npm",
+          "run",
+          "typecheck"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ]
     },
     {
       "name": "admin",
       "path": "apps/admin",
       "runtime": "node",
-      "enabled": false,
-      "version": "",
-      "install": [],
-      "check": [],
-      "build": []
+      "enabled": true,
+      "version": "22",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "check": [
+        [
+          "npm",
+          "run",
+          "typecheck"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ]
     }
   ]
 }

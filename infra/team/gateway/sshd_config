@@ -9,7 +9,7 @@ AuthenticationMethods publickey
 PermitRootLogin no
 AllowUsers tunnel
 AllowTcpForwarding local
-PermitOpen api:8000
+PermitOpen api:8000 web:3000
 AllowStreamLocalForwarding no
 AllowAgentForwarding no
 X11Forwarding no

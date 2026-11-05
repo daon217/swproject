@@ -53,11 +53,16 @@ def enroll(label,public):
 
 def compose(ip,*args):
     envs=[ROOT/"infra/db/.env",ROOT/"services/api/.env"]
+    workspace=ROOT/"infra/workspace/.env"
+    if workspace.is_file(): envs.append(workspace)
     if not all(p.is_file() for p in envs):
         raise ValueError("initialize the API first: python services/api/dev.py init")
     cmd=["docker","compose"]
     for p in envs: cmd+=["--env-file",str(p)]
-    for p in [ROOT/"infra/db/compose.yaml",ROOT/"infra/db/api.compose.yaml",HERE/"team.compose.yaml"]:
+    files=[ROOT/"infra/db/compose.yaml",ROOT/"infra/db/api.compose.yaml"]
+    if workspace.is_file(): files.append(ROOT/"infra/workspace/compose.yaml")
+    files.append(HERE/"team.compose.yaml")
+    for p in files:
         cmd+=["-f",str(p)]
     subprocess.run(cmd+list(args),env=os.environ|{"TEAM_BIND_IP":address(ip)},check=True)
 

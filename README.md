@@ -2,6 +2,18 @@
 
 상품·식품 화면 분석, 가격 비교와 대체 상품 탐색을 위한 팀 프로젝트입니다.
 
+## 전체 공동개발환경
+
+[전체 환경 실행 안내](docs/WORKSPACE.md): 웹·확장·모바일·관리자·OCR·추천·수집 실행 틀, Redis 2개, Celery 작업자, 비공개 임시 저장소와 자동 검증을 제공합니다.
+
+```powershell
+py tools/workspace.py init
+py tools/workspace.py up
+py tools/workspace.py check
+```
+
+개발용 연결 틀과 실제 업무 구현은 구분합니다. 기본 구성은 모델 추론·실제 수집·Claude API를 호출하지 않습니다.
+
 ## 현재 상태
 FastAPI 카탈로그 API, PostgreSQL 독립 DB 3개, 가상 수집 데이터, pgvector 저장소와 팀 공통 접속 구성을 포함합니다. [공동개발 시작 안내](docs/TEAM_DEVELOPMENT.md)에서 호스트·팀원별 명령을 확인하세요. [프로젝트별 빌드 자동화](.ci/README.md)는 코드 없는 영역의 빌드를 생략합니다.
 각 담당자는 기존 코드를 기능 브랜치에서 가져오고 PR로 검토합니다.

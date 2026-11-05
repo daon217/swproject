@@ -1,10 +1,10 @@
 name: Team development access
 on:
   pull_request:
-    paths: ['infra/team/**','infra/db/**','services/api/**','.github/workflows/team-access.yml']
+    paths: ['tools/**','infra/team/**','infra/db/**','services/api/**','.github/workflows/team-access.yml']
   push:
     branches: [main]
-    paths: ['infra/team/**','infra/db/**','services/api/**','.github/workflows/team-access.yml']
+    paths: ['tools/**','infra/team/**','infra/db/**','services/api/**','.github/workflows/team-access.yml']
 permissions:
   contents: read
 jobs:
@@ -39,7 +39,21 @@ jobs:
           grep -qi 'Permission denied' "$RUNNER_TEMP/denied"
           if ssh "${opts[@]}" -i "$RUNNER_TEMP/enrolled" -W postgres:5432 tunnel@127.0.0.1 </dev/null 2>"$RUNNER_TEMP/blocked"; then exit 1; fi
           grep -qi 'administratively prohibited' "$RUNNER_TEMP/blocked"
+          python tools/team_dev.py check
           python infra/team/team.py revoke demo
           if curl -fsS --max-time 3 http://127.0.0.1:18000/health; then exit 1; fi
+      - name: Back up three databases and restore into disposable databases
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/team_dev.py backup
+          C=(docker compose --env-file infra/db/.env -f infra/db/compose.yaml)
+          for domain in member catalog support; do
+            target="ci_restore_$domain"
+            "${C[@]}" exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" exec createdb -h 127.0.0.1 -U postgres "$1"' ci "$target"
+            archive=(infra/team/local/backups/*/"kkulpick_$domain.dump")
+            "${C[@]}" exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" exec pg_restore --exit-on-error -h 127.0.0.1 -U postgres -d "$1"' ci "$target" < "${archive[0]}"
+          done
+          "${C[@]}" exec -T postgres sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" exec psql -h 127.0.0.1 -U postgres -d ci_restore_catalog -Atc "$1"' ci "SELECT price FROM app.offers WHERE source = 'demo'" | grep -qx '11500.0000'
       - if: failure()
         run: TEAM_BIND_IP=127.0.0.1 docker compose --env-file infra/db/.env --env-file services/api/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/team/team.compose.yaml logs --tail 50 gateway

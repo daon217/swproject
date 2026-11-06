@@ -1,7 +1,8 @@
 # 관리자 화면
 
-WBS 담당: 배정 필요
+담당: 배정 필요
 
-현재는 팀 코드 반입을 위한 영역만 준비된 상태입니다. 기능 구현·실행 환경은 아직 없습니다.
-기존 코드는 기능 브랜치에서 이 경로에 반입하고, 의존성 명세·잠금 파일·실행 명령·환경변수 예시를 함께 추가하세요.
-상위 CONTRIBUTING.md를 따르고, API 변경은 contracts와 관련 담당자에게 반영하세요.
+[각자 PC 개발 안내](../../docs/LOCAL_DEVELOPMENT.md)를 따릅니다. 현재는 API 연결 확인용 시작 코드이며 실제 업무 화면/기능은 별도 구현합니다.
+
+저장소 루트에서 `py tools/workspace.py init`, `py tools/workspace.py up --scope core` 실행 후 이 폴더에서 `npm ci`, `npm run dev`. Node 버전은 루트 `.nvmrc`를 사용합니다.
+기본 API는 `.env.local`의 `INTERNAL_API_URL=http://127.0.0.1:8000`입니다. 기존 터널 주소 18000은 필요할 때만 사용합니다.

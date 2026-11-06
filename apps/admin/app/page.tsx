@@ -1,0 +1,1 @@
+export default function Page(){return <main className="mx-auto max-w-3xl p-10"><h1 className="text-3xl font-bold">꿀픽 관리자 개발환경</h1><p className="my-6">담당자 배정 전 실행 틀입니다. 관리자 인증·회원 조회·결제·상담 기능은 구현되지 않았습니다.</p><a className="text-teal-700 underline" href="/api/dev/status">공통 API 연결 확인</a></main>;}

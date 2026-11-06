@@ -1,0 +1,38 @@
+name: kkulpick-db-dev
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg17-trixie
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python infra/db/db.py init first}
+      MEMBER_OWNER_PASSWORD: ${MEMBER_OWNER_PASSWORD:?Missing password}
+      MEMBER_APP_PASSWORD: ${MEMBER_APP_PASSWORD:?Missing password}
+      CATALOG_OWNER_PASSWORD: ${CATALOG_OWNER_PASSWORD:?Missing password}
+      CATALOG_APP_PASSWORD: ${CATALOG_APP_PASSWORD:?Missing password}
+      SUPPORT_OWNER_PASSWORD: ${SUPPORT_OWNER_PASSWORD:?Missing password}
+      SUPPORT_APP_PASSWORD: ${SUPPORT_APP_PASSWORD:?Missing password}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+      TZ: UTC
+    ports:
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - ./check.sh:/opt/kkulpick/check.sh:ro
+    command: [postgres, -c, timezone=UTC, -c, max_connections=60, -c, shared_buffers=128MB]
+    shm_size: 128mb
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -h 127.0.0.1 -U postgres -d postgres']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+volumes:
+  postgres_data:

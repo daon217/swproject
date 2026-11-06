@@ -1,0 +1,38 @@
+name: Catalog API integration
+on:
+  pull_request:
+    paths: ['services/api/**','infra/db/**','.github/workflows/catalog-api.yml']
+  push:
+    branches: [main]
+    paths: ['services/api/**','infra/db/**','.github/workflows/catalog-api.yml']
+permissions:
+  contents: read
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r services/api/requirements-dev.txt
+      - run: python services/api/dev.py init
+      - run: python services/api/dev.py up
+      - run: python services/api/dev.py seed
+      - name: Real PostgreSQL contract, ingestion and vector tests
+        shell: bash
+        run: |
+          set -a
+          source infra/db/.env
+          source services/api/.env
+          set +a
+          cd services/api
+          CATALOG_INTEGRATION=1 CATALOG_PASSWORD="$CATALOG_APP_PASSWORD" python -m pytest -q
+      - name: Diagnose failure using disposable API logs
+        if: failure()
+        run: docker compose --env-file infra/db/.env --env-file services/api/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml logs --tail 100 api migrate
+      - if: always()
+        run: python services/api/dev.py down

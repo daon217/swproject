@@ -1,0 +1,97 @@
+name: Full development workspace
+on:
+  pull_request:
+    paths: ['services/**', 'apps/**', 'infra/**', 'tools/**', '.github/workflows/workspace.yml']
+  push:
+    branches: [main]
+    paths: ['services/**', 'apps/**', 'infra/**', 'tools/**', '.github/workflows/workspace.yml']
+permissions:
+  contents: read
+jobs:
+  local-helper:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python tools/test_workspace.py
+  local-core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Initialize and run without cloud, VPN, SSH enrollment or paid keys
+        run: |
+          python tools/workspace.py doctor
+          python tools/workspace.py init
+          python tools/workspace.py up --scope core
+          python tools/workspace.py seed
+          python tools/workspace.py check --scope core
+      - name: Verify DB data survives ordinary stop and restart
+        shell: bash
+        run: |
+          curl --fail --silent 'http://127.0.0.1:8000/v2/offers?selected_domain=product' > "$RUNNER_TEMP/offers-before.json"
+          python tools/workspace.py stop --scope core
+          python tools/workspace.py up --scope core
+          python tools/workspace.py check --scope core
+          curl --fail --silent 'http://127.0.0.1:8000/v2/offers?selected_domain=product' > "$RUNNER_TEMP/offers-after.json"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          before = json.loads((root / 'offers-before.json').read_text())['items']
+          after = json.loads((root / 'offers-after.json').read_text())['items']
+          assert before and before == after, 'Local DB data changed/lost after restart'
+          print('Local seeded offers survive stop/restart')
+          PY
+      - if: failure()
+        run: python tools/workspace.py logs --scope core
+      - if: always()
+        run: python tools/workspace.py stop --scope core
+  workspace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Validate scaffold authentication and explicit unimplemented state
+        run: |
+          pip install -r services/dev_runtime/requirements.lock pytest==9.2.0
+          python -m pytest -q services/dev_runtime/test_service.py
+      - name: Start the entire isolated development workspace
+        run: |
+          python tools/workspace.py init
+          python tools/workspace.py up --scope full
+      - name: Verify the API user can write private images
+        run: |
+          docker compose --env-file infra/db/.env --env-file services/api/.env --env-file infra/workspace/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/workspace/compose.yaml -f infra/workspace/local.compose.yaml exec -T api python -c "from pathlib import Path; p=Path('/var/lib/kkulpick/images/api-permission-check.bin'); p.write_bytes(b'non-personal-test'); p.unlink()"
+      - name: Test web, API, queues, adapters, cache and private storage
+        run: python tools/workspace.py check --scope full
+      - if: failure()
+        run: python tools/workspace.py logs
+      - if: always()
+        run: python tools/workspace.py stop
+  cpu-libraries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [vision, recommendation]
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Build the isolated CPU dependency environment
+        run: docker build -f services/${{ matrix.role }}/Dockerfile.cpu -t kkulpick-cpu:${{ matrix.role }} .
+      - name: Import actual libraries without network or paid calls
+        run: docker run --rm --network none kkulpick-cpu:${{ matrix.role }}

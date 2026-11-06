@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "꿀픽 개발 연결 확인",
+  "version": "0.1.0",
+  "description": "개발용 API 연결 확인. 화면 캡처나 자동 수집은 수행하지 않습니다.",
+  "action": {"default_popup": "popup.html"},
+  "host_permissions": ["http://127.0.0.1/*"]
+}

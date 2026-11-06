@@ -1,5 +1,7 @@
 # 꿀픽 전체 공동개발환경
 
+**기본은 [각자 PC 실행 안내](LOCAL_DEVELOPMENT.md)입니다.** 아래 full 구성은 자기 PC에서 실행하며 VPN 없이 사용할 수 있습니다.
+
 ## 범위와 기준
 
 2026-11-02 기술 명세서 4장(시스템), 7~10장(분석·OCR·수집·추천), 15~16장(임시 저장·운영)을 기준으로 구성합니다.
@@ -29,11 +31,10 @@ Celery smoke 검사는 실제 Redis·작업자·HTTP·볼륨을 사용하나 분
 Windows: Docker Desktop을 Linux 컨테이너 모드로 켜고 저장소 루트 PowerShell에서 실행합니다.
 필수: Git, Python 3.11 이상(권장 3.12), Docker Compose v2. Docker 안에서 웹·서비스를 실행하면 호스트 Node 설치는 선택입니다.
 ```powershell
-git switch "part/소병선-backend"
-git pull --ff-only
+# 먼저 LOCAL_DEVELOPMENT.md에 따라 본인 브랜치에 공통 설정을 반영하세요.
 py tools/workspace.py init
-py tools/workspace.py up
-py tools/workspace.py check
+py tools/workspace.py up --scope full
+py tools/workspace.py check --scope full
 ```
 처음에는 이미지·패키지 다운로드로 시간이 걸립니다. `init`은 기존 DB/API 설정과 비밀번호를 유지합니다.
 이미 DB를 만들어 두었어도 기존 볼륨을 재사용합니다. `down -v`나 Docker 볼륨 삭제는 실행하지 않습니다.
@@ -52,7 +53,7 @@ py tools/workspace.py check
 브로커/캐시/OCR/추천/수집은 호스트 포트를 열지 않고 Docker 네트워크 안에서 통신합니다.
 명세의 HTTPS 운영 배포는 이 로컬 개발 HTTP 구성과 별도입니다.
 
-## 각자 집에서 같은 환경 사용
+## 선택 사항: 한 호스트의 환경을 각자 집에서 함께 사용
 
 계정·공개키 등록은 [팀 접속 안내](TEAM_DEVELOPMENT.md) 3~5단계를 따릅니다.
 호스트는 `py tools/workspace.py share`로 전체 환경을 시작하고 Tailscale 주소에 SSH 게이트웨이를 엽니다.
@@ -74,14 +75,14 @@ npm ci
 npm run dev
 ```
 관리자는 `apps/admin`에서 같은 순서로 실행하며 로컬 개발 포트는 3001입니다.
-기본 .env.example은 공통 API 터널 18000을 사용합니다. 자기 DB/API를 쓰려면 INTERNAL_API_URL을 http://127.0.0.1:8000으로 바꿉니다.
+기본 .env.example은 자기 PC의 API 8000을 사용합니다. 선택적 공용 API 터널을 쓰려면 INTERNAL_API_URL을 http://127.0.0.1:18000으로 바꿉니다. 기존 .env.local은 init이 덮어쓰지 않으므로 주소를 확인합니다. Docker full 웹과 npm dev는 같은 포트를 쓰므로 로컬 소스 개발 시 core를 사용합니다.
 Docker 웹은 재현 가능한 빌드 결과를 실행합니다. 소스 수정 후 `workspace.py up`으로 다시 빌드하거나 위 로컬 dev 모드로 작업합니다.
 공통 비밀값을 NEXT_PUBLIC/EXPO_PUBLIC 변수에 넣지 않습니다. 이 변수들은 클라이언트에 공개됩니다.
 
 ## 확장 담당
 
 Chrome의 chrome://extensions에서 개발자 모드 → 압축해제된 확장 로드 → `apps/extension` 선택.
-SSH 터널을 연 뒤 확장 버튼의 API 확인으로 연결합니다. 개발 권한은 127.0.0.1만 허용합니다.
+자기 PC에서 API를 켠 뒤 확장 버튼의 API 포트 8000으로 확인합니다. 공용 서버 터널은 선택적으로 포트 18000을 입력합니다. 개발 권한은 127.0.0.1만 허용합니다.
 `npm ci`, `npm run check`로 manifest와 JS를 검사합니다. 화면 캡처·탭 감지·사이드바·스토어 배포는 별도 구현입니다.
 
 ## OCR·추천·수집 담당
@@ -109,7 +110,7 @@ Claude SDK를 준비했지만 `LLM_MODE=disabled`로 기본 실행합니다. 환
 ## 모바일 담당
 
 Node 22.13 이상. `apps/mobile`에서 `.env.example`을 `.env.local`로 복사하고 `npm ci`, `npm start`.
-Android 에뮬레이터의 10.0.2.2는 개발 PC를 가리킵니다. 예시는 PC의 SSH 터널 18000 연결용입니다.
+Android 에뮬레이터의 10.0.2.2는 개발 PC를 가리킵니다. 예시는 PC의 로컬 API 8000 연결용입니다.
 Android Studio/SDK·에뮬레이터는 모바일 담당 PC에만 설치합니다. 실제 휴대폰의 localhost나 10.0.2.2는 같은 의미가 아닙니다.
 실기기는 개발 PC와의 연결·HTTPS·접근 제한을 별도로 구성해야 합니다. Expo 개발 화면 실행은 다른 앱 캡처/오버레이를 검증한 것이 아니며, 그 기능에는 Android 네이티브 모듈과 실제 권한 검증이 필요합니다.
 iOS 네이티브 빌드는 macOS/Xcode 환경이 필요합니다. CI의 `expo export --platform android`는 JS 번들 검증이며 APK/IPA 빌드·기기 테스트가 아닙니다.
@@ -122,6 +123,6 @@ iOS 네이티브 빌드는 macOS/Xcode 환경이 필요합니다. CI의 `expo ex
 - `infra/workspace/.env`, 이미지, 모델 캐시, DB 백업은 Git/Docker 빌드 컨텍스트에서 제외합니다.
 - 비공개 임시 이미지 TTL은 개발 초기값 1시간입니다. 실제 이미지 수명주기는 소유권·완료/실패/취소 삭제까지 구현해야 합니다. 현재 볼륨은 호스트 1대용이며 여러 서버로 확장할 때 공유 저장소로 교체합니다.
 - 실제 회원·결제·상담·관리자 인증, 분석 Outbox/재시도/취소, 추천 품질, 모델 가중치, 생산 수집원과 성능 검증은 업무 구현 범위로 남습니다.
-- 남은 환경 작업: 호스트·팀원 VPN 로그인/초대/키 등록, 다른 집에서 접속 검증, main 보호 규칙(소유자 권한), 모바일 담당·장치 확정.
+- 남은 환경 작업: 각 팀원 PC 실행 확인, main 보호 규칙(소유자 권한), 모바일 담당·장치 확정. VPN 로그인/키 등록/다른 집 접속 검증은 이후 공용 서버를 선택할 때만 필요합니다.
 
 참고: [Next.js 설치](https://nextjs.org/docs/app/getting-started/installation), [Celery Redis](https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/redis.html), [PaddleOCR](https://www.paddleocr.ai/main/en/quick_start.html), [Sentence-Transformers](https://sbert.net/docs/installation.html).

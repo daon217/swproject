@@ -40,7 +40,7 @@ def main():
         subprocess.run(compose+(["up","-d","--build","--wait","--wait-timeout","240"] if a=="up" else ["down"]),check=True)
         return
     cfg=config(LOCAL)
-    base="http://127.0.0.1:"+cfg.get("API_PORT","8000")
+    base="http://127.0.0.1:"+os.environ.get("API_PORT",cfg.get("API_PORT","8000"))
     run_id=uuid4()
     url=f"{base}/internal/v2/crawl-runs/{run_id}/observations"
     data=json.loads((HERE/"fixtures"/"offer.json").read_text(encoding="utf8"))

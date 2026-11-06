@@ -2,20 +2,25 @@
 
 상품·식품 화면 분석, 가격 비교와 대체 상품 탐색을 위한 팀 프로젝트입니다.
 
-## 전체 공동개발환경
+## 각자 PC에서 개발 시작
 
-[전체 환경 실행 안내](docs/WORKSPACE.md): 웹·확장·모바일·관리자·OCR·추천·수집 실행 틀, Redis 2개, Celery 작업자, 비공개 임시 저장소와 자동 검증을 제공합니다.
+[팀원별 설치·브랜치·실행 안내](docs/LOCAL_DEVELOPMENT.md)를 따릅니다. 각자 Docker에서 독립 DB 3개와 백엔드를 실행합니다. VPN·공용 호스트·클라우드 가입은 필요하지 않습니다.
+공통 설정은 현재 `part/소병선-backend`의 PR #3에 있으므로 안내에 따라 본인 브랜치에 반영하세요.
 
 ```powershell
+py tools/workspace.py doctor
 py tools/workspace.py init
-py tools/workspace.py up
-py tools/workspace.py check
+py tools/workspace.py up --scope core
+py tools/workspace.py seed
+py tools/workspace.py check --scope core
 ```
 
+웹·관리자는 core 실행 후 담당 폴더에서 `npm ci`, `npm run dev`. API 명세는 http://127.0.0.1:8000/docs 입니다.
+[전체 환경](docs/WORKSPACE.md)은 `up --scope full`, `check --scope full`로 실행합니다.
 개발용 연결 틀과 실제 업무 구현은 구분합니다. 기본 구성은 모델 추론·실제 수집·Claude API를 호출하지 않습니다.
 
 ## 현재 상태
-FastAPI 카탈로그 API, PostgreSQL 독립 DB 3개, 가상 수집 데이터, pgvector 저장소와 팀 공통 접속 구성을 포함합니다. [공동개발 시작 안내](docs/TEAM_DEVELOPMENT.md)에서 호스트·팀원별 명령을 확인하세요. [프로젝트별 빌드 자동화](.ci/README.md)는 코드 없는 영역의 빌드를 생략합니다.
+FastAPI 카탈로그 API, PostgreSQL 독립 DB 3개, 가상 수집 데이터, pgvector 저장소와 팀 공통 접속 구성을 포함합니다. [로컬 개발 안내](docs/LOCAL_DEVELOPMENT.md)에서 각자 실행하고, 필요할 때만 [공용 서버 접속](docs/TEAM_DEVELOPMENT.md)을 설정합니다. [프로젝트별 빌드 자동화](.ci/README.md)는 코드 없는 영역의 빌드를 생략합니다.
 각 담당자는 기존 코드를 기능 브랜치에서 가져오고 PR로 검토합니다.
 
 ## 프로젝트 구조
@@ -62,7 +67,7 @@ DB는 PostgreSQL 서버 하나 안의 회원·카탈로그·고객센터 독립 
 실제 환경변수, 토큰, 인증서, 사용자 화면·개인정보는 커밋하지 않습니다.
 각 실행 프로젝트는 필요한 변수만 담은 .env.example과 실행 방법을 추가합니다.
 의존성 명세와 잠금 파일은 커밋하고 가상환경·node_modules·빌드 산출물은 제외합니다.
-API/DB/공통 접속의 자동 검증은 GitHub Actions에서 확인합니다. 다른 파트의 실제 실행·통합은 해당 코드가 올라온 뒤 검증합니다. 개인 PC의 VPN 로그인과 팀원 접속 확인은 별도로 필요합니다.
+API/DB/공통 접속의 자동 검증은 GitHub Actions에서 확인합니다. 다른 파트의 실제 실행·통합은 해당 코드가 올라온 뒤 검증합니다. 각 팀원 PC에서 로컬 점검이 필요합니다. VPN은 선택적 공용 서버 접속에만 사용합니다.
 
 ## 저장소 관리자 후속 설정
 main 브랜치 보호는 [관리자 설정 안내](.github/ADMIN_SETUP.md)를 따릅니다.

@@ -1,5 +1,8 @@
 services:
   gateway:
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "2"}
     build: ../team/gateway
     depends_on:
       api:

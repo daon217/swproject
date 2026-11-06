@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from .db import url
 from .ingest import accept
 from .models import Observation
+from .limits import RequestBodyLimit
 
 
 @asynccontextmanager
@@ -31,8 +32,9 @@ async def lifespan(app):
 
 
 app = FastAPI(title="꿀픽 카탈로그 개발 API", version="0.1", lifespan=lifespan)
+app.add_middleware(RequestBodyLimit)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DEV_ORIGINS","http://localhost:3000").split(","),
-                   allow_methods=["GET"], allow_headers=["Content-Type"])
+                   allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type", "Authorization"])
 bearer = HTTPBearer(auto_error=False)
 
 

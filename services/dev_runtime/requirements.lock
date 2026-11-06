@@ -6,6 +6,8 @@
 #
 amqp==5.4.2
     # via kombu
+annotated-doc==0.0.5
+    # via fastapi
 annotated-types==0.8.0
     # via pydantic
 anthropic==2.5.0
@@ -39,7 +41,7 @@ click-repl==0.4.1
     # via celery
 docstring-parser==0.18.0
     # via anthropic
-fastapi==0.118.3
+fastapi==0.137.2
     # via -r services/dev_runtime/requirements.in
 h11==0.16.0
     # via
@@ -82,8 +84,10 @@ redis==8.1.0
     # via kombu
 sniffio==1.3.1
     # via anthropic
-starlette==0.48.0
-    # via fastapi
+starlette==1.3.1
+    # via
+    #   -r services/dev_runtime/requirements.in
+    #   fastapi
 truststore==0.10.5
     # via
     #   httpcore2
@@ -101,7 +105,9 @@ typing-extensions==4.16.0
     #   starlette
     #   typing-inspection
 typing-inspection==0.4.5
-    # via pydantic
+    # via
+    #   fastapi
+    #   pydantic
 tzdata==2026.6
     # via python-dateutil
 tzlocal==5.4.5

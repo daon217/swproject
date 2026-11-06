@@ -96,10 +96,12 @@ def initialize():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share'])
-    parser.add_argument('--scope', choices=['core', 'full'], default='full',
-                        help='core: DB + API only; full: also web/admin, Redis and development workers')
+    parser.add_argument('--scope', choices=['core', 'full'], default=None,
+                        help='up/check default to core; other actions default to full. core: DB + API; full: all development services')
     parser.add_argument('--shared', action='store_true', help='Explicitly include an already enrolled VPN gateway')
     args = parser.parse_args()
+    if args.scope is None:
+        args.scope = 'core' if args.action in ('up', 'check') else 'full'
     options = {'scope': args.scope, 'shared': args.shared or args.action == 'share'}
     if args.action == 'share' and args.scope != 'full':
         parser.error('share requires --scope full')

@@ -71,9 +71,12 @@ jobs:
       - name: Start the entire isolated development workspace
         run: |
           python tools/workspace.py init
-          python tools/workspace.py up
+          python tools/workspace.py up --scope full
+      - name: Verify the API user can write private images
+        run: |
+          docker compose --env-file infra/db/.env --env-file services/api/.env --env-file infra/workspace/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/workspace/compose.yaml -f infra/workspace/local.compose.yaml exec -T api python -c "from pathlib import Path; p=Path('/var/lib/kkulpick/images/api-permission-check.bin'); p.write_bytes(b'non-personal-test'); p.unlink()"
       - name: Test web, API, queues, adapters, cache and private storage
-        run: python tools/workspace.py check
+        run: python tools/workspace.py check --scope full
       - if: failure()
         run: python tools/workspace.py logs
       - if: always()

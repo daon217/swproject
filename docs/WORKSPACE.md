@@ -76,7 +76,7 @@ npm run dev
 ```
 관리자는 `apps/admin`에서 같은 순서로 실행하며 로컬 개발 포트는 3001입니다.
 기본 .env.example은 자기 PC의 API 8000을 사용합니다. 선택적 공용 API 터널을 쓰려면 INTERNAL_API_URL을 http://127.0.0.1:18000으로 바꿉니다. 기존 .env.local은 init이 덮어쓰지 않으므로 주소를 확인합니다. Docker full 웹과 npm dev는 같은 포트를 쓰므로 로컬 소스 개발 시 core를 사용합니다.
-Docker 웹은 재현 가능한 빌드 결과를 실행합니다. 소스 수정 후 `workspace.py up`으로 다시 빌드하거나 위 로컬 dev 모드로 작업합니다.
+Docker 웹은 재현 가능한 빌드 결과를 실행합니다. 소스 수정 후 `workspace.py up --scope full`으로 다시 빌드하거나 위 로컬 dev 모드로 작업합니다.
 공통 비밀값을 NEXT_PUBLIC/EXPO_PUBLIC 변수에 넣지 않습니다. 이 변수들은 클라이언트에 공개됩니다.
 
 ## 확장 담당
@@ -89,7 +89,7 @@ Chrome의 chrome://extensions에서 개발자 모드 → 압축해제된 확장 
 
 `services/<담당>/devapp.py`가 연결 시작점입니다. 실제 코드를 붙일 때 health의 business_ready와 업무 엔드포인트를 함께 변경하고 계약/테스트를 추가합니다.
 `services/dev_runtime`는 공통 연결·큐 검사용으로 실제 모델 코드를 억지로 함께 설치하지 않습니다.
-개발 틀은 소스 마운트+uvicorn reload를 지원합니다. 작업자 코드는 변경 후 `workspace.py up`만으로 이미지 재빌드를 확인하고 필요하면 해당 컨테이너를 재시작합니다.
+개발 틀은 소스 마운트+uvicorn reload를 지원합니다. 작업자 코드는 변경 후 `workspace.py up --scope full`로 재빌드·재생성합니다. 담당 서비스 폴더 전체가 컨테이너에 반영되지만 새 의존성은 해당 이미지의 설치 명세에도 추가해야 합니다.
 
 모델 의존성은 큰 이미지이므로 별도 CPU 환경으로 준비합니다. 처음 한 번 빌드할 때 큰 다운로드와 디스크 사용이 발생합니다.
 ```powershell

@@ -34,3 +34,8 @@ POST /internal/v2/crawl-runs/{run_id}/observations. UUID run_id를 생성하고 
 
 ## 검증
 Catalog API integration CI는 실제 pgvector 컨테이너에서 Alembic upgrade, 샘플 적재, HTTP/DB/벡터 통합 테스트를 수행한다. 일반 빌드 CI는 입력 계약과 Python 패키지 빌드를 검사한다. 로컬 계약 테스트: services/api에서 pip install -r requirements-dev.txt 후 python -m pytest tests/test_contract.py. test_database.py는 격리한 테스트 DB에서만 실행한다. 운영 데이터에는 실행하지 않는다.
+
+## 점검 후 보완 (2026-11-06)
+
+런타임은 requirements.lock으로 설치합니다. FastAPI 0.137.2 / Starlette 1.3.1 조합으로 보안 권고를 반영하고 계약·DB 통합 검사를 수행합니다. 버전 변경 시 requirements.txt와 lock을 함께 갱신합니다.
+현재 JSON 적재 요청 본문은 64 KiB 상한이며 초과하면 413입니다. 이미지 업로드 API는 아직 없으며 구현 시 별도의 스트리밍·크기·픽셀 제한이 필요합니다. 허용 origin의 공개 API 연동을 위해 GET/POST/PATCH/DELETE와 Authorization 헤더를 허용합니다. CORS는 인증을 대신하지 않으며 수집 토큰은 브라우저에 전달하지 않습니다.

@@ -10,9 +10,9 @@ x-runtime: &runtime
   volumes:
     - private_images:/var/lib/kkulpick/images
     - ../../services/dev_runtime:/workspace/services/dev_runtime:ro
-    - ../../services/vision/devapp.py:/workspace/services/vision/devapp.py:ro
-    - ../../services/recommendation/devapp.py:/workspace/services/recommendation/devapp.py:ro
-    - ../../services/collector/devapp.py:/workspace/services/collector/devapp.py:ro
+    - ../../services/vision:/workspace/services/vision:ro
+    - ../../services/recommendation:/workspace/services/recommendation:ro
+    - ../../services/collector:/workspace/services/collector:ro
   restart: unless-stopped
   logging:
     driver: json-file
@@ -31,9 +31,14 @@ services:
     restart: "no"
     command: [sh, -c, "chown 10001:10001 /var/lib/kkulpick/images && chmod 700 /var/lib/kkulpick/images"]
   api:
+    depends_on:
+      image-init: {condition: service_completed_successfully}
     volumes:
       - private_images:/var/lib/kkulpick/images
   broker:
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "2"}
     image: redis:7.4.7-alpine
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?run tools/workspace.py init}
@@ -46,6 +51,9 @@ services:
       retries: 20
     restart: unless-stopped
   cache:
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "2"}
     image: redis:7.4.7-alpine
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?run tools/workspace.py init}
@@ -90,6 +98,9 @@ services:
       image-init: {condition: service_completed_successfully}
     command: [python, -m, services.dev_runtime.cleanup]
   web:
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "2"}
     build: ../../apps/web
     environment:
       INTERNAL_API_URL: http://api:8000
@@ -104,6 +115,9 @@ services:
       retries: 30
     restart: unless-stopped
   admin:
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "2"}
     build: ../../apps/admin
     environment:
       INTERNAL_API_URL: http://api:8000

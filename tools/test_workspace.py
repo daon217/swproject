@@ -69,6 +69,17 @@ class LocalWorkspaceTests(unittest.TestCase):
         self.assertNotIn(file, workspace.compose_command('core'))
         self.assertIn(file, workspace.compose_command('full'))
 
+    def test_default_start_is_core_but_stop_still_stops_full_stack(self):
+        with patch('sys.argv', ['workspace.py', 'up']), patch.object(workspace, 'compose') as call:
+            self.assertEqual(workspace.main(), 0)
+            self.assertEqual(call.call_args.kwargs['scope'], 'core')
+        with patch('sys.argv', ['workspace.py', 'stop']), patch.object(workspace, 'compose') as call:
+            self.assertEqual(workspace.main(), 0)
+            self.assertEqual(call.call_args.kwargs['scope'], 'full')
+        with patch('sys.argv', ['workspace.py', 'up', '--scope', 'full']), patch.object(workspace, 'compose') as call:
+            self.assertEqual(workspace.main(), 0)
+            self.assertEqual(call.call_args.kwargs['scope'], 'full')
+
     def test_check_uses_the_same_port_override_as_compose(self):
         self.initialize()
         with patch.dict(os.environ, {'API_PORT': '8123'}):

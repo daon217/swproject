@@ -1,5 +1,8 @@
 services:
   migrate:
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "2"}
     build: ../../services/api
     depends_on:
       postgres:
@@ -10,6 +13,9 @@ services:
       CATALOG_PASSWORD: ${CATALOG_OWNER_PASSWORD:?missing owner credential}
     command: ["alembic", "upgrade", "head"]
   api:
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "2"}
     build: ../../services/api
     depends_on:
       migrate:

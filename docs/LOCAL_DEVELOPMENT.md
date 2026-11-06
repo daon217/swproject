@@ -140,7 +140,7 @@ full에서 core로 가볍게 전환할 때는 먼저 `py tools/workspace.py stop
 | 전체 연결 환경 시작 | `py tools/workspace.py up --scope full` |
 | 전체 연결 환경 확인 | `py tools/workspace.py check --scope full` |
 
-`--scope`를 생략하면 full이 기본값이므로 시작·점검 시 core/full을 명시합니다. `init`은 최초 준비에 사용하며 매일 실행할 필요가 없습니다.
+`up`·`check`에서 `--scope`를 생략하면 가벼운 core가 기본값입니다. 전체 환경은 full을 명시합니다. `stop`·`status`·`logs`는 기본적으로 full까지 포함합니다. `init`은 최초 준비에 사용하며 매일 실행할 필요가 없습니다.
 
 
 ```powershell
@@ -199,3 +199,9 @@ GitHub에서 본인 브랜치를 head, `main`을 base로 PR을 만듭니다. 실
 - `.env`, `.env.local`, DB 백업, 실제 개인 데이터는 커밋하지 않습니다.
 - 팀원별 완료: `check --scope core` 성공, 자기 담당 화면/서비스가 자기 API에 연결, stop/up 후 데이터 유지.
 - 각자 로컬 성공은 여러 팀원의 기능이 한 서버에서 통합 완료되었다는 뜻이 아닙니다. 공용 서버 통합은 다음 단계입니다.
+
+## 9. 점검 수정본 반영
+
+작업을 커밋하고 DB를 백업한 뒤 본인 브랜치에 공통 변경을 반영하고 `py tools/workspace.py up --scope core`, `py tools/workspace.py check --scope core`를 실행합니다. full을 쓰는 팀원은 두 명령에 full을 지정합니다. 기존 .env와 볼륨은 유지합니다.
+
+2026-11-06 수정: 시작·점검 기본값 core, 전체 종료 유지, JSON 본문 상한, 브라우저 CORS, API 이미지 저장 UID, 서비스 폴더 반영, 로그 순환 및 보안 의존성 보완. 실제 회원·분석 업무 구현을 완료한 변경은 아닙니다.

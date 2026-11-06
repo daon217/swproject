@@ -1,4 +1,4 @@
-# 각자 PC에서 개발하기
+# 팀원 개발환경 사용 안내
 
 현재 기본 방식은 **팀원마다 자기 PC의 Docker에서 독립 서버와 DB를 실행**하는 것입니다.
 소병선 PC, Oracle, VPN, SSH 공개키 등록, Claude API 키가 필요하지 않습니다.
@@ -16,7 +16,7 @@ GitHub는 코드·마이그레이션·가상 샘플을 공유합니다. DB 내�
 
 ## 2. 코드 받기 — 본인 브랜치 유지
 
-현재 공통 환경 변경은 PR #3의 `part/소병선-backend`에 있습니다. main에는 아직 병합되지 않았습니다.
+공통 환경 변경의 병합 상태는 아래 PR #3에서 확인합니다. 병합 전에는 `part/소병선-backend`, 병합 후에는 `origin/main`에서 가져옵니다.
 [PR #3](https://github.com/daon217/swproject/pull/3)을 팀원 1명 이상 검토 후 main에 병합하는 규칙을 유지합니다.
 
 처음 받는 사람만 실행:
@@ -126,17 +126,52 @@ full에서 core로 가볍게 전환할 때는 먼저 `py tools/workspace.py stop
 
 ## 6. 매일 시작·종료·갱신
 
+모든 명령은 저장소 루트에서 실행합니다. Docker Desktop을 먼저 켜세요.
+
+| 목적 | PowerShell 명령 |
+| --- | --- |
+| 개발 시작 | `py tools/workspace.py up --scope core` |
+| 기본 환경 확인 | `py tools/workspace.py check --scope core` |
+| 컨테이너 상태 | `py tools/workspace.py status` |
+| 최근 오류 로그 | `py tools/workspace.py logs` |
+| 가상 상품 다시 적재 | `py tools/workspace.py seed` |
+| DB 백업 | `py tools/workspace.py backup` |
+| 개발 종료 | `py tools/workspace.py stop` |
+| 전체 연결 환경 시작 | `py tools/workspace.py up --scope full` |
+| 전체 연결 환경 확인 | `py tools/workspace.py check --scope full` |
+
+`--scope`를 생략하면 full이 기본값이므로 시작·점검 시 core/full을 명시합니다. `init`은 최초 준비에 사용하며 매일 실행할 필요가 없습니다.
+
+
 ```powershell
 py tools/workspace.py up --scope core
 py tools/workspace.py status
 py tools/workspace.py backup
 py tools/workspace.py stop
 ```
+`npm run dev`나 `npm start`를 별도 창에서 실행했다면 그 창에서 `Ctrl+C`로 종료합니다. 이후 Docker Desktop을 종료해도 됩니다.
 종료해도 Docker 볼륨의 데이터는 남습니다. `down -v`, Docker 볼륨 삭제는 하지 않습니다.
 백업은 `infra/team/local/backups`에 DB별 dump로 저장되며 VPN 설정이 필요하지 않습니다. 다른 개인 저장장치에도 보관합니다.
 
 코드를 갱신할 때는 미커밋 작업 확인 → 백업 → 본인 브랜치에 최신 공통 변경 반영 → `up` → `check` 순서로 진행합니다.
 한 PC에 여러 복제 폴더를 만들어도 같은 Compose 프로젝트 이름을 쓰므로 DB가 자동 분리되지 않습니다. **PC당 실행용 checkout 한 개**를 사용하고 그 안에서 브랜치를 전환합니다.
+
+### 개발한 코드 올리기
+
+자신의 담당 브랜치에서 아래 순서로 확인합니다. `<변경한-파일-경로>`는 실제 수정한 파일로 바꾸며, 비밀값이 포함되지 않았는지 확인합니다.
+
+```powershell
+git branch --show-current
+git status
+git diff --check
+git add <변경한-파일-경로>
+git diff --cached
+git commit -m "feat(web): 상품 목록 화면 구현"
+git push
+```
+
+커밋 메시지의 영역과 설명은 본인 작업에 맞춥니다. 원격 추적이 없는 새 브랜치만 `git push -u origin "본인-브랜치명"`을 사용합니다.
+GitHub에서 본인 브랜치를 head, `main`을 base로 PR을 만듭니다. 실행한 명령·결과·아직 연결하지 않은 기능을 적고 팀원 1명 이상 검토 후 병합합니다. [상세 협업 규칙](../CONTRIBUTING.md)을 따릅니다.
 
 ## 7. 자주 막히는 부분
 

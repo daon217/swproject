@@ -18,7 +18,7 @@ DB는 기존 독립 3개를 유지합니다. 오래된 단일 DB 설계나 Java/
 | 추천 HTTP 서비스 | 박정우 | FastAPI 연결 틀 + Sentence-Transformers/CPU PyTorch/Claude SDK 이미지 |
 | 수집 HTTP 서비스 | 최준서 | FastAPI 연결 틀, 기존 관측 적재 API·샘플 계약 |
 | 사용자 웹 | 김호진 | Next.js/React/TypeScript/Tailwind, API 연결 확인 페이지 |
-| Chrome 확장 | 서지웅 | MV3 로컬 개발 확장, 터널 API 연결 확인 |
+| Chrome 확장 | 서지웅 | MV3 로컬 개발 확장, 자기 PC API 연결 확인 |
 | 모바일 | 배정 필요 | React Native/Expo 연결 확인 앱, Android JS 번들 검사 |
 | 관리자 웹 | 배정 필요 | 별도 Next.js 개발 시작 화면·API 확인; 업무·인증 미구현 |
 | 비공개 이미지 | 소병선 | Docker 볼륨, HTTP 공개 없음, 1시간 TTL 정리기 |
@@ -45,10 +45,10 @@ py tools/workspace.py check --scope full
 | http://localhost:3001 | 관리자 개발 시작 페이지 |
 | http://localhost:8000/docs | 기존 API 명세 |
 | `py tools/workspace.py status` | 전체 컨테이너 상태 |
-| `py tools/workspace.py check` | 실제 작업 전달·서비스 연결·캐시·임시 저장 검사 |
+| `py tools/workspace.py check --scope full` | 실제 작업 전달·서비스 연결·캐시·임시 저장 검사 |
 | `py tools/workspace.py logs` | 최근 개발 로그 |
 | `py tools/workspace.py stop` | 전체 환경 중단, 데이터 보존 |
-| `py tools/team_dev.py backup` | 기존 업무 DB 3개 백업 |
+| `py tools/workspace.py backup` | 기존 업무 DB 3개 백업 |
 
 브로커/캐시/OCR/추천/수집은 호스트 포트를 열지 않고 Docker 네트워크 안에서 통신합니다.
 명세의 HTTPS 운영 배포는 이 로컬 개발 HTTP 구성과 별도입니다.
@@ -70,7 +70,7 @@ VPN 로그인·장치 공유·키 등록·호스트 상시 켜짐은 실제 PC�
 Node 22 LTS(22.13 이상)를 사용합니다. 저장소 `.nvmrc`와 package-lock.json을 따릅니다.
 ```powershell
 cd apps/web
-Copy-Item .env.example .env.local
+if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
 npm ci
 npm run dev
 ```
@@ -109,7 +109,7 @@ Claude SDK를 준비했지만 `LLM_MODE=disabled`로 기본 실행합니다. 환
 
 ## 모바일 담당
 
-Node 22.13 이상. `apps/mobile`에서 `.env.example`을 `.env.local`로 복사하고 `npm ci`, `npm start`.
+Node 22.13 이상. 루트의 `workspace.py init`으로 `.env.local`을 준비한 뒤 `apps/mobile`에서 `npm ci`, `npm start`. 기존 `.env.local`은 덮어쓰지 않습니다.
 Android 에뮬레이터의 10.0.2.2는 개발 PC를 가리킵니다. 예시는 PC의 로컬 API 8000 연결용입니다.
 Android Studio/SDK·에뮬레이터는 모바일 담당 PC에만 설치합니다. 실제 휴대폰의 localhost나 10.0.2.2는 같은 의미가 아닙니다.
 실기기는 개발 PC와의 연결·HTTPS·접근 제한을 별도로 구성해야 합니다. Expo 개발 화면 실행은 다른 앱 캡처/오버레이를 검증한 것이 아니며, 그 기능에는 Android 네이티브 모듈과 실제 권한 검증이 필요합니다.

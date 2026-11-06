@@ -27,7 +27,7 @@ GitHub는 코드를 공유하고, 호스트 담당자의 PC Docker는 공통 개
 - Git, Python 3.11 이상(권장 3.12), 편집기, OpenSSH 클라이언트.
 - 집에서 공통 서버를 쓰려면 [Tailscale](https://tailscale.com/download/windows) 설치 후 각자 계정으로 로그인.
 - Docker Desktop(Linux 컨테이너)은 호스트 또는 독립 DB를 실행할 사람에게 필요합니다.
-- Node와 패키지 매니저, OCR·추천 라이브러리는 각 담당 코드의 버전·잠금 파일이 올라온 뒤 그 기준으로 설치합니다. 아직 코드가 없는 파트의 실행 성공을 보장하지 않습니다.
+- Node와 패키지 매니저, OCR·추천 라이브러리는 저장소의 버전·잠금 파일과 [전체 환경 안내](WORKSPACE.md)를 따릅니다. 연결용 개발 틀과 실제 업무 기능의 검증을 구분합니다.
 - 이 비상업 학생 프로젝트는 Tailscale Personal 무료 범위에서 사용합니다. 실제 계정의 플랜을 확인하고 유료 플랜/카드 등록은 하지 않습니다. 현재 공식 안내는 Personal 최대 6명이며 개별 장치 공유도 지원합니다.
 
 처음인 경우:
@@ -49,7 +49,7 @@ py tools/team_dev.py doctor --role client
 미커밋 변경이 있으면 먼저 본인의 변경을 정리합니다. 충돌 시 강제 푸시/초기화하지 않습니다.
 공통 변경이 아직 PR 상태라면 검토를 위해 `git merge "origin/part/소병선-backend"`로 가져올 수 있습니다. 팀원이 main을 받아도 공통 파일이 없으면 PR 병합 여부부터 확인하세요.
 
-## 2. 호스트 소병선: 처음 준비
+## 2. 호스트 담당자: 처음 준비
 
 기존 DB 비밀번호와 볼륨은 그대로 사용합니다. 저장소 루트에서:
 ```powershell
@@ -68,7 +68,7 @@ init은 기존 .env를 덮어쓰지 않습니다. 첫 가상 샘플이 필요한
 New-Item -ItemType Directory -Force "$env:USERPROFILE\.ssh" | Out-Null
 ssh-keygen -t ed25519 -f "$env:USERPROFILE\.ssh\kkulpick_team"
 ```
-이미 파일이 있으면 덮어쓰지 말고 기존 키를 사용합니다. **kkulpick_team.pub만** 소병선에게 전달합니다.
+이미 파일이 있으면 덮어쓰지 말고 기존 키를 사용합니다. **kkulpick_team.pub만** 호스트 담당자에게 전달합니다.
 확장자가 없는 파일은 개인키이므로 전송하거나 저장소에 올리지 않습니다.
 
 ## 4. 호스트: 장치 공유와 공개키 등록
@@ -148,6 +148,6 @@ DB 역할 비밀번호, API 토큰, SSH 개인키는 이 데이터 백업에 포
 - 실제 접속 완료 조건: 집이 다른 팀원 1명 이상이 check 성공, 호스트와 같은 offer_id 조회, 수집 담당이 인증된 샘플 적재 성공.
 - 저장소 소유자: .github/ADMIN_SETUP.md에 따라 main 보호와 팀원 1명 리뷰를 적용. 보호가 문서만 있고 실제 적용되지 않은 상태는 완료가 아닙니다.
 - 모든 파트 코드가 실행되는 환경 완성에는 담당자의 코드·의존성 파일·실행 명령·사용 포트·필수 환경변수 이름이 필요합니다. 비밀값 자체는 PR에 올리지 않습니다.
-- 회원·결제·고객센터 업무 기능, 작업 큐, 실제 모델 추론 및 배포는 현재 공통 개발 API와 별도 구현 범위입니다.
+- 회원·결제·고객센터 업무 기능, 실제 모델 추론 및 운영 배포는 별도 구현 범위입니다. 개발용 작업 큐·서비스 연결 환경은 [WORKSPACE](WORKSPACE.md)에 있습니다.
 
 공식 참고: [장치 공유](https://tailscale.com/docs/features/sharing), [무료 플랜](https://tailscale.com/docs/account/manage-plans/free-plans-discounts), [pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html), [pg_restore](https://www.postgresql.org/docs/17/app-pgrestore.html).

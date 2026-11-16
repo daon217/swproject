@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { allergenLabel } from '../../shared/allergens';
 import { api } from '../../shared/api';
 import { ageGroupLabel, GENDER_LABEL, todaySeoul } from '../../shared/format';
@@ -118,14 +118,37 @@ export function SignupScreen() {
     if (form.birth && form.birth > todaySeoul()) er.birth = '미래 날짜는 입력할 수 없어요.';
     if (!consent) er.consent = '개인정보 수집 및 이용에 동의해 주세요.';
     setErrors(er);
-    return Object.keys(er).length === 0;
+    return er;
+  };
+
+  // 필수 동의 누락: 중앙 팝업 → 확인 시 동의 항목으로 스크롤하고 강조한다.
+  const consentRef = useRef<HTMLDivElement>(null);
+  const [goToConsent, setGoToConsent] = useState(false);
+  const [consentAttention, setConsentAttention] = useState(false);
+  useEffect(() => {
+    if (consent) setConsentAttention(false);
+  }, [consent]);
+  const closeAlert = () => {
+    setAlert(null);
+    if (goToConsent) {
+      setGoToConsent(false);
+      consentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setConsentAttention(true);
+    }
   };
 
   const submit = async () => {
-    const ok = validate();
-    // 비밀번호 불일치·중복확인 누락은 팝업으로 안내
+    const er = validate();
+    // 비밀번호 불일치·필수 동의 누락·중복확인 누락은 팝업으로 안내
     if (form.pw && form.pw2 !== form.pw) return setAlert({ title: '비밀번호 불일치', body: '비밀번호와 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
-    if (!ok) return;
+    if (Object.keys(er).some((k) => k !== 'consent')) return; // 형식 오류는 입력칸 아래 안내
+    if (er.consent) {
+      setGoToConsent(true);
+      return setAlert({
+        title: '개인정보 수집 및 이용 동의 필요',
+        body: '회원가입을 하려면 [필수] 개인정보 수집 및 이용에 동의해 주세요.',
+      });
+    }
     if (checkedId !== form.id) return setAlert({ title: '아이디 중복확인', body: '아이디 중복확인을 먼저 해 주세요.' });
     setBusy(true);
     try {
@@ -154,7 +177,7 @@ export function SignupScreen() {
 
   return (
     <>
-      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
+      <AlertDialog alert={alert} onClose={closeAlert} />
       <SubHeader title="회원가입" />
       <Page
         footer={
@@ -199,7 +222,7 @@ export function SignupScreen() {
         <h2 className="sp-subtitle">알레르기 설정</h2>
         <AllergyPicker value={allergies} onChange={setAllergies} />
 
-        <div className="sp-consent">
+        <div ref={consentRef} className={`sp-consent ${consentAttention ? 'is-attention' : ''}`}>
           <Checkbox checked={consent} onChange={setConsent}>
             [필수] {PRIVACY_CONSENT_TITLE}
           </Checkbox>

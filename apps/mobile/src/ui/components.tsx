@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -33,11 +33,22 @@ export function SubHeader({ title, onBack }: { title: string; onBack?: () => voi
 }
 
 /** 세로 스크롤 본문 + 하단 고정 액션 (Figma '본문 / 세로 스크롤', '하단 고정 액션') */
-export function Page({ children, footer, contentStyle }: { children: ReactNode; footer?: ReactNode; contentStyle?: ViewStyle }) {
+export function Page({
+  children,
+  footer,
+  contentStyle,
+  scrollRef,
+}: {
+  children: ReactNode;
+  footer?: ReactNode;
+  contentStyle?: ViewStyle;
+  /** 화면에서 특정 위치로 스크롤해야 할 때(예: 필수 동의 항목) */
+  scrollRef?: Ref<ComponentRef<typeof ScrollView>>;
+}) {
   const insets = useSafeAreaInsets();
   return (
     <View style={s.page}>
-      <ScrollView contentContainerStyle={[s.pageBody, contentStyle]} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={[s.pageBody, contentStyle]} keyboardShouldPersistTaps="handled">
         {children}
       </ScrollView>
       {footer && <View style={[s.footer, { paddingBottom: 16 + insets.bottom }]}>{footer}</View>}

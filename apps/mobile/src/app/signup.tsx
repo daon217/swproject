@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { onConsentAgreed } from '../consent';
 import { useSession } from '../session';
 import { api } from '../shared/api';
@@ -48,6 +48,23 @@ export default function SignupScreen() {
     return () => onConsentAgreed(null);
   }, []);
 
+  // 필수 동의 누락: 중앙 팝업 → 확인 시 동의 항목으로 스크롤하고 강조한다.
+  const scrollRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const consentY = useRef(0);
+  const [goToConsent, setGoToConsent] = useState(false);
+  const [consentAttention, setConsentAttention] = useState(false);
+  useEffect(() => {
+    if (consent) setConsentAttention(false);
+  }, [consent]);
+  const closeAlert = () => {
+    setAlert(null);
+    if (goToConsent) {
+      setGoToConsent(false);
+      scrollRef.current?.scrollTo({ y: Math.max(0, consentY.current - 160), animated: true });
+      setConsentAttention(true);
+    }
+  };
+
   const submit = async () => {
     const er: Record<string, string> = {};
     if (!LOGIN_ID_RE.test(form.id)) er.id = '영문·숫자 4~16자로 입력해 주세요.';
@@ -61,7 +78,14 @@ export default function SignupScreen() {
     if (form.birth && form.birth > todaySeoul()) er.birth = '미래 날짜는 입력할 수 없어요.';
     if (!consent) er.consent = '개인정보 수집 및 이용에 동의해 주세요.';
     setErrors(er);
-    if (Object.keys(er).length) return;
+    if (Object.keys(er).some((k) => k !== 'consent')) return; // 형식 오류는 입력칸 아래 안내
+    if (er.consent) {
+      setGoToConsent(true);
+      return setAlert({
+        title: '개인정보 수집 및 이용 동의 필요',
+        body: '회원가입을 하려면 [필수] 개인정보 수집 및 이용에 동의해 주세요.',
+      });
+    }
     if (!idChecked) return setAlert({ title: '아이디 중복확인', body: '아이디 중복확인을 먼저 해 주세요.' });
 
     setBusy(true);
@@ -92,7 +116,7 @@ export default function SignupScreen() {
   return (
     <View style={{ flex: 1 }}>
       <SubHeader title="회원가입" />
-      <Page footer={<Button label="동의하고 가입하기" onPress={() => void submit()} loading={busy} />}>
+      <Page scrollRef={scrollRef} footer={<Button label="동의하고 가입하기" onPress={() => void submit()} loading={busy} />}>
         <Text style={st.heading}>나에게 맞는 추천의 시작</Text>
         <View style={cs.field}>
           <Text style={cs.label}>ID</Text>
@@ -123,7 +147,7 @@ export default function SignupScreen() {
         <GenderSelect value={form.gender} onChange={set('gender')} />
         <H2>알레르기 설정</H2>
         <AllergyPicker value={allergies} onChange={setAllergies} />
-        <View style={st.consent}>
+        <View style={[st.consent, consentAttention && st.consentAttention]} onLayout={(e) => (consentY.current = e.nativeEvent.layout.y)}>
           <View style={{ flex: 1 }}>
             <Checkbox checked={consent} onChange={setConsent} label={`[필수] ${PRIVACY_CONSENT_TITLE}`} />
           </View>
@@ -134,14 +158,15 @@ export default function SignupScreen() {
         {errors.consent && <ErrorText>{errors.consent}</ErrorText>}
         {errors.form && <ErrorText>{errors.form}</ErrorText>}
       </Page>
-      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
+      <AlertDialog alert={alert} onClose={closeAlert} />
     </View>
   );
 }
 
 const st = StyleSheet.create({
   heading: { fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 16 },
-  consent: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20 },
+  consent: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20, borderWidth: 2, borderColor: 'transparent', borderRadius: 10, paddingHorizontal: 8 },
+  consentAttention: { borderColor: C.danger, backgroundColor: '#FFF1F1' },
   link: { color: C.primary, fontWeight: '600', fontSize: 13, textDecorationLine: 'underline' },
   checkBtn: { height: 48, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
 });

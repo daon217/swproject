@@ -804,3 +804,29 @@ body {
   color: var(--kp-success);
   border-color: var(--kp-success);
 }
+
+/* 필수 동의 누락 강조 */
+.sp-consent.is-attention {
+  border: 2px solid var(--kp-danger);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: var(--kp-danger-soft);
+  animation: sp-attention 0.5s ease-in-out 2;
+}
+@keyframes sp-attention {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-consent.is-attention {
+    animation: none;
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "꿀픽",
+  "description": "보고 있는 상품·식품 화면을 분석해 AI 추천과 알레르기 주의를 보여줍니다.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "116",
+  "action": { "default_title": "꿀픽 열기" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["sidePanel", "storage", "tabs", "activeTab"],
+  "host_permissions": ["<all_urls>"],
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -108,7 +108,7 @@ def check(local_port):
             if not isinstance(data.get('items'), list):
                 raise ValueError('Unexpected offers response')
             print('OK', path, 'rows:', len(data['items']))
-    print('An empty list is valid; seed data expires after 24 hours.')
+    print('An empty list is valid; catalog state updates when observations arrive.')
 
 
 def db_command(*args):

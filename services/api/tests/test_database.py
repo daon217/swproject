@@ -23,7 +23,7 @@ def test_catalog_and_vectors():
     rid=uuid4()
     path=f"/internal/v2/crawl-runs/{rid}/observations"
     headers={"Authorization":"Bearer "+os.environ["COLLECTOR_TOKEN"]}
-    base=fixture()|dict(source_listing_id=str(rid))
+    base=fixture()|dict(source_listing_id=str(rid),source='vector_'+rid.hex)
     def obs(i,secs,**extra):
         return base|{"observation_key":f"{rid}:{i}","observed_at":(now+timedelta(seconds=secs)).isoformat()}|extra
     with TestClient(app) as api, pg() as db, pg("owner") as owner:
@@ -44,7 +44,7 @@ def test_catalog_and_vectors():
         assert post(obs(4,30,price="1.0000")).json()["error_code"]=="SAME_TIME_CONFLICT"
         assert post(obs(5,31,source_listing_id=None)).json()["state"]=="quarantine"
         def visible():
-            return [x for x in api.get("/v2/offers?selected_domain=product").json()["items"] if x["offer_id"]==offer]
+            return [x for x in api.get("/v2/offers?selected_domain=product&source="+base['source']).json()["items"] if x["offer_id"]==offer]
         assert visible()[0]["price"]=="11500.0000"
         assert not any(x["offer_id"]==offer for x in api.get("/v2/offers?selected_domain=food").json()["items"])
         for table in ("price_history","offer_url_history"):

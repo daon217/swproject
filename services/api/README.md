@@ -10,7 +10,7 @@ python services/api/dev.py seed
 ```
 Windows에서 필요하면 python 대신 py를 사용한다. 기존 infra/db/.env와 DB volume은 유지한다. owner로 catalog 마이그레이션을 끝낸 후 별도 app 계정으로 API가 시작된다. /health는 실제 catalog의 offers 읽기까지 확인한다.
 - 브라우저: http://127.0.0.1:8000/docs 및 http://127.0.0.1:8000/health
-- 웹: GET /v2/offers?selected_domain=product (또는 food). 최대 100건, next_cursor를 다음 요청의 after에 사용. 가격은 십진 문자열. 신선한 판매 중 신품 목록이며 추천·상품 동일성 판정 결과가 아니다.
+- 웹: GET /v2/offers?selected_domain=product (또는 food). 최대 100건, next_cursor를 다음 요청의 after에 사용. 가격은 십진 문자열. 마지막 수집 상태 기준 판매 중 신품 목록이며 추천·상품 동일성 판정 결과가 아니다.
 - 종료: python services/api/dev.py down. 데이터 볼륨 보존.
 - 각자의 PC에 실행하는 환경이다. 공용 API/인증/운영 배포 전 단계.
 - services/api/.env: COLLECTOR_TOKEN, API_PORT(기본 8000), DEV_ORIGINS(쉼표로 나눈 개발 웹 origin), CATALOG_URL_HOSTS(허용하는 판매처 호스트명, 쉼표 구분). 비밀번호/토큰은 Git에 올리지 않는다.
@@ -21,9 +21,9 @@ POST /internal/v2/crawl-runs/{run_id}/observations. UUID run_id를 생성하고 
 - 일반 수신 스키마 v2. 신규 성공 매물에 source, source_listing_id, variant_key, selected_domain, name, price(문자열), currency, url, availability가 필요하다. 선택 필드와 field_presence는 일치해야 한다. 실제 단일 옵션을 확인한 경우만 명시적인 고정 옵션 키를 사용한다.
 - 다른 판매처·옵션은 별개다. 상품명/URL만으로 병합하지 않고 식별 불명은 quarantine. 최초 식별마다 catalog_items와 하위 유형을 만든다. 서로 다른 판매처의 동일 상품 자동 판정은 후속 단계다.
 - 내부 수신 201, 재전송 200, 같은 source/observation_key의 다른 payload 409, 형식 오류 422, 인증 실패 401. 201은 관측 보관 결과로, 본문 state가 applied인지 확인한다. normalized_payload에는 허용된 필드만 저장한다.
-- 가격/배송비·판매 상태·URL은 필드별 관측 시각으로 비교한다. 오래된 관측은 기록하고 현재값은 보존한다. 같은 시각 상충은 격리한다. 가격 변경 때만 가격 이력, URL 변경 때만 URL 이력/버전을 추가한다.
-- 초기 TTL 24시간: 가격·상태·URL 중 가장 오래된 시각 기준. not_found는 suspect로 제외, timeout/blocked/error는 신선도를 연장하지 않는다. 반복 재확인 스케줄러와 보관 기간별 삭제 작업은 후속이다.
-- food와 product는 분리 조회한다. 중고 상세 스키마 v3·제휴·회원 및 상담 API는 이번 범위에 포함하지 않는다.
+- 가격/배송비·판매 상태·URL·설명·신품/중고 상태는 필드별 관측 시각으로 비교한다. 오래된 관측은 기록하고 현재값은 보존한다. 같은 시각 상충은 격리한다. 가격 변경 때만 가격 이력, URL 변경 때만 URL 이력/버전을 추가한다.
+- 수신 시 갱신: 24시간 만료 조건을 제거했다. 새 관측이 도착하면 observed_at을 비교해 적용한다. not_found는 suspect로 일반 목록에서 제외하고 timeout/blocked/error는 현재 판매 상태를 보존한다. 수집 파일에 없다는 이유로 삭제하지 않는다. last_seen_at을 화면에 표시하며 실시간 가격이라고 보장하지 않는다.
+- food와 product는 분리 조회한다. 중고는 condition=used로 조회하며 상세 스키마·제휴·회원 및 상담 API는 이번 범위에 포함하지 않는다.
 
 ## 정우: 임베딩 연결
 근거: 2026-10-06 pgvector 설계서 2~4절, 통합 기술 명세 10장. product / food / ingredient별 테이블과 embedding_models 사용. Sentence-Transformers의 실제 모델명·가중치 revision·차원은 미정이다. 테스트의 3차원 배열은 인코더 결과가 아니다.
@@ -39,3 +39,7 @@ Catalog API integration CI는 실제 pgvector 컨테이너에서 Alembic upgrade
 
 런타임은 requirements.lock으로 설치합니다. FastAPI 0.137.2 / Starlette 1.3.1 조합으로 보안 권고를 반영하고 계약·DB 통합 검사를 수행합니다. 버전 변경 시 requirements.txt와 lock을 함께 갱신합니다.
 현재 JSON 적재 요청 본문은 64 KiB 상한이며 초과하면 413입니다. 이미지 업로드 API는 아직 없으며 구현 시 별도의 스트리밍·크기·픽셀 제한이 필요합니다. 허용 origin의 공개 API 연동을 위해 GET/POST/PATCH/DELETE와 Authorization 헤더를 허용합니다. CORS는 인증을 대신하지 않으며 수집 토큰은 브라우저에 전달하지 않습니다.
+
+## 실제 크롤링 데이터 가져오기
+
+[수신 갱신·적재·검증 가이드](../../docs/CATALOG_INGESTION.md)를 참고한다. `tools/catalog.py`는 JSON 배열을 한 건씩 인증 API로 보낸다. 원본 시각과 키를 보존하며 파일 재실행은 중복 적재하지 않는다.

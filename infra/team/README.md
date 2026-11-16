@@ -45,7 +45,7 @@ ssh -p 2222 -i "$env:USERPROFILE\.ssh\kkulpick_team" -o IdentitiesOnly=yes -o Ex
 - http://127.0.0.1:18000/v2/offers?selected_domain=product — 대표 PC의 상품 목록
 - http://127.0.0.1:18000/docs — API 요청 확인
 
-대표 PC에서 `py services/api/dev.py seed` 후 양쪽 상품 조회의 **offer_id와 11,500원 가격**을 비교하면 실제 같은 DB인지 확인할 수 있습니다. 개발 샘플은 신선도가 24시간을 넘으면 목록에 안 보일 수 있습니다. 포트 18000이 사용 중이면 팀원의 -L에서 첫 포트만 18001 등으로 바꾸고 브라우저 URL도 맞추세요. 웹 개발자는 API 기본 주소를 이 터널 주소로 잡습니다. 현재 허용 웹 origin은 기본 http://localhost:3000입니다. 다른 origin은 대표 PC의 services/api/.env에서 DEV_ORIGINS에 정확히 기재하고 up으로 재적용합니다.
+대표 PC에서 `py services/api/dev.py seed` 후 양쪽 상품 조회의 **offer_id와 11,500원 가격**을 비교하면 실제 같은 DB인지 확인할 수 있습니다. 상품은 수집 데이터 도착 시 갱신되며 시간 경과만으로 목록에서 제외하지 않습니다. 포트 18000이 사용 중이면 팀원의 -L에서 첫 포트만 18001 등으로 바꾸고 브라우저 URL도 맞추세요. 웹 개발자는 API 기본 주소를 이 터널 주소로 잡습니다. 현재 허용 웹 origin은 기본 http://localhost:3000입니다. 다른 origin은 대표 PC의 services/api/.env에서 DEV_ORIGINS에 정확히 기재하고 up으로 재적용합니다.
 
 ## 수집기 쓰기·종료
 조회에는 수집 토큰이 필요 없습니다. 수집 담당 서버만 기존 내부 적재 API에 호스트의 COLLECTOR_TOKEN을 Bearer로 사용합니다. 토큰은 개별 비공개 경로로 전달하고 웹/확장 코드나 GitHub에는 넣지 마세요. 실제 판매처 URL은 호스트에서 CATALOG_URL_HOSTS에 허용해야 합니다.

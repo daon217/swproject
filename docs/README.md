@@ -28,3 +28,5 @@
 - 기능을 추가하면 현재 상태·환경변수 예시·API 계약·CI 명령도 함께 갱신합니다.
 - 스크린샷 대신 복사할 수 있는 명령어를 적고, 가상 데이터와 실제 기능의 검증 범위를 구분합니다.
 - 공통 코드가 main에 반영됐는지는 [PR #3](https://github.com/daon217/swproject/pull/3)에서 확인합니다.
+
+- [상품 DB 수신 갱신·실제 JSON 적재](CATALOG_INGESTION.md)

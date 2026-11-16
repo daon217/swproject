@@ -65,12 +65,21 @@ async def ingest(run_id: UUID, obs: Observation, response: Response, req: Reques
 
 @app.get("/v2/offers")
 async def offers(req: Request, selected_domain: Literal["product","food"],
-                 after: UUID | None = None, limit: int = Query(20,ge=1,le=100)):
+                 after: UUID | None = None, limit: int = Query(20,ge=1,le=100),
+                 condition: Literal["new", "used", "all"] = "new",
+                 availability: Literal["available", "out_of_stock", "ended", "suspect", "all"] = "available",
+                 source: str | None = Query(None, max_length=64),
+                 currency: str | None = Query(None, pattern=r"^[A-Z]{3}$")):
     async with req.app.state.engine.connect() as c:
         rows = (await c.execute(text("""SELECT o.offer_id,i.name,o.source,o.variant_key,o.price::text AS price,
-          o.currency,o.shipping_fee::text AS shipping_fee,o.current_url,o.price_observed_at
+          o.currency,o.shipping_fee::text AS shipping_fee,o.current_url,o.price_observed_at,
+          o.condition,o.availability,o.source_listing_id,o.last_seen_at,o.last_checked_at,o.last_changed_at
           FROM app.offers o JOIN app.catalog_items i USING(item_id)
-          WHERE o.kind=:k AND o.condition='new' AND o.availability='available' AND o.fresh_until>now()
+          WHERE o.kind=:k AND (:condition='all' OR o.condition=:condition)
+          AND (:availability='all' OR o.availability=:availability)
+          AND (CAST(:source AS text) IS NULL OR o.source=:source)
+          AND (CAST(:currency AS text) IS NULL OR o.currency=:currency)
           AND (CAST(:after AS uuid) IS NULL OR o.offer_id>CAST(:after AS uuid)) ORDER BY o.offer_id LIMIT :n"""),
-          {"k":selected_domain,"after":after,"n":limit+1})).mappings().all()
+          {"k":selected_domain,"after":after,"n":limit+1,"condition":condition,
+           "availability":availability,"source":source,"currency":currency})).mappings().all()
     return {"items":[dict(x) for x in rows[:limit]],"next_cursor":rows[limit-1]["offer_id"] if len(rows)>limit else None}

@@ -1,10 +1,10 @@
 name: Catalog API integration
 on:
   pull_request:
-    paths: ['services/api/**','infra/db/**','.github/workflows/catalog-api.yml']
+    paths: ['services/api/**','infra/db/**','tools/catalog.py','.github/workflows/catalog-api.yml']
   push:
     branches: [main]
-    paths: ['services/api/**','infra/db/**','.github/workflows/catalog-api.yml']
+    paths: ['services/api/**','infra/db/**','tools/catalog.py','.github/workflows/catalog-api.yml']
 permissions:
   contents: read
 jobs:

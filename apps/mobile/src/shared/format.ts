@@ -1,10 +1,13 @@
 // 표시용 포맷 도우미
 
 export function formatPrice(price: string, currency = 'KRW'): string {
-  // 금액은 문자열로 받으며 부동소수 계산 없이 정수부만 천 단위로 끊는다.
-  const [int] = price.split('.');
+  // 금액은 문자열로 받으며 부동소수 계산 없이 천 단위로 끊는다. 원화는 정수부만, 외화는 소수 2자리까지.
+  const [int, dec] = price.split('.');
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return currency === 'KRW' ? `${grouped}원` : `${grouped} ${currency}`;
+  if (currency === 'KRW') return `${grouped}원`;
+  const cents = dec ? `.${dec.padEnd(2, '0').slice(0, 2)}` : '';
+  const symbol: Record<string, string> = { USD: '$', EUR: '€', GBP: '£', JPY: '¥' };
+  return symbol[currency] ? `${symbol[currency]}${grouped}${cents}` : `${grouped}${cents} ${currency}`;
 }
 
 /** 받침 여부로 이/가, 을/를 등 조사를 고른다. */

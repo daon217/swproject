@@ -47,6 +47,8 @@ export interface ProfilePatch {
   ingredient_filter?: IngredientFilter;
 }
 
+import type { PageProduct } from './pageProduct';
+
 // ---- 분석 ----
 
 export type AnalysisState = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -60,6 +62,8 @@ export interface CreateAnalysisRequest {
   page_session_id: string;
   page_revision: number;
   request_key: string;
+  /** [임시] 페이지에서 읽은 상품명·가격. 서버 OCR 연동 전 플로팅 표시용 */
+  page_product?: PageProduct | null;
 }
 
 export interface CreateAnalysisResponse {
@@ -116,6 +120,8 @@ export interface Analysis {
   sections: ResultSection[];
   applied_filter: IngredientFilter | null;
   premium: boolean;
+  /** [임시] 요청 때 보낸 페이지 상품 정보를 그대로 돌려준다(목업). 플로팅 카드가 이 값을 우선 표시 */
+  page_product: PageProduct | null;
   error: { code: string; message: string; retryable: boolean } | null;
 }
 

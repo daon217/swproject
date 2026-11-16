@@ -5,6 +5,7 @@ import { onReanalyze } from './session';
 import { api } from './shared/api';
 import { shouldCapture } from './shared/pageFilter';
 import { uuid } from './shared/platform';
+import type { PageProduct } from './shared/pageProductScript';
 import type { Analysis } from './shared/types';
 import type { AnalysisStatus } from './ui/ResultView';
 
@@ -23,7 +24,15 @@ export interface PageAnalysis {
   pageSessionId: string;
 }
 
-export function usePageAnalysis(url: string | null, loading: boolean, captureTarget: RefObject<ComponentRef<typeof View> | null>) {
+/**
+ * getPageProduct: [임시] 페이지에서 읽은 상품명·가격. undefined면 아직 못 받음, null이면 받았지만 없음.
+ */
+export function usePageAnalysis(
+  url: string | null,
+  loading: boolean,
+  captureTarget: RefObject<ComponentRef<typeof View> | null>,
+  getPageProduct?: (url: string) => PageProduct | null | undefined,
+) {
   const [state, setState] = useState<PageAnalysis>({ status: 'none', analysis: null, error: null, pageSessionId: '' });
   const revision = useRef(0);
   const current = useRef<{ url: string | null; rev: number }>({ url: null, rev: 0 });
@@ -55,7 +64,21 @@ export function usePageAnalysis(url: string | null, loading: boolean, captureTar
       if (stale()) return;
 
       try {
-        const created = await api.createAnalysis({ image, page_url: target, page_session_id: pageSessionId, page_revision: rev, request_key: `${pageSessionId}:${rev}` });
+        // [임시] 페이지 상품 정보가 도착할 때까지 최대 2초 기다린다(가격이 늦게 그려지는 페이지 대비).
+        let page_product = getPageProduct?.(target);
+        for (let i = 0; i < 10 && page_product === undefined && getPageProduct; i++) {
+          await new Promise((r) => setTimeout(r, 200));
+          if (stale()) return;
+          page_product = getPageProduct(target);
+        }
+        const created = await api.createAnalysis({
+          image,
+          page_url: target,
+          page_session_id: pageSessionId,
+          page_revision: rev,
+          request_key: `${pageSessionId}:${rev}`,
+          page_product: page_product ?? null,
+        });
         const started = Date.now();
         while (Date.now() - started < TIMEOUT_MS) {
           if (stale()) {
@@ -78,7 +101,7 @@ export function usePageAnalysis(url: string | null, loading: boolean, captureTar
         if (!stale()) setState({ status: 'error', analysis: null, error: e instanceof Error ? e.message : '분석에 실패했어요.', pageSessionId });
       }
     },
-    [captureTarget],
+    [captureTarget, getPageProduct],
   );
 
   // URL이 바뀌면 이전 결과를 즉시 숨기고, 로딩이 끝나면 디바운스 후 분석

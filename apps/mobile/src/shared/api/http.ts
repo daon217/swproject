@@ -47,6 +47,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
       form.append('page_session_id', req.page_session_id);
       form.append('page_revision', String(req.page_revision));
       form.append('request_key', req.request_key);
+      if (req.page_product) form.append('page_product', JSON.stringify(req.page_product)); // [임시]
       return request('POST', '/analyses', form);
     },
     getAnalysis: (id) => request('GET', `/analyses/${encodeURIComponent(id)}`),

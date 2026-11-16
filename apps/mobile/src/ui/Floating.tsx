@@ -73,7 +73,8 @@ export function Floating({
   if (!a || a.result_kind !== 'recommendation') return null;
 
   const warning = a.warnings[0];
-  const first = a.sections.find((x) => x.kind !== 'used')?.items[0];
+  // [임시] 페이지에서 읽은 실제 상품명·가격이 있으면 그것을 보여준다(서버 OCR 연동 전).
+  const first = a.page_product ?? a.sections.find((x) => x.kind !== 'used')?.items[0];
   if (!warning && !first) return null;
 
   // 바깥으로 링크를 열 때는 시트를 먼저 내린다.
@@ -109,7 +110,7 @@ export function Floating({
                 <Text style={st.name} numberOfLines={1}>
                   {first.name}
                 </Text>
-                <Text style={st.price}>{formatPrice(first.price, first.currency)}</Text>
+                {!!first.price && <Text style={st.price}>{formatPrice(first.price, first.currency)}</Text>}
                 <Text style={st.hint}>눌러서 추천 더 보기</Text>
               </>
             )

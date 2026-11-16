@@ -12,6 +12,7 @@ import {
   type ResultSection,
   type SupportMessage,
 } from '../types';
+import type { PageProduct } from '../pageProduct';
 import type { KkulpickApi } from './index';
 import { FEATURED, mockPageFor, PRINTER_AI, PRINTER_USED, SNACK_AI } from './mockCatalog';
 
@@ -43,6 +44,7 @@ interface MockJob {
   page_revision: number;
   created_at: number;
   cancelled: boolean;
+  page_product: PageProduct | null;
 }
 
 interface MockDb {
@@ -116,6 +118,7 @@ function buildAnalysis(job: MockJob, user: MockUser | null): Analysis {
     sections: [],
     applied_filter: null,
     premium: isPremium(user),
+    page_product: job.page_product ?? null,
     error: null,
   };
   if (job.cancelled) return { ...base, state: 'cancelled' };
@@ -292,6 +295,7 @@ function createMockImpl(): KkulpickApi {
         page_revision: req.page_revision,
         created_at: Date.now(),
         cancelled: false,
+        page_product: req.page_product ?? null,
       };
       // 오래된 작업 정리(목업 저장소 크기 제한)
       const ids = Object.keys(db.jobs);

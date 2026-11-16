@@ -44,14 +44,15 @@ export function Floating({ state, onOpenPanel }: FloatingProps) {
     );
   }
 
-  const first = a.sections.find((s) => s.kind !== 'used')?.items[0];
+  // [임시] 페이지에서 읽은 실제 상품명·가격이 있으면 그것을 보여준다(서버 OCR 연동 전).
+  const first = a.page_product ?? a.sections.find((s) => s.kind !== 'used')?.items[0];
   if (!first) return null;
   return (
     <div className="fl-wrap">
       <button className="fl-compact" onClick={open} aria-label="꿀픽 추천 - 눌러서 사이드 패널에서 보기">
         <span className="fl-compact-label">꿀픽 추천</span>
         <span className="fl-compact-name">{first.name}</span>
-        <span className="fl-compact-price">{formatPrice(first.price, first.currency)}</span>
+        {first.price && <span className="fl-compact-price">{formatPrice(first.price, first.currency)}</span>}
         <span className="fl-compact-hint">눌러서 사이드 패널에서 보기</span>
       </button>
       <CloseButton onClick={() => setClosed(true)} />

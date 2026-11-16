@@ -4,6 +4,18 @@ import { sendMessage, type Message, type TabState } from '../shared/messages';
 import baseCss from '../shared/ui/styles.css?inline';
 import floatingCss from './floating.css?inline';
 import { Floating } from './Floating';
+import { extractPageProduct } from '../shared/pageProduct';
+
+// [임시] 백그라운드가 분석을 접수하기 직전에 이 페이지의 상품명·가격을 물어본다.
+chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
+  if (msg.type !== 'extractProduct') return false;
+  try {
+    sendResponse(extractPageProduct(document));
+  } catch {
+    sendResponse(null);
+  }
+  return false;
+});
 
 // 쇼핑몰 페이지에 꿀픽 플로팅을 주입한다. 사이트 CSS와 섞이지 않도록 Shadow DOM을 쓴다.
 

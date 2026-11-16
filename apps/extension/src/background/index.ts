@@ -3,7 +3,15 @@ import type { Message, PanelRoute, TabState } from '../shared/messages';
 import { safeHttpUrl } from '../shared/format';
 import { shouldCapture } from '../shared/pageFilter';
 import { KEYS } from '../shared/storage';
+import type { PageProduct } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
+
+/** [임시] content script에 페이지 상품명·가격을 묻는다. 응답이 없으면 null */
+async function readPageProduct(tabId: number): Promise<PageProduct | null> {
+  const timeout = new Promise<null>((r) => setTimeout(() => r(null), 1500));
+  const ask = chrome.tabs.sendMessage(tabId, { type: 'extractProduct' } satisfies Message).catch(() => null) as Promise<PageProduct | null>;
+  return (await Promise.race([ask, timeout])) ?? null;
+}
 
 // 백그라운드 서비스 워커
 // - 탭 URL이 바뀌면 디바운스 후 활성 화면을 캡처해 분석을 접수하고 결과를 폴링한다.
@@ -91,9 +99,11 @@ async function analyze(tabId: number, url: string) {
   if (await isStale(tabId, state)) return; // 캡처 전후 탭/URL이 바뀌면 폐기
 
   await writeState({ ...state, status: 'analyzing' });
+  const page_product = await readPageProduct(tabId);
   try {
     const created = await api.createAnalysis({
       image,
+      page_product,
       page_url: url,
       page_session_id: state.page_session_id,
       page_revision: state.page_revision,

@@ -322,6 +322,40 @@ body {
   transform: translateX(18px);
 }
 
+/* 비회원 로그인 유도 */
+.sp-login-banner {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--kp-primary-soft);
+  padding: 16px;
+  margin-bottom: 24px;
+  text-align: left;
+}
+.sp-login-banner strong {
+  display: block;
+  font-size: 15px;
+  color: var(--kp-text);
+}
+.sp-login-banner small {
+  display: block;
+  font-size: 12px;
+  color: var(--kp-sub);
+  margin-top: 4px;
+}
+.sp-login-banner-cta {
+  flex: none;
+  background: var(--kp-primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  border-radius: 999px;
+  padding: 8px 14px;
+}
+
 /* 설정 */
 .sp-account {
   width: 100%;
@@ -749,4 +783,24 @@ body {
   font-weight: 900;
   line-height: 1;
   margin-top: 16px;
+}
+
+/* 입력 + 버튼 한 줄(아이디 중복확인) */
+.sp-inline {
+  display: flex;
+  gap: 8px;
+}
+.sp-inline .sp-input {
+  flex: 1;
+  min-width: 0;
+}
+.sp-inline-btn {
+  flex: none;
+  height: 46px;
+  font-size: 14px;
+  padding: 0 14px;
+}
+.sp-inline-btn.is-done {
+  color: var(--kp-success);
+  border-color: var(--kp-success);
 }

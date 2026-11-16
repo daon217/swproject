@@ -29,6 +29,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
 
   return {
     signup: (req) => request('POST', '/v2/auth/signup', req),
+    checkLoginId: (login_id) => request('GET', `/v2/auth/login-id-availability?login_id=${encodeURIComponent(login_id)}`),
     login: (login_id, password) => request('POST', '/v2/auth/login', { login_id, password }),
     logout: async () => {
       await request('POST', '/v2/auth/logout').catch(() => undefined);
@@ -50,6 +51,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
     getAnalysis: (id) => request('GET', `/analyses/${encodeURIComponent(id)}`),
     cancelAnalysis: (id) => request('POST', `/analyses/${encodeURIComponent(id)}/cancel`),
     listHistory: () => request('GET', '/v2/me/analyses?limit=20'),
+    listFeatured: () => request('GET', '/v2/recommendations/featured?limit=10'),
     deleteAllHistory: () => request('POST', '/v2/me/data-deletions', { scope: 'history' }),
 
     listPlans: () => request('GET', '/v2/subscription-plans'),

@@ -3,8 +3,8 @@ import { api } from '../../shared/api';
 import { formatPrice, safeHttpUrl } from '../../shared/format';
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveShortcuts, type Shortcut } from '../../shared/shortcuts';
 import { IconExternal, IconFood, IconPlus, IconPrinter } from '../../shared/ui/icons';
-import { EmptyState, ResultView } from '../../shared/ui/ResultView';
-import type { AnalysisHistoryItem } from '../../shared/types';
+import { OfferRow, ResultView } from '../../shared/ui/ResultView';
+import type { AnalysisHistoryItem, OfferCard } from '../../shared/types';
 import { ConfirmDialog, Note, RowButton, Toast, Toggle } from '../components';
 import { useNav } from '../nav';
 import { useSession } from '../session';
@@ -48,16 +48,7 @@ export function RecentTab() {
       .catch(() => setError('최근 추천을 불러오지 못했어요.'));
   }, [me]);
 
-  if (!me) {
-    return (
-      <div className="sp-center-col">
-        <EmptyState title="로그인하면 추천 기록이 저장돼요" body="다시 보고 싶은 추천을 이 탭에서 모아볼 수 있어요." />
-        <button className="kp-btn kp-btn-primary sp-w-auto" onClick={() => nav.push('login')}>
-          로그인
-        </button>
-      </div>
-    );
-  }
+  if (!me) return <GuestRecent onLogin={() => nav.push('login')} />;
   return (
     <div className="sp-scroll sp-pad">
       <h1 className="sp-title">최근 추천 상품</h1>
@@ -83,6 +74,42 @@ export function RecentTab() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// 비회원 시작 화면: 기록이 없으니 로그인 유도 + 추천 상품(제휴 상품) 목록.
+// 제휴 상품은 표시광고 규정·명세 10.3에 따라 '제휴' 표시를 반드시 남긴다.
+function GuestRecent({ onLogin }: { onLogin: () => void }) {
+  const [items, setItems] = useState<OfferCard[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    api
+      .listFeatured()
+      .then(setItems)
+      .catch(() => setError(true));
+  }, []);
+
+  return (
+    <div className="sp-scroll sp-pad">
+      <button className="sp-login-banner" onClick={onLogin}>
+        <span>
+          <strong>로그인하고 나만의 추천을 받아보세요</strong>
+          <small>알레르기 설정과 추천 기록 저장은 로그인 후 이용할 수 있어요.</small>
+        </span>
+        <span className="sp-login-banner-cta">로그인</span>
+      </button>
+      <h1 className="sp-title">추천 상품</h1>
+      <p className="sp-desc">꿀픽이 고른 인기 상품이에요.</p>
+      {error && <p className="sp-error">추천 상품을 불러오지 못했어요.</p>}
+      {items?.map((c, i) => (
+        <div key={c.offer_id}>
+          {i > 0 && <hr className="kp-divider" />}
+          <OfferRow card={c} onOpenUrl={openUrl} />
+        </div>
+      ))}
+      {items?.some((c) => c.affiliate) && <p className="kp-footnote">제휴 링크가 포함된 상품이에요. 구매 시 꿀픽이 판매처로부터 수수료를 받을 수 있어요.</p>}
     </div>
   );
 }

@@ -214,8 +214,17 @@
   font-size: 12px;
   color: var(--kp-sub);
 }
-.kp-affiliate {
-  color: var(--kp-muted);
+/* 제휴 상품 표시(광고성 정보 표시 의무) */
+.kp-ad-badge {
+  display: inline-block;
+  vertical-align: 2px;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--kp-border);
+  color: var(--kp-sub);
+  font-size: 10px;
+  font-weight: 700;
 }
 .kp-locked {
   display: flex;

@@ -9,6 +9,14 @@ import { useNav } from '../nav';
 import { useSession } from '../session';
 
 const LOGIN_ID_RE = /^[A-Za-z0-9]{4,16}$/;
+/** 안내 팝업(제목·본문). null이면 닫힘 */
+type Alert = { title: string; body: string } | null;
+
+function AlertDialog({ alert, onClose }: { alert: Alert; onClose: () => void }) {
+  if (!alert) return null;
+  return <ConfirmDialog title={alert.title} body={alert.body} confirmLabel="확인" cancelLabel={null} onConfirm={onClose} />;
+}
+
 const errMsg = (e: unknown) => (e instanceof ApiError || e instanceof Error ? e.message : '요청을 처리하지 못했어요.');
 
 // ---------- 로그인 (E09) ----------
@@ -19,6 +27,7 @@ export function LoginScreen() {
   const [pw, setPw] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [alert, setAlert] = useState<Alert>(null);
 
   const submit = async () => {
     if (!id || !pw) return setError('아이디와 비밀번호를 입력해 주세요.');
@@ -29,7 +38,9 @@ export function LoginScreen() {
       // 회원 화면 대신 로그인이 떠 있던 경우에는 그 화면이 그대로 이어서 보인다.
       if (nav.stack[nav.stack.length - 1] === 'login') nav.pop();
     } catch (e) {
-      setError(errMsg(e));
+      // 로그인 실패 안내 팝업
+      if (e instanceof ApiError && e.status === 401) setAlert({ title: '로그인 실패', body: '아이디 또는 비밀번호가 일치하지 않아요. 다시 확인해 주세요.' });
+      else setAlert({ title: '로그인 실패', body: errMsg(e) });
     } finally {
       setBusy(false);
     }
@@ -37,6 +48,7 @@ export function LoginScreen() {
 
   return (
     <>
+      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
       <SubHeader title="로그인" />
       <Page>
         <form
@@ -76,7 +88,27 @@ export function SignupScreen() {
   const [showTerms, setShowTerms] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [alert, setAlert] = useState<Alert>(null);
+  /** 중복확인을 통과한 아이디. 아이디를 바꾸면 다시 확인해야 한다. */
+  const [checkedId, setCheckedId] = useState<string | null>(null);
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+
+  const checkId = async () => {
+    if (!LOGIN_ID_RE.test(form.id)) return setAlert({ title: '아이디 확인', body: '아이디는 영문·숫자 4~16자로 입력해 주세요.' });
+    try {
+      const { available } = await api.checkLoginId(form.id);
+      if (available) {
+        setCheckedId(form.id);
+        setErrors(({ id: _id, ...rest }) => rest);
+        setAlert({ title: '사용 가능한 아이디', body: `'${form.id}'는 사용할 수 있는 아이디예요.` });
+      } else {
+        setCheckedId(null);
+        setAlert({ title: '아이디 중복', body: '이미 사용 중인 아이디예요. 다른 아이디를 입력해 주세요.' });
+      }
+    } catch (e) {
+      setAlert({ title: '중복확인 실패', body: errMsg(e) });
+    }
+  };
 
   const validate = () => {
     const er: Record<string, string> = {};
@@ -90,7 +122,11 @@ export function SignupScreen() {
   };
 
   const submit = async () => {
-    if (!validate()) return;
+    const ok = validate();
+    // 비밀번호 불일치·중복확인 누락은 팝업으로 안내
+    if (form.pw && form.pw2 !== form.pw) return setAlert({ title: '비밀번호 불일치', body: '비밀번호와 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
+    if (!ok) return;
+    if (checkedId !== form.id) return setAlert({ title: '아이디 중복확인', body: '아이디 중복확인을 먼저 해 주세요.' });
     setBusy(true);
     try {
       await api.signup({
@@ -106,7 +142,10 @@ export function SignupScreen() {
       await login(form.id, form.pw);
       nav.reset('settings');
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'LOGIN_ID_TAKEN') setErrors({ id: e.message });
+      if (e instanceof ApiError && e.code === 'LOGIN_ID_TAKEN') {
+        setCheckedId(null);
+        setAlert({ title: '아이디 중복', body: '이미 사용 중인 아이디예요. 다른 아이디를 입력해 주세요.' });
+      }
       else setErrors({ form: errMsg(e) });
     } finally {
       setBusy(false);
@@ -115,6 +154,7 @@ export function SignupScreen() {
 
   return (
     <>
+      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
       <SubHeader title="회원가입" />
       <Page
         footer={
@@ -124,7 +164,24 @@ export function SignupScreen() {
         }
       >
         <h1 className="sp-heading">나에게 맞는 추천의 시작</h1>
-        <Field label="ID" placeholder="아이디 입력" autoComplete="username" value={form.id} onChange={set('id')} error={errors.id} />
+        <div className="sp-field">
+          <label htmlFor="signup-id">ID</label>
+          <div className="sp-inline">
+            <input
+              id="signup-id"
+              className={`sp-input ${errors.id ? 'is-error' : ''}`}
+              placeholder="아이디 입력"
+              autoComplete="username"
+              value={form.id}
+              onChange={set('id')}
+              aria-invalid={!!errors.id}
+            />
+            <button className={`kp-btn kp-btn-outline sp-inline-btn ${checkedId === form.id && form.id ? 'is-done' : ''}`} onClick={() => void checkId()}>
+              {checkedId === form.id && form.id ? '확인 완료' : '중복확인'}
+            </button>
+          </div>
+          {errors.id && <p className="sp-error">{errors.id}</p>}
+        </div>
         <Field label="비밀번호" type="password" placeholder="비밀번호 입력" autoComplete="new-password" value={form.pw} onChange={set('pw')} error={errors.pw} />
         <Field
           label="비밀번호 확인"
@@ -308,17 +365,20 @@ export function PasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [alert, setAlert] = useState<Alert>(null);
 
   const submit = async () => {
     if (next.length < 8) return setError('새 비밀번호는 8자 이상이어야 해요.');
-    if (next !== next2) return setError('새 비밀번호와 확인 값이 같지 않아요.');
+    if (next !== next2) return setAlert({ title: '새 비밀번호 불일치', body: '새 비밀번호와 새 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
     setBusy(true);
     setError(null);
     try {
       await api.changePassword(cur, next, next2);
       setDone(true);
     } catch (e) {
-      setError(errMsg(e));
+      if (e instanceof ApiError && e.code === 'WRONG_PASSWORD') setAlert({ title: '현재 비밀번호 불일치', body: '현재 비밀번호가 일치하지 않아요. 다시 확인해 주세요.' });
+      else if (e instanceof ApiError && e.code === 'PASSWORD_MISMATCH') setAlert({ title: '새 비밀번호 불일치', body: '새 비밀번호와 새 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
+      else setError(errMsg(e));
     } finally {
       setBusy(false);
     }
@@ -326,6 +386,7 @@ export function PasswordScreen() {
 
   return (
     <>
+      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
       <SubHeader title="비밀번호 변경" />
       <Page
         footer={

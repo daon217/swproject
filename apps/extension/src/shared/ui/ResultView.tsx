@@ -21,7 +21,10 @@ export function OfferRow({ card, onOpenUrl }: { card: OfferCard; onOpenUrl: (url
           {card.image_kind === 'food' ? <IconFood size={26} /> : <IconPrinter size={28} />}
         </div>
         <div className="kp-offer-text">
-          <div className="kp-offer-name">{card.name}</div>
+          <div className="kp-offer-name">
+            {card.affiliate && <span className="kp-ad-badge">제휴</span>}
+            {card.name}
+          </div>
           <div className="kp-offer-sub">{card.subtitle}</div>
           <div className="kp-price">{formatPrice(card.price, card.currency)}</div>
         </div>
@@ -31,7 +34,7 @@ export function OfferRow({ card, onOpenUrl }: { card: OfferCard; onOpenUrl: (url
       </div>
       <p className="kp-reason">
         AI · {card.reason}
-        {card.affiliate && <span className="kp-affiliate"> · 제휴 링크</span>}
+
       </p>
     </div>
   );

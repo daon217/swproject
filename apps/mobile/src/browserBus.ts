@@ -19,5 +19,5 @@ export function openInBrowser(url: string) {
   if (!safe) return;
   if (listener) listener(safe);
   else pending = safe;
-  router.navigate('/');
+  router.navigate('/browser');
 }

@@ -14,7 +14,7 @@ import {
   type SupportMessage,
 } from '../types';
 import type { KkulpickApi } from './index';
-import { mockPageFor, PRINTER_AI, PRINTER_USED, SNACK_AI } from './mockCatalog';
+import { FEATURED, mockPageFor, PRINTER_AI, PRINTER_USED, SNACK_AI } from './mockCatalog';
 
 // 백엔드가 준비되기 전 화면 흐름 확인용 목업. 저장소는 AsyncStorage.
 // 서버 규칙 중 화면에 드러나는 부분(무료/프리미엄 한도, 잠긴 후보 URL 미포함, 비회원 중고 OFF,
@@ -221,6 +221,13 @@ function createMockImpl(): KkulpickApi {
       return { user_id };
     },
 
+    async checkLoginId(login_id) {
+      await wait(250);
+      if (!LOGIN_ID_RE.test(login_id)) throw new ApiError(422, 'INVALID_LOGIN_ID', '아이디는 영문·숫자 4~16자로 입력해 주세요.');
+      const db = await load();
+      return { available: !Object.values(db.users).some((u) => u.login_id.toLowerCase() === login_id.toLowerCase()) };
+    },
+
     async login(login_id, password) {
       await wait(300);
       const db = await load();
@@ -316,6 +323,11 @@ function createMockImpl(): KkulpickApi {
     async listHistory() {
       const db = await load();
       return (await requireUser(db)).history;
+    },
+
+    async listFeatured() {
+      await wait(200);
+      return FEATURED;
     },
 
     async deleteAllHistory() {

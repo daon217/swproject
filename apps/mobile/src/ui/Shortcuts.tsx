@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { safeHttpUrl } from '../shared/format';
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveShortcuts, type Shortcut } from '../shared/shortcuts';
 import { uuid } from '../shared/platform';
@@ -98,14 +98,18 @@ function AddSheet({ visible, onAdd, onCancel }: { visible: boolean; onAdd: (s: S
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // 배경(dim)은 Modal의 fade로 제자리에서 나타나고, 흰 시트만 아래에서 올라온다.
+  const slide = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       setName('');
       setUrl('');
       setError(null);
+      slide.setValue(0);
+      Animated.timing(slide, { toValue: 1, duration: 220, easing: Easing.out(Easing.cubic), useNativeDriver: Platform.OS !== 'web' }).start();
     }
-  }, [visible]);
+  }, [visible, slide]);
 
   const submit = () => {
     const n = name.trim();
@@ -117,33 +121,44 @@ function AddSheet({ visible, onAdd, onCancel }: { visible: boolean; onAdd: (s: S
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
-      <Pressable style={st.sheetDim} onPress={onCancel}>
-        <Pressable style={st.sheet} onPress={() => undefined}>
-          <View style={st.handle} />
-          <Text style={st.sheetTitle}>바로가기 추가</Text>
-          <Desc>쇼핑몰 이름과 주소를 입력해 주세요.</Desc>
-          <Text style={cs.label}>이름</Text>
-          <TextInput style={[cs.input, { marginBottom: 16 }]} placeholder="예) 오아시스마켓" placeholderTextColor={C.muted} value={name} onChangeText={setName} accessibilityLabel="이름" />
-          <Text style={cs.label}>주소 (URL)</Text>
-          <TextInput
-            style={cs.input}
-            placeholder="https://www.oasis.co.kr"
-            placeholderTextColor={C.muted}
-            value={url}
-            onChangeText={setUrl}
-            autoCapitalize="none"
-            keyboardType="url"
-            accessibilityLabel="주소"
-            onSubmitEditing={submit}
-          />
-          {error && <ErrorText>{error}</ErrorText>}
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-            <Button variant="outline" label="취소" onPress={onCancel} style={{ flex: 1 }} />
-            <Button label="추가" onPress={submit} style={{ flex: 1 }} />
-          </View>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Pressable style={st.sheetDim} onPress={onCancel} accessibilityLabel="닫기">
+          <Animated.View style={{ transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }] }}>
+            <Pressable style={st.sheet} onPress={() => undefined}>
+              <View style={st.handle} />
+              <Text style={st.sheetTitle}>바로가기 추가</Text>
+              <Desc>쇼핑몰 이름과 주소를 입력해 주세요.</Desc>
+              <Text style={cs.label}>이름</Text>
+              <TextInput
+                style={[cs.input, { marginBottom: 16 }]}
+                placeholder="예) 오아시스마켓"
+                placeholderTextColor={C.muted}
+                value={name}
+                onChangeText={setName}
+                accessibilityLabel="이름"
+              />
+              <Text style={cs.label}>주소 (URL)</Text>
+              <TextInput
+                style={cs.input}
+                placeholder="https://www.oasis.co.kr"
+                placeholderTextColor={C.muted}
+                value={url}
+                onChangeText={setUrl}
+                autoCapitalize="none"
+                keyboardType="url"
+                accessibilityLabel="주소"
+                onSubmitEditing={submit}
+              />
+              {error && <ErrorText>{error}</ErrorText>}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                <Button variant="outline" label="취소" onPress={onCancel} style={{ flex: 1 }} />
+                <Button label="추가" onPress={submit} style={{ flex: 1 }} />
+              </View>
+            </Pressable>
+          </Animated.View>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -5,6 +5,7 @@ import type {
   CreateAnalysisResponse,
   CreateSubscriptionResponse,
   Me,
+  OfferCard,
   PaymentMethod,
   ProfilePatch,
   SignupRequest,
@@ -20,6 +21,8 @@ import { createMockApi } from './mock';
 export interface KkulpickApi {
   // 인증·회원
   signup(req: SignupRequest): Promise<{ user_id: string }>;
+  /** 아이디 중복확인(GET /v2/auth/login-id-availability). 가입 저장 시 서버가 다시 검사한다. */
+  checkLoginId(login_id: string): Promise<{ available: boolean }>;
   login(login_id: string, password: string): Promise<{ token: string }>;
   logout(): Promise<void>;
   getMe(): Promise<Me>;
@@ -31,6 +34,8 @@ export interface KkulpickApi {
   getAnalysis(analysis_id: string): Promise<Analysis>;
   cancelAnalysis(analysis_id: string): Promise<void>;
   listHistory(): Promise<AnalysisHistoryItem[]>;
+  /** 기록이 없는 비회원 시작 화면용 추천 상품(제휴 상품 포함, 보완안 경로) */
+  listFeatured(): Promise<OfferCard[]>;
   deleteAllHistory(): Promise<{ request_id: string }>;
 
   // 구독·결제 (실제 VAN/PG 연동 없음: 흐름만 구현)

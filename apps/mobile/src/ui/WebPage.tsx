@@ -19,7 +19,15 @@ export interface WebNavState {
 // react-native-webview 클래스 타입이 React 19 타입과 맞지 않아 컴포넌트 타입만 좁혀 쓴다.
 const WebViewC = WebView as unknown as ComponentType<WebViewProps & { ref?: Ref<WebView> }>;
 
-export function WebPage({ uri, onNavigation, ref }: { uri: string; onNavigation: (s: WebNavState) => void; ref?: Ref<WebPageHandle> }) {
+export interface WebPageProps {
+  uri: string;
+  onNavigation: (s: WebNavState) => void;
+  /** 사이트가 새 창(target=_blank, window.open)으로 여는 링크 → 앱 안 새 탭 */
+  onNewWindow?: (url: string) => void;
+  ref?: Ref<WebPageHandle>;
+}
+
+export function WebPage({ uri, onNavigation, onNewWindow, ref }: WebPageProps) {
   const web = useRef<WebView>(null);
   useImperativeHandle(ref, () => ({
     goBack: () => web.current?.goBack(),
@@ -32,7 +40,8 @@ export function WebPage({ uri, onNavigation, ref }: { uri: string; onNavigation:
       source={{ uri }}
       onNavigationStateChange={(e: WebViewNavigation) => onNavigation({ url: e.url, canGoBack: e.canGoBack, canGoForward: e.canGoForward, loading: e.loading })}
       onShouldStartLoadWithRequest={(r: { url: string }) => /^(https?|about|data|blob):/i.test(r.url)}
-      setSupportMultipleWindows={false}
+      setSupportMultipleWindows={!!onNewWindow}
+      onOpenWindow={(e: { nativeEvent: { targetUrl: string } }) => onNewWindow?.(e.nativeEvent.targetUrl)}
       allowsBackForwardNavigationGestures
       style={{ flex: 1 }}
     />

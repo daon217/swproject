@@ -5,7 +5,7 @@ import { C } from '../ui/theme';
 
 // 결제 완료 (Figma U31)
 export default function PaymentDoneScreen() {
-  const back = () => router.dismissTo('/');
+  const back = () => router.dismissTo('/browser');
   return (
     <View style={{ flex: 1 }}>
       <SubHeader title="결제 완료" onBack={back} />

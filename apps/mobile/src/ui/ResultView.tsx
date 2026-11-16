@@ -29,9 +29,16 @@ export function OfferRow({ card, onOpenUrl }: { card: OfferCard; onOpenUrl: (u: 
       <View style={st.offerMain}>
         <View style={st.thumb}>{card.image_kind === 'food' ? <IconFood size={26} color={C.primary} /> : <IconPrinter size={28} color={C.primary} />}</View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={st.name} numberOfLines={1}>
-            {card.name}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            {card.affiliate && (
+              <View style={st.adBadge}>
+                <Text style={st.adBadgeText}>제휴</Text>
+              </View>
+            )}
+            <Text style={[st.name, { flexShrink: 1 }]} numberOfLines={1}>
+              {card.name}
+            </Text>
+          </View>
           <Text style={st.sub}>{card.subtitle}</Text>
           <Text style={st.price}>{formatPrice(card.price, card.currency)}</Text>
         </View>
@@ -41,7 +48,6 @@ export function OfferRow({ card, onOpenUrl }: { card: OfferCard; onOpenUrl: (u: 
       </View>
       <Text style={st.reason}>
         AI · {card.reason}
-        {card.affiliate ? ' · 제휴 링크' : ''}
       </Text>
     </View>
   );
@@ -182,6 +188,8 @@ const st = StyleSheet.create({
   offerMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   thumb: { width: 62, height: 70, borderRadius: 10, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },
   name: { fontWeight: '700', fontSize: 15, color: C.text },
+  adBadge: { borderWidth: 1, borderColor: C.border, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 },
+  adBadgeText: { fontSize: 10, fontWeight: '700', color: C.sub },
   sub: { fontSize: 12, color: C.sub, marginVertical: 2 },
   price: { color: C.price, fontWeight: '800', fontSize: 17 },
   reason: { fontSize: 12, color: C.sub, marginTop: 8 },

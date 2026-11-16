@@ -1,13 +1,14 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { onConsentAgreed } from '../consent';
 import { useSession } from '../session';
 import { api } from '../shared/api';
 import { todaySeoul } from '../shared/format';
 import { CONSENT_VERSION, PRIVACY_CONSENT_TITLE } from '../shared/terms';
 import { ApiError, type Gender } from '../shared/types';
-import { AllergyPicker, BirthDateField, Button, Checkbox, ErrorText, Field, GenderSelect, H2, Page, SubHeader } from '../ui/components';
+import { AlertDialog, type Alert } from '../ui/AlertDialog';
+import { AllergyPicker, BirthDateField, Button, Checkbox, ErrorText, GenderSelect, H2, Page, s as cs, SubHeader, Field } from '../ui/components';
 import { C } from '../ui/theme';
 
 const LOGIN_ID_RE = /^[A-Za-z0-9]{4,16}$/;
@@ -20,7 +21,27 @@ export default function SignupScreen() {
   const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [alert, setAlert] = useState<Alert>(null);
+  /** 중복확인을 통과한 아이디. 아이디를 바꾸면 다시 확인해야 한다. */
+  const [checkedId, setCheckedId] = useState<string | null>(null);
   const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const idChecked = !!form.id && checkedId === form.id;
+
+  const checkId = async () => {
+    if (!LOGIN_ID_RE.test(form.id)) return setAlert({ title: '아이디 확인', body: '아이디는 영문·숫자 4~16자로 입력해 주세요.' });
+    try {
+      const { available } = await api.checkLoginId(form.id);
+      if (available) {
+        setCheckedId(form.id);
+        setAlert({ title: '사용 가능한 아이디', body: `'${form.id}'는 사용할 수 있는 아이디예요.` });
+      } else {
+        setCheckedId(null);
+        setAlert({ title: '아이디 중복', body: '이미 사용 중인 아이디예요. 다른 아이디를 입력해 주세요.' });
+      }
+    } catch (e) {
+      setAlert({ title: '중복확인 실패', body: e instanceof Error ? e.message : '잠시 후 다시 시도해 주세요.' });
+    }
+  };
 
   useEffect(() => {
     onConsentAgreed(() => setConsent(true));
@@ -32,10 +53,16 @@ export default function SignupScreen() {
     if (!LOGIN_ID_RE.test(form.id)) er.id = '영문·숫자 4~16자로 입력해 주세요.';
     if (form.pw.length < 8) er.pw = '비밀번호는 8자 이상이어야 해요.';
     if (form.pw2 !== form.pw) er.pw2 = '비밀번호가 일치하지 않아요.';
+    // 비밀번호 불일치·중복확인 누락은 팝업으로 안내
+    if (form.pw && form.pw2 !== form.pw) {
+      setErrors(er);
+      return setAlert({ title: '비밀번호 불일치', body: '비밀번호와 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
+    }
     if (form.birth && form.birth > todaySeoul()) er.birth = '미래 날짜는 입력할 수 없어요.';
     if (!consent) er.consent = '개인정보 수집 및 이용에 동의해 주세요.';
     setErrors(er);
     if (Object.keys(er).length) return;
+    if (!idChecked) return setAlert({ title: '아이디 중복확인', body: '아이디 중복확인을 먼저 해 주세요.' });
 
     setBusy(true);
     try {
@@ -52,7 +79,10 @@ export default function SignupScreen() {
       await login(form.id, form.pw);
       router.dismissTo('/settings');
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'LOGIN_ID_TAKEN') setErrors({ id: e.message });
+      if (e instanceof ApiError && e.code === 'LOGIN_ID_TAKEN') {
+        setCheckedId(null);
+        setAlert({ title: '아이디 중복', body: '이미 사용 중인 아이디예요. 다른 아이디를 입력해 주세요.' });
+      }
       else setErrors({ form: e instanceof Error ? e.message : '가입하지 못했어요.' });
     } finally {
       setBusy(false);
@@ -64,7 +94,29 @@ export default function SignupScreen() {
       <SubHeader title="회원가입" />
       <Page footer={<Button label="동의하고 가입하기" onPress={() => void submit()} loading={busy} />}>
         <Text style={st.heading}>나에게 맞는 추천의 시작</Text>
-        <Field label="ID" placeholder="아이디 입력" autoCapitalize="none" autoComplete="username" value={form.id} onChangeText={set('id')} error={errors.id} />
+        <View style={cs.field}>
+          <Text style={cs.label}>ID</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TextInput
+              style={[cs.input, { flex: 1 }, !!errors.id && { borderColor: C.danger }]}
+              placeholder="아이디 입력"
+              placeholderTextColor={C.muted}
+              autoCapitalize="none"
+              autoComplete="username"
+              value={form.id}
+              onChangeText={set('id')}
+              accessibilityLabel="ID"
+            />
+            <Pressable
+              onPress={() => void checkId()}
+              style={[st.checkBtn, idChecked && { borderColor: C.success }]}
+              accessibilityRole="button"
+            >
+              <Text style={{ color: idChecked ? C.success : C.primary, fontWeight: '700', fontSize: 14 }}>{idChecked ? '확인 완료' : '중복확인'}</Text>
+            </Pressable>
+          </View>
+          {!!errors.id && <ErrorText>{errors.id}</ErrorText>}
+        </View>
         <Field label="비밀번호" placeholder="비밀번호 입력" secureTextEntry autoComplete="new-password" value={form.pw} onChangeText={set('pw')} error={errors.pw} />
         <Field label="비밀번호 확인" placeholder="비밀번호를 다시 입력하세요" secureTextEntry autoComplete="new-password" value={form.pw2} onChangeText={set('pw2')} error={errors.pw2} />
         <BirthDateField value={form.birth} onChange={set('birth')} error={errors.birth} />
@@ -82,6 +134,7 @@ export default function SignupScreen() {
         {errors.consent && <ErrorText>{errors.consent}</ErrorText>}
         {errors.form && <ErrorText>{errors.form}</ErrorText>}
       </Page>
+      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
     </View>
   );
 }
@@ -90,4 +143,5 @@ const st = StyleSheet.create({
   heading: { fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 16 },
   consent: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 20 },
   link: { color: C.primary, fontWeight: '600', fontSize: 13, textDecorationLine: 'underline' },
+  checkBtn: { height: 48, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
 });

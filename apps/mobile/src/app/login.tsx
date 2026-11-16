@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSession } from '../session';
+import { ApiError } from '../shared/types';
+import { AlertDialog, type Alert } from '../ui/AlertDialog';
 import { Button, Desc, ErrorText, Field, H1, Note, Page, SubHeader } from '../ui/components';
 import { C } from '../ui/theme';
 
@@ -12,6 +14,7 @@ export default function LoginScreen() {
   const [pw, setPw] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [alert, setAlert] = useState<Alert>(null);
 
   const submit = async () => {
     if (!id || !pw) return setError('아이디와 비밀번호를 입력해 주세요.');
@@ -21,7 +24,9 @@ export default function LoginScreen() {
       await login(id.trim(), pw);
       router.back();
     } catch (e) {
-      setError(e instanceof Error ? e.message : '로그인하지 못했어요.');
+      // 로그인 실패 안내 팝업
+      if (e instanceof ApiError && e.status === 401) setAlert({ title: '로그인 실패', body: '아이디 또는 비밀번호가 일치하지 않아요. 다시 확인해 주세요.' });
+      else setAlert({ title: '로그인 실패', body: e instanceof Error ? e.message : '로그인하지 못했어요.' });
     } finally {
       setBusy(false);
     }
@@ -43,6 +48,7 @@ export default function LoginScreen() {
           <Text style={{ color: C.primary, fontWeight: '600' }}>로그인 없이 둘러보기</Text>
         </Pressable>
       </Page>
+      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
     </View>
   );
 }

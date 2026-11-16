@@ -1,7 +1,7 @@
-import { useEffect, useImperativeHandle, useRef, useState, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
 import { C } from './theme';
-import type { WebNavState, WebPageHandle } from './WebPage';
+import type { WebPageProps } from './WebPage';
 
 export type { WebNavState, WebPageHandle } from './WebPage';
 
@@ -9,7 +9,8 @@ export type { WebNavState, WebPageHandle } from './WebPage';
 // 다른 출처 페이지 안의 이동은 알 수 없어서, 주소창·바로가기로 연 주소만 기록·분석한다.
 // 많은 쇼핑몰이 iframe 표시를 막으므로 화면이 비어 보일 수 있다(분석은 주소 기준 목업으로 동작).
 
-export function WebPage({ uri, onNavigation, ref }: { uri: string; onNavigation: (s: WebNavState) => void; ref?: Ref<WebPageHandle> }) {
+// iframe 안 다른 출처 페이지의 새 창 링크는 가로챌 수 없어 onNewWindow는 웹에서 쓰지 않는다.
+export function WebPage({ uri, onNavigation, ref }: WebPageProps) {
   const [nav, setNav] = useState({ history: [uri], index: 0 });
   const { history, index } = nav;
   const [loading, setLoading] = useState(true);

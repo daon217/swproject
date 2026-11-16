@@ -2,6 +2,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { api } from '../shared/api';
+import { ApiError } from '../shared/types';
+import { AlertDialog, type Alert } from '../ui/AlertDialog';
 import { Button, ConfirmDialog, ErrorText, Field, Note, Page, SubHeader } from '../ui/components';
 import { C } from '../ui/theme';
 
@@ -13,17 +15,20 @@ export default function PasswordScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [alert, setAlert] = useState<Alert>(null);
 
   const submit = async () => {
     if (next.length < 8) return setError('새 비밀번호는 8자 이상이어야 해요.');
-    if (next !== next2) return setError('새 비밀번호와 확인 값이 같지 않아요.');
+    if (next !== next2) return setAlert({ title: '새 비밀번호 불일치', body: '새 비밀번호와 새 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
     setBusy(true);
     setError(null);
     try {
       await api.changePassword(cur, next, next2);
       setDone(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '변경하지 못했어요.');
+      if (e instanceof ApiError && e.code === 'WRONG_PASSWORD') setAlert({ title: '현재 비밀번호 불일치', body: '현재 비밀번호가 일치하지 않아요. 다시 확인해 주세요.' });
+      else if (e instanceof ApiError && e.code === 'PASSWORD_MISMATCH') setAlert({ title: '새 비밀번호 불일치', body: '새 비밀번호와 새 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
+      else setError(e instanceof Error ? e.message : '변경하지 못했어요.');
     } finally {
       setBusy(false);
     }
@@ -40,6 +45,7 @@ export default function PasswordScreen() {
         <Note>새 비밀번호와 확인 값이 같아야 변경할 수 있어요.</Note>
         {error && <ErrorText>{error}</ErrorText>}
       </Page>
+      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
       <ConfirmDialog visible={done} title="비밀번호를 변경했어요" body="다음 로그인부터 새 비밀번호를 사용해 주세요." confirmLabel="확인" cancelLabel={null} onConfirm={() => router.back()} />
     </View>
   );

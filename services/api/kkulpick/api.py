@@ -11,6 +11,8 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+from .errors import install_errors
+from .members import router as member_router
 
 from .db import url
 from .ingest import accept
@@ -25,16 +27,20 @@ async def lifespan(app):
         raise RuntimeError("COLLECTOR_TOKEN must have at least 32 characters")
     app.state.token = key
     app.state.engine = create_async_engine(url("app"), hide_parameters=True, pool_pre_ping=True, pool_size=4, max_overflow=2)
+    app.state.member_engine = create_async_engine(url("app", "member"), hide_parameters=True, pool_pre_ping=True, pool_size=3, max_overflow=1)
     try:
         yield
     finally:
         await app.state.engine.dispose()
+        await app.state.member_engine.dispose()
 
 
 app = FastAPI(title="꿀픽 카탈로그 개발 API", version="0.1", lifespan=lifespan)
+app.include_router(member_router)
 app.add_middleware(RequestBodyLimit)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DEV_ORIGINS","http://localhost:3000").split(","),
-                   allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type", "Authorization"])
+                   allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type", "Authorization", "Idempotency-Key"],
+                   expose_headers=["X-Request-ID", "Retry-After"])
 bearer = HTTPBearer(auto_error=False)
 
 
@@ -43,15 +49,15 @@ def collector(req: Request, auth: HTTPAuthorizationCredentials | None = Depends(
         raise HTTPException(401, "COLLECTOR_AUTH_REQUIRED")
 
 
-@app.exception_handler(RequestValidationError)
-async def invalid(req, exc):
-    return JSONResponse(status_code=422,content={"error":"INVALID_INPUT","fields":[e["loc"] for e in exc.errors()]})
+install_errors(app)
 
 
 @app.get("/health")
 async def health(req: Request):
     async with req.app.state.engine.connect() as c:
         await c.execute(text("SELECT offer_id FROM app.offers LIMIT 0"))
+    async with req.app.state.member_engine.connect() as c:
+        await c.execute(text("SELECT user_id FROM app.members LIMIT 0"))
     return {"status":"ok","database":"kkulpick_catalog"}
 
 

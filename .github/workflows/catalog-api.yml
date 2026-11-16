@@ -1,10 +1,10 @@
 name: Catalog API integration
 on:
   pull_request:
-    paths: ['services/api/**','infra/db/**','tools/catalog.py','.github/workflows/catalog-api.yml']
+    paths: ['services/api/**','infra/db/**','tools/catalog.py','tools/performance.py','.github/workflows/catalog-api.yml']
   push:
     branches: [main]
-    paths: ['services/api/**','infra/db/**','tools/catalog.py','.github/workflows/catalog-api.yml']
+    paths: ['services/api/**','infra/db/**','tools/catalog.py','tools/performance.py','.github/workflows/catalog-api.yml']
 permissions:
   contents: read
 jobs:
@@ -40,6 +40,16 @@ jobs:
           set +a
           cd services/api
           CATALOG_INTEGRATION=1 CATALOG_PASSWORD="$CATALOG_APP_PASSWORD" python -m pytest -vv -s tests/test_sample_mutations.py
+      - name: Local HTTP ingestion and query performance
+        run: python tools/performance.py --allow-write --rows 1000 --requests 500 --workers 8 --cleanup
+      - name: Save benchmark result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: catalog-performance
+          path: data/benchmarks/latest.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Diagnose failure using disposable API logs
         if: failure()
         run: docker compose --env-file infra/db/.env --env-file services/api/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml logs --tail 100 api migrate

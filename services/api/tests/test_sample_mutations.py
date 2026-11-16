@@ -55,8 +55,8 @@ CASES = [
     ("clear_description_explicitly", {"description": None}, 201, "updated", {"description": None}),
     ("new_variant", {"variant_key": "sample-option-2"}, 201, "created", {}),
     ("unknown_field", {"unexpected": "value"}, 422, None, {}),
-    ("large_but_valid_price", {"price": "99999"}, 201, "updated", {"price": Decimal("99999")}),
-    ("unknown_three_letter_currency", {"currency": "ZZZ"}, 201, "updated", {"currency": "ZZZ"}),
+    ("large_but_valid_price", {"price": "99999"}, 201, "quarantined", {}),
+    ("unknown_three_letter_currency", {"currency": "ZZZ"}, 422, None, {}),
     ("domain_identity_conflict", {"selected_domain": "food"}, 201, "quarantined", {}),
 ]
 
@@ -142,6 +142,7 @@ def test_sample_mutation(case, patch, status, kind, changes):
             "same_time_conflict": "SAME_TIME_CONFLICT",
             "missing_identity": "MISSING_IDENTITY",
             "domain_identity_conflict": "IDENTITY_CONFLICT",
+            "large_but_valid_price": "PRICE_ANOMALY",
         }
         if case in reasons:
             assert body["state"] == "quarantine"
@@ -203,3 +204,4 @@ def test_sample_mutation(case, patch, status, kind, changes):
                 out.write(f"- PASS **{case}**: HTTP {status}, {body.get('change_kind', 'rejected')}; "
                           f"price={after['price']} {after['currency']}, "
                           f"state={after['availability']}, offers={offers}, history={counts}\n")
+

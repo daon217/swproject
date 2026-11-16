@@ -15,7 +15,10 @@ pytestmark = pytest.mark.skipif(os.getenv('CATALOG_INTEGRATION') != '1', reason=
 
 
 @pytest.fixture
-def catalog():
+def catalog(monkeypatch):
+    # Ordering/history tests intentionally use extreme values; anomaly policy is
+    # exercised separately in test_sample_mutations with its production default.
+    monkeypatch.setenv('CATALOG_PRICE_RATIO', '0')
     source = 'test_' + uuid4().hex
     start = datetime.now(UTC) - timedelta(days=10)
     base = fixture() | dict(source=source, source_listing_id='stable-1', variant_key='sku-1')

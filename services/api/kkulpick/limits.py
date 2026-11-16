@@ -39,4 +39,5 @@ class RequestBodyLimit:
         await self.app(scope, bounded_receive, send)
 
     async def reject(self, scope, receive, send):
-        await JSONResponse({'error': 'REQUEST_TOO_LARGE'}, status_code=413)(scope, receive, send)
+        await JSONResponse({'error': {'code': 'REQUEST_TOO_LARGE', 'message': '요청 크기 제한을 초과했습니다.',
+                                     'retryable': False}}, status_code=413)(scope, receive, send)

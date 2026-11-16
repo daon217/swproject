@@ -1,4 +1,19 @@
 services:
+  maintenance:
+    build: ../../services/api
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      CATALOG_PASSWORD: ${CATALOG_APP_PASSWORD:?missing runtime credential}
+      MEMBER_PASSWORD: ${MEMBER_APP_PASSWORD:?missing member runtime credential}
+    command: ["python", "-m", "kkulpick.maintenance", "--loop", "--apply"]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
   migrate:
     logging:
       driver: json-file
@@ -11,7 +26,8 @@ services:
       DB_HOST: postgres
       DB_PORT: "5432"
       CATALOG_PASSWORD: ${CATALOG_OWNER_PASSWORD:?missing owner credential}
-    command: ["alembic", "upgrade", "head"]
+      MEMBER_PASSWORD: ${MEMBER_OWNER_PASSWORD:?missing member owner credential}
+    command: ["python", "migrate.py"]
   api:
     logging:
       driver: json-file
@@ -24,6 +40,13 @@ services:
       DB_HOST: postgres
       DB_PORT: "5432"
       CATALOG_PASSWORD: ${CATALOG_APP_PASSWORD:?missing runtime credential}
+      MEMBER_PASSWORD: ${MEMBER_APP_PASSWORD:?missing member runtime credential}
+      APP_ENV: ${APP_ENV:-development}
+      BILLING_MODE: ${BILLING_MODE:-disabled}
+      BILLING_TEST_TOKEN: ${BILLING_TEST_TOKEN:-}
+      MOCK_PAYMENT_OUTCOME: ${MOCK_PAYMENT_OUTCOME:-succeeded}
+      CATALOG_PRICE_RATIO: ${CATALOG_PRICE_RATIO:-10}
+      CATALOG_CURRENCIES: ${CATALOG_CURRENCIES:-KRW,USD,AUD,EUR,INR,GBP,JPY,CNY}
       COLLECTOR_TOKEN: ${COLLECTOR_TOKEN:?run python services/api/dev.py init}
       CATALOG_URL_HOSTS: ${CATALOG_URL_HOSTS:-store.example.test}
       DEV_ORIGINS: ${DEV_ORIGINS:-http://localhost:3000}

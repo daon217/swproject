@@ -42,6 +42,13 @@ class Observation(BaseModel):
             raise ValueError("send money as a decimal string")
         return value
 
+    @field_validator("currency")
+    @classmethod
+    def supported_currency(cls, value):
+        if value is not None and value not in os.getenv("CATALOG_CURRENCIES", "KRW,USD,AUD,EUR,INR,GBP,JPY,CNY").split(","):
+            raise ValueError("unsupported currency")
+        return value
+
     @model_validator(mode="after")
     def fields_match(self):
         p = set(self.field_presence)

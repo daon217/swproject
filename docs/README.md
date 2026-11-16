@@ -30,3 +30,6 @@
 - 공통 코드가 main에 반영됐는지는 [PR #3](https://github.com/daon217/swproject/pull/3)에서 확인합니다.
 
 - [상품 DB 수신 갱신·실제 JSON 적재](CATALOG_INGESTION.md)
+
+- [DB·회원·구독 운영과 성능 검증](DB_OPERATIONS.md)
+- [회원·구독 임시 API 계약](../contracts/member-billing-v2.md)

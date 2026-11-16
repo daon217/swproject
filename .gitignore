@@ -59,3 +59,6 @@ tmp/
 Thumbs.db
 
 # Dependency lock files and source assets are intentionally tracked.
+
+# Locally generated benchmark results
+data/benchmarks/

@@ -95,7 +95,8 @@ def initialize():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share'])
+    parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share', 'maintenance'])
+    parser.add_argument('--apply', action='store_true', help='Apply maintenance deletions; otherwise preview only')
     parser.add_argument('--scope', choices=['core', 'full'], default=None,
                         help='up/check default to core; other actions default to full. core: DB + API; full: all development services')
     parser.add_argument('--shared', action='store_true', help='Explicitly include an already enrolled VPN gateway')
@@ -123,6 +124,9 @@ def main():
         run([sys.executable, 'services/api/dev.py', 'seed'])
     elif args.action == 'backup':
         run([sys.executable, 'tools/team_dev.py', 'backup'])
+    elif args.action == 'maintenance':
+        compose('run', '--rm', '--no-deps', 'maintenance', 'python', '-m', 'kkulpick.maintenance',
+                *(['--apply'] if args.apply else []), **options)
     elif args.action == 'status':
         compose('ps', **options)
     elif args.action == 'logs':

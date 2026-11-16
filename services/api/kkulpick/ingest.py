@@ -1,6 +1,9 @@
 """Merge trusted observations by stable source identity and observation time."""
 import hashlib
 import json
+import os
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -54,9 +57,15 @@ async def accept(c, rid, obs):
 
     if not obs.source_listing_id or not obs.variant_key:
         return await finish("quarantine", reason="MISSING_IDENTITY", kind="quarantined")
+    if at < datetime.now(UTC) - timedelta(days=30):
+        return await finish("quarantine", reason="OBSERVATION_TOO_OLD", kind="quarantined")
     ident = dict(s=source, l=obs.source_listing_id, v=obs.variant_key)
     # All inserts and updates of the same identity serialize, including concurrent first observations.
     await run(c, "SELECT pg_advisory_xact_lock(hashtextextended(:key,0))", key=encode(list(ident.values())))
+    tombstone = await one(c, """SELECT observed_at FROM app.offer_tombstones
+        WHERE source=:s AND source_listing_id=:l AND variant_key=:v""", **ident)
+    if tombstone and at <= tombstone['observed_at']:
+        return await finish("recorded", reason="DELETED_STALE_OBSERVATION", kind="stale")
     old = await one(c, """SELECT o.*,i.name,i.description FROM app.offers o
         JOIN app.catalog_items i USING(item_id)
         WHERE source=:s AND source_listing_id=:l AND variant_key=:v FOR UPDATE OF o,i""", **ident)
@@ -70,6 +79,11 @@ async def accept(c, rid, obs):
     if obs.result == "not_found" and not old:
         return await finish("recorded", reason="NOT_FOUND", kind="not_found")
     present = set(obs.field_presence)
+    ratio = Decimal(os.getenv('CATALOG_PRICE_RATIO', '10'))
+    if old and obs.result == 'success' and 'price' in present and obs.currency == old['currency'] and at > old['price_observed_at'] and ratio > 1:
+        previous = old['price']
+        if previous > 0 and (obs.price > previous * ratio or obs.price < previous / ratio):
+            return await finish('quarantine', offer, 'PRICE_ANOMALY', 'quarantined')
     if not old and not {"price", "currency", "availability", "url", "name"} <= present:
         return await finish("quarantine", reason="INCOMPLETE_FIRST_OBSERVATION", kind="quarantined")
 

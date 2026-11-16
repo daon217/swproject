@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useEffect, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
@@ -17,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ALLERGEN_GROUPS } from '../shared/allergens';
 import { IconBack, IconCheck, IconChevronDown, IconForward } from './icons';
 import { C, R } from './theme';
+import { KEYBOARD_BEHAVIOR, useKeyboardVisible } from './useKeyboard';
 
 export function SubHeader({ title, onBack }: { title: string; onBack?: () => void }) {
   const insets = useSafeAreaInsets();
@@ -46,13 +48,14 @@ export function Page({
   scrollRef?: Ref<ComponentRef<typeof ScrollView>>;
 }) {
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardVisible();
   return (
-    <View style={s.page}>
+    <KeyboardAvoidingView style={s.page} behavior={KEYBOARD_BEHAVIOR}>
       <ScrollView ref={scrollRef} contentContainerStyle={[s.pageBody, contentStyle]} keyboardShouldPersistTaps="handled">
         {children}
       </ScrollView>
-      {footer && <View style={[s.footer, { paddingBottom: 16 + insets.bottom }]}>{footer}</View>}
-    </View>
+      {footer && <View style={[s.footer, { paddingBottom: 16 + (keyboard ? 0 : insets.bottom) }]}>{footer}</View>}
+    </KeyboardAvoidingView>
   );
 }
 

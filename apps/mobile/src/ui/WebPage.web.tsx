@@ -33,7 +33,7 @@ export function WebPage({ uri, onNavigation, ref }: WebPageProps) {
   }, [current, reloadKey]);
 
   useEffect(() => {
-    cb.current({ url: current, canGoBack: index > 0, canGoForward: index < history.length - 1, loading });
+    cb.current({ url: current, title: '', canGoBack: index > 0, canGoForward: index < history.length - 1, loading });
   }, [current, index, history.length, loading]);
 
   useImperativeHandle(ref, () => ({

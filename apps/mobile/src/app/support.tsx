@@ -1,6 +1,6 @@
 import { Redirect } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSession } from '../session';
 import { api } from '../shared/api';
@@ -9,6 +9,7 @@ import { uuid } from '../shared/platform';
 import type { SupportConversation, SupportMessage } from '../shared/types';
 import { Button, ErrorText, SubHeader } from '../ui/components';
 import { C } from '../ui/theme';
+import { KEYBOARD_BEHAVIOR, useKeyboardVisible } from '../ui/useKeyboard';
 
 // 고객지원 상담 채팅 (Figma 05)
 export default function SupportScreen() {
@@ -18,6 +19,7 @@ export default function SupportScreen() {
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const keyboard = useKeyboardVisible();
   const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
 
   useEffect(() => {
@@ -60,9 +62,9 @@ export default function SupportScreen() {
 
   let lastDay = '';
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.surfaceMuted }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: C.surfaceMuted }} behavior={KEYBOARD_BEHAVIOR}>
       <SubHeader title="고객지원" />
-      <ScrollView ref={scroll} contentContainerStyle={{ padding: 24 }} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
+      <ScrollView ref={scroll} contentContainerStyle={{ padding: 24 }} keyboardShouldPersistTaps="handled" onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
         <View style={st.agent}>
           <View style={st.dot} />
           <View>
@@ -95,7 +97,7 @@ export default function SupportScreen() {
           <ErrorText>{error}</ErrorText>
         </View>
       )}
-      <View style={[st.inputRow, { paddingBottom: 12 + insets.bottom }]}>
+      <View style={[st.inputRow, { paddingBottom: 12 + (keyboard ? 0 : insets.bottom) }]}>
         <TextInput style={st.input} placeholder="메시지를 입력하세요" placeholderTextColor={C.muted} value={text} onChangeText={setText} maxLength={10000} multiline accessibilityLabel="메시지" />
         <Button label="전송" onPress={() => void send()} disabled={!text.trim() || !conv} style={{ height: 48, paddingHorizontal: 20 }} />
       </View>

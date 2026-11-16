@@ -4,3 +4,6 @@
 
 expo-env.d.ts
 # @end expo-cli
+# 네이티브 프로젝트는 expo run/prebuild가 생성한다(CNG). 커밋하지 않는다.
+/android
+/ios

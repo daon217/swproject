@@ -1,3 +1,4 @@
+import { PRODUCT_PATH } from '../pageFilter';
 import type { Domain, OfferCard } from '../types';
 
 // 목업 추천 데이터. Figma 시안의 예시 상품을 그대로 사용한다. 실제 데이터가 아니다.
@@ -64,7 +65,7 @@ export function mockPageFor(url: string): MockPage | null {
   }
   if (!/^https?:$/.test(u.protocol)) return null;
   const s = decodeURIComponent(u.href).toLowerCase();
-  const isProductPage = /(product|products|goods|item|vp\/|catalog|detail)/.test(u.pathname.toLowerCase());
+  const isProductPage = PRODUCT_PATH.test(u.pathname);
   if (!isProductPage) return null;
   if (/(snack|food|kurly|마켓컬리|과자|식품|4021)/.test(s)) {
     return { domain: 'food', name: '정화 오징어는땅콩을좋아해 40g, 10개', contains: ['peanut', 'squid', 'wheat'] };

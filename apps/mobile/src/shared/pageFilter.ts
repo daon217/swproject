@@ -3,7 +3,8 @@
 
 const SENSITIVE = /(login|signin|sign-in|auth|account|mypage|my-page|checkout|order|payment|pay\.|bank|cart|member)/i;
 const SENSITIVE_HOSTS = /(bank|card|pay|gov|mail|accounts\.google)/i;
-const PRODUCT_PATH = /(product|products|goods|item|vp\/|catalog|detail)/i;
+// 국내 몰(product·goods·vp/ 등) + 해외 몰: 아마존 /dp/·/gp/product/·/gp/aw/d/, 이베이 /itm/
+export const PRODUCT_PATH = /(product|products|goods|item|vp\/|catalog|detail|\/dp\/|\/gp\/(product|aw\/d)\/|\/itm\/)/i;
 
 export function shouldCapture(url: string | undefined): boolean {
   if (!url) return false;

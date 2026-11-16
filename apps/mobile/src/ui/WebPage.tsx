@@ -11,6 +11,8 @@ export interface WebPageHandle {
 
 export interface WebNavState {
   url: string;
+  /** 페이지의 실제 제목(<title>). 아직 모르면 빈 문자열 */
+  title: string;
   canGoBack: boolean;
   canGoForward: boolean;
   loading: boolean;
@@ -38,7 +40,7 @@ export function WebPage({ uri, onNavigation, onNewWindow, ref }: WebPageProps) {
     <WebViewC
       ref={web}
       source={{ uri }}
-      onNavigationStateChange={(e: WebViewNavigation) => onNavigation({ url: e.url, canGoBack: e.canGoBack, canGoForward: e.canGoForward, loading: e.loading })}
+      onNavigationStateChange={(e: WebViewNavigation) => onNavigation({ url: e.url, title: e.title ?? '', canGoBack: e.canGoBack, canGoForward: e.canGoForward, loading: e.loading })}
       onShouldStartLoadWithRequest={(r: { url: string }) => /^(https?|about|data|blob):/i.test(r.url)}
       setSupportMultipleWindows={!!onNewWindow}
       onOpenWindow={(e: { nativeEvent: { targetUrl: string } }) => onNewWindow?.(e.nativeEvent.targetUrl)}

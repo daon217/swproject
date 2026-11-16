@@ -6,6 +6,7 @@ import { uuid } from '../shared/platform';
 import { Button, Desc, ErrorText, Note, s as cs, Toast } from './components';
 import { IconBack, IconForward, IconPlus } from './icons';
 import { C } from './theme';
+import { KEYBOARD_BEHAVIOR } from './useKeyboard';
 
 // 쇼핑몰 바로가기(Figma 02): 브라우저 시작 화면. 이 기기에만 저장.
 // 편집 모드에서 −로 삭제하고, ‹ › 버튼으로 순서를 바꾼다(드래그 대신 접근성 있는 방식).
@@ -121,8 +122,8 @@ function AddSheet({ visible, onAdd, onCancel }: { visible: boolean; onAdd: (s: S
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} statusBarTranslucent navigationBarTranslucent>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={KEYBOARD_BEHAVIOR}>
         <Pressable style={st.sheetDim} onPress={onCancel} accessibilityLabel="닫기">
           <Animated.View style={{ transform: [{ translateY: slide.interpolate({ inputRange: [0, 1], outputRange: [400, 0] }) }] }}>
             <Pressable style={st.sheet} onPress={() => undefined}>

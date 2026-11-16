@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
-import { BackHandler, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { BackHandler, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { setBrowserListener } from '../../browserBus';
 import { useSession } from '../../session';
@@ -11,6 +11,7 @@ import { IconBack, IconClose, IconForward, IconHome, IconLock, IconPlus, IconRel
 import { ShortcutsHome } from '../../ui/Shortcuts';
 import { WebPage, type WebNavState, type WebPageHandle } from '../../ui/WebPage';
 import { C } from '../../ui/theme';
+import { KEYBOARD_BEHAVIOR } from '../../ui/useKeyboard';
 import { usePageAnalysis } from '../../usePageAnalysis';
 
 // 앱 안 브라우저(Figma U16~U25). Android 화면 캡처 보안 정책 때문에 다른 앱 위 오버레이 대신
@@ -25,6 +26,8 @@ interface BrowserTab {
   source: string | null;
   /** 현재 보고 있는 주소 */
   url: string | null;
+  /** 페이지 실제 제목. 모르면 null(도메인으로 대신 표시) */
+  title: string | null;
   nav: { back: boolean; forward: boolean; loading: boolean };
 }
 
@@ -32,6 +35,7 @@ const newTab = (source: string | null = null): BrowserTab => ({
   id: uuid(),
   source,
   url: source,
+  title: null,
   nav: { back: false, forward: false, loading: !!source },
 });
 
@@ -40,7 +44,8 @@ function toUrl(input: string): string | null {
   if (!t) return null;
   if (/^https?:\/\//i.test(t)) return safeHttpUrl(t);
   if (/^[\w-]+(\.[\w-]+)+(\/.*)?$/.test(t)) return safeHttpUrl(`https://${t}`);
-  return safeHttpUrl(`https://search.shopping.naver.com/search/all?query=${encodeURIComponent(t)}`);
+  // 주소가 아니면 구글 검색
+  return safeHttpUrl(`https://www.google.com/search?q=${encodeURIComponent(t)}`);
 }
 
 function hostOf(url: string | null): string {
@@ -51,6 +56,12 @@ function hostOf(url: string | null): string {
   } catch {
     return url;
   }
+}
+
+/** 탭 이름: 페이지 실제 제목, 아직 없으면 도메인 */
+function tabTitle(t: BrowserTab): string {
+  if (!t.url) return '바로가기 홈';
+  return t.title?.trim() || hostOf(t.url).split('/')[0];
 }
 
 export default function BrowserScreen() {
@@ -73,7 +84,7 @@ export default function BrowserScreen() {
 
   /** 현재 탭에서 주소 열기(주소창·바로가기) */
   const openHere = (target: string) => {
-    patchTab(active.id, { source: target, url: target, nav: { back: false, forward: false, loading: true } });
+    patchTab(active.id, { source: target, url: target, title: null, nav: { back: false, forward: false, loading: true } });
     setInput(target);
   };
 
@@ -133,7 +144,7 @@ export default function BrowserScreen() {
         return true;
       }
       if (active.source) {
-        patchTab(active.id, { source: null, url: null, nav: { back: false, forward: false, loading: false } });
+        patchTab(active.id, { source: null, url: null, title: null, nav: { back: false, forward: false, loading: false } });
         return true;
       }
       return false;
@@ -142,14 +153,23 @@ export default function BrowserScreen() {
   }, [switcher, active, patchTab]);
 
   const onNav = (id: string) => (e: WebNavState) => {
-    patchTab(id, { url: e.url, nav: { back: e.canGoBack, forward: e.canGoForward, loading: e.loading } });
+    // 로딩 중에는 제목 자리에 주소가 오기도 해서 무시한다.
+    // 제목이 아직 없으면 같은 주소일 때만 이전 제목을 유지하고, 다른 주소로 가면 지운다(도메인으로 대신 표시).
+    const real = e.title.trim() && !/^(https?:\/\/|about:)/i.test(e.title) ? e.title.trim() : null;
+    setTabs((ts) =>
+      ts.map((t) => {
+        if (t.id !== id) return t;
+        const title = real ?? (t.url === e.url ? t.title : null);
+        return { ...t, url: e.url, title, nav: { back: e.canGoBack, forward: e.canGoForward, loading: e.loading } };
+      }),
+    );
   };
 
-  const goHome = () => patchTab(active.id, { source: null, url: null, nav: { back: false, forward: false, loading: false } });
+  const goHome = () => patchTab(active.id, { source: null, url: null, title: null, nav: { back: false, forward: false, loading: false } });
   const webRef = webRefs.current[active.id];
 
   return (
-    <View style={[st.root, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView style={[st.root, { paddingTop: insets.top }]} behavior={KEYBOARD_BEHAVIOR}>
       <View style={st.content}>
         {/* 탭마다 WebView를 유지해 탭을 오가도 페이지·기록이 남는다. 보이는 탭만 캡처 대상 */}
         {tabs.map((t) =>
@@ -244,7 +264,7 @@ export default function BrowserScreen() {
         onAdd={addBlankTab}
         onDismiss={() => setSwitcher(false)}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -285,11 +305,11 @@ function TabSwitcher({
                 onPress={() => onSelect(t.id)}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={t.url ? `${hostOf(t.url)} 탭` : '바로가기 홈 탭'}
+                accessibilityLabel={t.url ? `${tabTitle(t)} 탭` : '바로가기 홈 탭'}
               >
                 <View style={{ flex: 1 }}>
                   <Text style={st.tabCardTitle} numberOfLines={1}>
-                    {t.url ? hostOf(t.url).split('/')[0] : '바로가기 홈'}
+                    {tabTitle(t)}
                   </Text>
                   <Text style={st.tabCardSub} numberOfLines={1}>
                     {t.url ?? '쇼핑몰 바로가기'}

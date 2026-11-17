@@ -142,7 +142,7 @@ async def member(req: Request, auth: HTTPAuthorizationCredentials | None = Depen
         fail(401, 'AUTH_REQUIRED')
     token_hash = hashlib.sha256(auth.credentials.encode()).hexdigest()
     async with req.app.state.member_engine.connect() as c:
-        r = await row(c, 'SELECT user_id FROM app.sessions WHERE token_hash=:t AND expires_at>now()', t=token_hash)
+        r = await row(c, 'SELECT s.user_id FROM app.sessions s JOIN app.members m USING(user_id) WHERE token_hash=:t AND expires_at>now() AND m.deleted_at IS NULL', t=token_hash)
     if not r:
         fail(401, 'AUTH_REQUIRED')
     req.state.session_hash = token_hash
@@ -159,6 +159,8 @@ async def subscription_status(c, uid):
 
 async def me(c, uid):
     r = await row(c, 'SELECT * FROM app.members WHERE user_id=:u', u=uid)
+    if not r or r['deleted_at'] is not None:
+        fail(401, 'AUTH_REQUIRED')
     prefs = (await execute(c, 'SELECT kind,value FROM app.member_preferences WHERE user_id=:u ORDER BY value', u=uid)).mappings().all()
     values = {k: [p['value'] for p in prefs if p['kind'] == k] for k in ('allergy', 'avoid', 'prefer')}
     return {'user_id': uid, 'login_id': r['login_id'], 'premium': (await subscription_status(c, uid))['active'],
@@ -199,7 +201,7 @@ async def login_available(req: Request, login_id: str = Query(pattern=r'^[A-Za-z
 async def login(data: Login, req: Request):
     await throttle(req, 'login')
     async with req.app.state.member_engine.begin() as c:
-        r = await row(c, 'SELECT user_id,password_hash FROM app.members WHERE lower(login_id)=lower(:l) FOR UPDATE', l=data.login_id)
+        r = await row(c, 'SELECT user_id,password_hash FROM app.members WHERE lower(login_id)=lower(:l) AND deleted_at IS NULL FOR UPDATE', l=data.login_id)
         encoded = r['password_hash'] if r else 'scrypt$' + '00'*16 + '$' + '00'*32
         valid = await run_in_threadpool(check_password, data.password.get_secret_value(), encoded)
         if not r or not valid:
@@ -226,7 +228,9 @@ async def get_me(req: Request, uid=Depends(member)):
 @router.patch('/v2/me/profile')
 async def profile(data: ProfilePatch, req: Request, uid=Depends(member)):
     async with req.app.state.member_engine.begin() as c:
-        old = await row(c, 'SELECT profile_version FROM app.members WHERE user_id=:u FOR UPDATE', u=uid)
+        old = await row(c, 'SELECT profile_version FROM app.members WHERE user_id=:u AND deleted_at IS NULL FOR UPDATE', u=uid)
+        if not old:
+            fail(401, 'AUTH_REQUIRED')
         if old['profile_version'] != data.expected_version:
             fail(409, 'VERSION_CONFLICT')
         if 'ingredient_filter' in data.model_fields_set:
@@ -249,7 +253,9 @@ async def profile(data: ProfilePatch, req: Request, uid=Depends(member)):
 @router.patch('/v2/me/password', status_code=204)
 async def password(data: PasswordChange, req: Request, uid=Depends(member)):
     async with req.app.state.member_engine.begin() as c:
-        r = await row(c, 'SELECT password_hash FROM app.members WHERE user_id=:u FOR UPDATE', u=uid)
+        r = await row(c, 'SELECT password_hash FROM app.members WHERE user_id=:u AND deleted_at IS NULL FOR UPDATE', u=uid)
+        if not r:
+            fail(401, 'AUTH_REQUIRED')
         if not await run_in_threadpool(check_password, data.current_password.get_secret_value(), r['password_hash']):
             fail(422, 'WRONG_PASSWORD')
         encoded = await run_in_threadpool(hash_password, data.new_password.get_secret_value())
@@ -288,7 +294,7 @@ async def subscribe(data: SubscriptionRequest, req: Request, response: Response,
     mock_only()
     digest = hashlib.sha256(json.dumps(data.model_dump(), sort_keys=True).encode()).hexdigest()
     async with req.app.state.member_engine.begin() as c:
-        await row(c, 'SELECT user_id FROM app.members WHERE user_id=:u FOR UPDATE', u=uid)
+        await active_member(c, uid)
         prior = await row(c, """SELECT i.*,p.payment_id,p.status FROM app.invoices i JOIN app.payments p USING(invoice_id)
             WHERE i.user_id=:u AND i.idempotency_key=:k""", u=uid, k=idempotency_key)
         if prior:
@@ -335,7 +341,7 @@ async def get_subscription(req: Request, uid=Depends(member)):
 @router.post('/v2/me/subscription/cancel')
 async def cancel_subscription(req: Request, uid=Depends(member)):
     async with req.app.state.member_engine.begin() as c:
-        await row(c, 'SELECT user_id FROM app.members WHERE user_id=:u FOR UPDATE', u=uid)
+        await active_member(c, uid)
         r = await row(c, 'UPDATE app.subscriptions SET cancel_at_period_end=true,updated_at=now() WHERE user_id=:u RETURNING subscription_id', u=uid)
         if not r:
             fail(404, 'SUBSCRIPTION_NOT_FOUND')
@@ -354,7 +360,7 @@ async def payments(req: Request, uid=Depends(member), limit: int = Query(20, ge=
 async def mock_refund(payment_id: UUID, req: Request, uid=Depends(member)):
     mock_only()
     async with req.app.state.member_engine.begin() as c:
-        await row(c, 'SELECT user_id FROM app.members WHERE user_id=:u FOR UPDATE', u=uid)
+        await active_member(c, uid)
         r = await row(c, """SELECT i.*,p.status FROM app.invoices i JOIN app.payments p USING(invoice_id)
             WHERE p.payment_id=:p AND i.user_id=:u FOR UPDATE OF p""", p=payment_id, u=uid)
         if not r:
@@ -393,3 +399,10 @@ async def resolve(payment_id: UUID, data: Resolution, req: Request,
                 await execute(c, 'UPDATE app.subscriptions SET entitlement_end=:e,updated_at=now() WHERE subscription_id=:s',
                               e=r['period_end'], s=r['subscription_id'])
     return wrap({'payment_id': payment_id, 'status': data.outcome, 'billing_mode': 'mock'}, req)
+
+
+async def active_member(c, uid):
+    r = await row(c, 'SELECT user_id FROM app.members WHERE user_id=:u AND deleted_at IS NULL FOR UPDATE', u=uid)
+    if not r:
+        fail(401, 'AUTH_REQUIRED')
+    return r

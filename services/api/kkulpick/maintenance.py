@@ -97,10 +97,31 @@ async def cleanup(c, policy=Policy(), apply=False, now=None):
 async def perform(apply, policy):
     catalog = create_async_engine(url('app'), hide_parameters=True, pool_size=1, max_overflow=0)
     member = create_async_engine(url('app','member'), hide_parameters=True, pool_size=1, max_overflow=0)
+    support = create_async_engine(url('app','support'), hide_parameters=True, pool_size=1, max_overflow=0)
     try:
         async with catalog.begin() as c:
             result = await cleanup(c, policy, apply=apply)
+        async with member.connect() as c:
+            result['pending_account_deletions']=(await one(c,"SELECT count(*) AS n FROM app.account_deletions WHERE state='pending'"))['n']
+        async with support.connect() as c:
+            result['expired_conversations']=(await one(c,"SELECT count(*) AS n FROM app.conversations WHERE status IN ('resolved','closed') AND updated_at<now()-interval '90 days'"))['n']
         if apply:
+            from .accounts import process_deletions
+            from .analyses import expire
+            from .images import remove_image, sweep_images
+            result['accounts_deleted'] = await process_deletions(member,catalog,support,batch=min(policy.batch,100))
+            async with catalog.begin() as c:
+                await expire(c)
+                jobs=(await c.execute(text('''DELETE FROM app.analyses WHERE analysis_id IN
+                    (SELECT analysis_id FROM app.analyses WHERE updated_at<now()-interval '30 days'
+                    AND state IN ('completed','failed','cancelled') LIMIT :n) RETURNING image_id'''),{'n':policy.batch})).mappings().all()
+                for job in jobs:remove_image(job['image_id'])
+                result['analysis_history_deleted']=len(jobs)
+            async with support.begin() as c:
+                await run(c, '''DELETE FROM app.conversations WHERE conversation_id IN
+                    (SELECT conversation_id FROM app.conversations WHERE status IN ('resolved','closed')
+                    AND updated_at<now()-interval '90 days' LIMIT :n)''',n=policy.batch)
+            result['expired_images_deleted']=sweep_images(batch=policy.batch)
             async with member.begin() as c:
                 await run(c, 'DELETE FROM app.sessions WHERE token_hash IN (SELECT token_hash FROM app.sessions WHERE expires_at<now() LIMIT :n)', n=policy.batch)
                 await run(c, "DELETE FROM app.auth_attempts WHERE bucket IN (SELECT bucket FROM app.auth_attempts WHERE window_start<now()-interval '1 day' LIMIT :n)", n=policy.batch)
@@ -108,6 +129,7 @@ async def perform(apply, policy):
     finally:
         await catalog.dispose()
         await member.dispose()
+        await support.dispose()
 
 
 def main():

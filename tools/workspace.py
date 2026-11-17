@@ -95,7 +95,10 @@ def initialize():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share', 'maintenance'])
+    parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share', 'maintenance', 'admin'])
+    parser.add_argument('--login-id', help='Existing member login ID for owner-only admin grant/revoke')
+    parser.add_argument('--role', choices=['admin','support'], default='support')
+    parser.add_argument('--revoke', action='store_true')
     parser.add_argument('--apply', action='store_true', help='Apply maintenance deletions; otherwise preview only')
     parser.add_argument('--scope', choices=['core', 'full'], default=None,
                         help='up/check default to core; other actions default to full. core: DB + API; full: all development services')
@@ -124,6 +127,11 @@ def main():
         run([sys.executable, 'services/api/dev.py', 'seed'])
     elif args.action == 'backup':
         run([sys.executable, 'tools/team_dev.py', 'backup'])
+    elif args.action == 'admin':
+        if not args.login_id:
+            parser.error('admin requires --login-id')
+        compose('run', '--rm', '--no-deps', 'migrate', 'python', '-m', 'kkulpick.admin_cli',
+                'revoke' if args.revoke else 'grant', args.login_id, '--role', args.role, **options)
     elif args.action == 'maintenance':
         compose('run', '--rm', '--no-deps', 'maintenance', 'python', '-m', 'kkulpick.maintenance',
                 *(['--apply'] if args.apply else []), **options)

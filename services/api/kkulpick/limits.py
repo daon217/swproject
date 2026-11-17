@@ -11,8 +11,9 @@ class RequestBodyLimit:
         if scope['type'] != 'http' or scope['method'] not in ('POST', 'PUT', 'PATCH'):
             return await self.app(scope, receive, send)
         headers = dict(scope.get('headers', []))
+        max_bytes = 3*1024*1024 if scope.get('path') == '/analyses' and headers.get(b'content-type',b'').lower().startswith(b'multipart/form-data') else self.max_bytes
         length = headers.get(b'content-length')
-        if length and length.isdigit() and int(length) > self.max_bytes:
+        if length and length.isdigit() and int(length) > max_bytes:
             return await self.reject(scope, receive, send)
         chunks = []
         size = 0
@@ -22,7 +23,7 @@ class RequestBodyLimit:
                 return
             chunk = message.get('body', b'')
             size += len(chunk)
-            if size > self.max_bytes:
+            if size > max_bytes:
                 return await self.reject(scope, receive, send)
             chunks.append(chunk)
             if not message.get('more_body', False):

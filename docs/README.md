@@ -33,3 +33,5 @@
 
 - [DB·회원·구독 운영과 성능 검증](DB_OPERATIONS.md)
 - [회원·구독 임시 API 계약](../contracts/member-billing-v2.md)
+
+- [고객센터·제휴·관리자·탈퇴·분석 작업 사용법](INDEPENDENT_BACKEND.md)

@@ -13,6 +13,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 from .errors import install_errors
 from .members import router as member_router
+from .accounts import router as account_router
+from .support import router as support_router
+from .affiliates import router as affiliate_router
+from .analyses import router as analysis_router
 
 from .db import url
 from .ingest import accept
@@ -28,18 +32,21 @@ async def lifespan(app):
     app.state.token = key
     app.state.engine = create_async_engine(url("app"), hide_parameters=True, pool_pre_ping=True, pool_size=4, max_overflow=2)
     app.state.member_engine = create_async_engine(url("app", "member"), hide_parameters=True, pool_pre_ping=True, pool_size=3, max_overflow=1)
+    app.state.support_engine = create_async_engine(url("app", "support"), hide_parameters=True, pool_pre_ping=True, pool_size=2, max_overflow=1)
     try:
         yield
     finally:
         await app.state.engine.dispose()
         await app.state.member_engine.dispose()
+        await app.state.support_engine.dispose()
 
 
 app = FastAPI(title="꿀픽 카탈로그 개발 API", version="0.1", lifespan=lifespan)
-app.include_router(member_router)
+for router in (member_router, account_router, support_router, affiliate_router, analysis_router):
+    app.include_router(router)
 app.add_middleware(RequestBodyLimit)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DEV_ORIGINS","http://localhost:3000").split(","),
-                   allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Content-Type", "Authorization", "Idempotency-Key"],
+                   allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"], allow_headers=["Content-Type", "Authorization", "Idempotency-Key"],
                    expose_headers=["X-Request-ID", "Retry-After"])
 bearer = HTTPBearer(auto_error=False)
 
@@ -58,6 +65,8 @@ async def health(req: Request):
         await c.execute(text("SELECT offer_id FROM app.offers LIMIT 0"))
     async with req.app.state.member_engine.connect() as c:
         await c.execute(text("SELECT user_id FROM app.members LIMIT 0"))
+    async with req.app.state.support_engine.connect() as c:
+        await c.execute(text("SELECT conversation_id FROM app.conversations LIMIT 0"))
     return {"status":"ok","database":"kkulpick_catalog"}
 
 

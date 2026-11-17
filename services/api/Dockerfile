@@ -3,5 +3,6 @@ WORKDIR /srv
 COPY requirements.txt requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.lock && useradd --uid 10001 --create-home api
 COPY . .
+RUN mkdir -p /var/lib/kkulpick/analysis && chown api:api /var/lib/kkulpick/analysis
 USER api
 CMD ["uvicorn","kkulpick.api:app","--host","0.0.0.0","--port","8000"]

@@ -117,8 +117,12 @@ def test_retention_and_fk_query_plans(client):
                 return {'ms':plan['Execution Time'],'rows':plan['Plan']['Actual Rows'],
                         'shared_blocks':plan['Plan'].get('Shared Hit Blocks',0)+plan['Plan'].get('Shared Read Blocks',0)}
             reports.append({'index':index,'without_index':summary(before),'with_index':summary(after)})
-        index_bytes=c.execute("SELECT sum(pg_relation_size(indexrelid)) FROM pg_index WHERE indexrelid::regclass::text=ANY(%s)",
-            (['app.'+case[0] for case in cases],)).fetchone()[0]
+        # regclass::text omits the schema when app is on search_path. Resolve the
+        # namespace explicitly rather than depending on its display formatting.
+        index_bytes=c.execute('''SELECT sum(pg_relation_size(i.oid)) FROM pg_class i
+            JOIN pg_namespace n ON n.oid=i.relnamespace
+            WHERE n.nspname='app' AND i.relname=ANY(%s)''',
+            ([case[0] for case in cases],)).fetchone()[0]
     result={'fixture_rows_per_table':10000,'fixture_cleanup':'transaction rolled back',
             'new_index_bytes_in_fixture':int(index_bytes),'plans':reports}
     if path:=os.getenv('EFFICIENCY_REPORT'):

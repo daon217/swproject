@@ -12,7 +12,9 @@ async def access(req, uid, roles=None):
         if not user:
             fail(401,'AUTH_REQUIRED')
         if roles:
-            admin = await row(c, 'SELECT role FROM app.admin_accounts WHERE user_id=:u AND enabled FOR SHARE',u=uid)
+            # Row-locking the read-only role table would require UPDATE rights.
+            # The owner CLI serializes role changes on the member row locked above.
+            admin = await row(c, 'SELECT role FROM app.admin_accounts WHERE user_id=:u AND enabled',u=uid)
             if not admin or admin['role'] not in roles:
                 fail(403,'ADMIN_REQUIRED')
         yield c

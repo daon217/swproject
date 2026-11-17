@@ -1,8 +1,8 @@
 # DB·회원·구독 개발 및 임시 데이터 관리
 
-DB는 기존 3개를 유지한다. 회원·세션·구독·결제는 회원 DB, 상품 수집·이력·벡터는 상품 DB, 고객센터 DB는 기존 실행 기반을 유지한다.
+DB는 기존 3개를 유지한다. 회원·세션·구독·결제는 회원 DB, 상품 수집·이력·벡터·분석 작업은 상품 DB, 상담방·메시지는 고객센터 DB에 저장한다.
 서지웅 프론트 미완성본의 회원·결제 데이터 형태를 참고했으며 확정 명세는 아니다.
-회원/상품 DB는 별도 Alembic 이력으로 관리한다. 한 DB의 마이그레이션 성공은 다른 DB의 성공을 보장하지 않으므로 둘 다 성공해야 API가 시작된다.
+DB 3개는 별도 Alembic 이력으로 관리한다. 한 DB의 마이그레이션 성공은 다른 DB의 성공을 보장하지 않으므로 모두 성공해야 API가 시작된다.
 
 ## 적용 및 사용
 
@@ -15,7 +15,7 @@ py tools/workspace.py check --scope core
 ```
 
 기존 환경에서는 먼저 backup을 실행한다. 처음 설치한 비어 있는 환경에서는 init 후 up으로 시작한다.
-up은 catalog 0003 및 member 0001까지 적용하고 API와 정리 작업을 실행한다. API 문서: http://127.0.0.1:8000/docs.
+up은 각 DB의 최신 마이그레이션까지 적용하고 API와 정리 작업을 실행한다. 최신 revision은 [백엔드 업무 안내](INDEPENDENT_BACKEND.md)의 적용 절을 참고한다. API 문서: http://127.0.0.1:8000/docs.
 실제 결제는 기본 비활성화다. 테스트할 때만 services/api/.env에 다음을 직접 설정하고 up을 재실행한다(기존 키는 보존).
 
 ```dotenv
@@ -41,7 +41,8 @@ BILLING_TEST_TOKEN은 미확인 모의 결제의 서버 확정을 시험할 때�
 | 관측 메타·가격·변경·닫힌 URL 이력 | 90일. 참조되는 관측은 관련 이력 정리 후 제거 |
 | 로그인 세션 | 7일 만료, 만료 세션 정리 |
 | 로그인 요청 제한 기록 | 1일 후 정리 |
-| 회원·구독·청구·결제 | 이 자동 삭제에서 제외. 실제 서비스 보관/탈퇴 정책 확정 필요 |
+| 회원·구독·청구·결제 | 일반 정리에서 제외. 탈퇴 시 프로필 익명화·세션 제거, 과거 모의 결제 내역 보존 |
+| 분석·상담·이미지 | [백엔드 업무 계약](../../contracts/independent-backend-v2.md)의 보관·삭제 정책 적용 |
 
 한 시간마다 항목별 최대 500건을 정리한다. 이미 삭제할 권한이 부여된 임시 정책이며 up 후 자동 실행된다.
 대량 적재로 정리량이 부족하면 batch/주기를 측정해서 조절한다. 원문 정리는 즉각 디스크 파일을 줄이지 않으며 PostgreSQL autovacuum이 공간을 재사용한다.
@@ -79,14 +80,14 @@ py -m pip install -r services/api/requirements-dev.txt
 py tools/performance.py --allow-write --rows 1000 --requests 500 --workers 8 --cleanup
 ```
 
-각 실행은 고유 perf_* 수집처를 생성한다. 신규 1000건, 갱신 100건, 중복 100건, 조회 500회와 전체 페이지 순회 검증.
+각 실행은 고유 perf_* 수집처를 생성한다. 기본 신규 1000건, 갱신 100건, 중복 100건, 조회 500회와 전체 페이지 순회 검증. CI에서는 10000건·동시 요청 16개 검사도 추가 수행한다.
 p50/p95/p99, 초당 처리량, 오류 수, 고유 상품 개수, DB 전체 크기를 JSON으로 기록한다.
 기본 임시 통과 기준: 오류 0, 행 수 일치, 조회 p95 <= 1000ms, 쓰기 p95 <= 1500ms. 사업 성능 목표는 아니며 CI 심각한 퇴행 탐지용이다.
 localhost만 허용하고 --allow-write가 필요하다. --cleanup은 해당 실행 데이터만 삭제한다. 결과: data/benchmarks/latest.json 및 Actions artifact(7일).
-10000건 이상은 --rows로 늘릴 수 있다. 측정 시 CPU/RAM/데이터 크기·동시성·네트워크를 함께 기록한다.
+10000건 이상은 --rows로 늘릴 수 있다. 측정 시 CPU/RAM/데이터 크기·동시성·네트워크를 함께 기록한다. CI는 query-plans.json에 실제 쿼리 계획·인덱스 크기 비교도 보관한다. 테스트용 데이터는 롤백하며 운영 DB에서 이 검사를 실행하지 않는다.
 이 결과는 소규모 기본 성능 검증이며 실사용 동시 이용자 수나 대량 크롤링 처리 능력을 보증하지 않는다. OCR/임베딩/외부 결제 호출은 포함하지 않는다.
 
 참고 문서:
 - https://www.postgresql.org/docs/current/explicit-locking.html
 - https://fastapi.tiangolo.com/tutorial/handling-errors/
-- API 계약: ../contracts/member-billing-v2.md
+- API 계약: [회원·구독](../../contracts/member-billing-v2.md)

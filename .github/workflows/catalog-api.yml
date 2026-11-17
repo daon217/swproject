@@ -30,7 +30,7 @@ jobs:
           source services/api/.env
           set +a
           cd services/api
-          CATALOG_INTEGRATION=1 CATALOG_PASSWORD="$CATALOG_APP_PASSWORD" python -m pytest -q --ignore=tests/test_sample_mutations.py
+          EFFICIENCY_REPORT=../../data/benchmarks/query-plans.json CATALOG_INTEGRATION=1 CATALOG_PASSWORD="$CATALOG_APP_PASSWORD" python -m pytest -q --ignore=tests/test_sample_mutations.py
       - name: One-by-one sample mutation checks
         shell: bash
         run: |
@@ -40,14 +40,18 @@ jobs:
           set +a
           cd services/api
           CATALOG_INTEGRATION=1 CATALOG_PASSWORD="$CATALOG_APP_PASSWORD" python -m pytest -vv -s tests/test_sample_mutations.py
+      - name: Query plan comparison on rollback-only fixtures
+        run: python -m json.tool data/benchmarks/query-plans.json
       - name: Local HTTP ingestion and query performance
         run: python tools/performance.py --allow-write --rows 1000 --requests 500 --workers 8 --cleanup
+      - name: Larger local HTTP ingestion and query performance
+        run: python tools/performance.py --allow-write --rows 10000 --requests 1000 --workers 16 --output data/benchmarks/10000-rows.json --cleanup
       - name: Save benchmark result
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: catalog-performance
-          path: data/benchmarks/latest.json
+          path: data/benchmarks/*.json
           if-no-files-found: ignore
           retention-days: 7
       - name: Diagnose failure using disposable API logs

@@ -10,7 +10,7 @@ DB는 기존 독립 3개를 유지합니다. 오래된 단일 DB 설계나 Java/
 
 | 구성 | 담당 | 현재 제공하는 환경 |
 | --- | --- | --- |
-| FastAPI + PostgreSQL/pgvector | 소병선 | 기존 적재·조회 API와 DB 3개, 마이그레이션·가상 데이터 |
+| FastAPI + PostgreSQL/pgvector | 소병선 | 상품·회원·모의 결제·상담·관리자·분석 작업 API, 독립 DB 3개 |
 | Redis Broker | 소병선 | 별도 인스턴스, AOF, noeviction, 128MB 한도 |
 | Redis Cache | 소병선 | 별도 인스턴스, allkeys-lru, 64MB 한도; 개발 큐 결과도 짧게 저장 |
 | Celery | 소병선 | development/vision/recommendation/collector 큐별 작업자, 각 동시성 1 |
@@ -55,7 +55,7 @@ py tools/workspace.py check --scope full
 
 ## 선택 사항: 한 호스트의 환경을 각자 집에서 함께 사용
 
-계정·공개키 등록은 [팀 접속 안내](TEAM_DEVELOPMENT.md) 3~5단계를 따릅니다.
+계정·공개키 등록은 [팀 접속 안내](optional/TEAM_DEVELOPMENT.md) 3~5단계를 따릅니다.
 호스트는 `py tools/workspace.py share`로 전체 환경을 시작하고 Tailscale 주소에 SSH 게이트웨이를 엽니다.
 팀원은 다음을 실행합니다. 실제 호스트 IP로 교체합니다.
 ```powershell
@@ -121,8 +121,8 @@ iOS 네이티브 빌드는 macOS/Xcode 환경이 필요합니다. CI의 `expo ex
 - `.ci/projects.json`은 API·OCR·추천·수집·공통 실행 틀·웹·관리자·확장·모바일의 9개 프로젝트 빌드를 활성화합니다. 큐·서비스 통합·실제 CPU 라이브러리 이미지는 Full development workspace 워크플로에서도 검증합니다. 실제 담당 기능의 CI는 코드 반입 후 추가합니다.
 - 공통 환경 Python 의존성은 requirements.lock, Node는 각 package-lock.json을 커밋합니다. 기존 업무 API 의존성은 기존 명세를 유지합니다.
 - `infra/workspace/.env`, 이미지, 모델 캐시, DB 백업은 Git/Docker 빌드 컨텍스트에서 제외합니다.
-- 비공개 임시 이미지 TTL은 개발 초기값 1시간입니다. 실제 이미지 수명주기는 소유권·완료/실패/취소 삭제까지 구현해야 합니다. 현재 볼륨은 호스트 1대용이며 여러 서버로 확장할 때 공유 저장소로 교체합니다.
-- 실제 회원·결제·상담·관리자 인증, 분석 Outbox/재시도/취소, 추천 품질, 모델 가중치, 생산 수집원과 성능 검증은 업무 구현 범위로 남습니다.
+- 개발 틀의 임시 이미지와 업무 API의 분석 이미지는 별도 볼륨입니다. 분석 API는 소유권·작업 완료/최종 실패/취소 시 삭제와 1시간 기준 정리를 제공합니다. 현재 볼륨은 호스트 1대용이며 여러 서버로 확장할 때 공유 저장소로 교체합니다.
+- 회원·모의 결제·상담·관리자와 PostgreSQL 분석 작업 관리는 [백엔드 업무 안내](backend/INDEPENDENT_BACKEND.md)에 구현 상태를 정리했습니다. Celery 개발 연결 검사와 실제 분석 작업 큐는 별개입니다. 실제 OCR·추천 품질·모델·수집기·결제사 연결은 남아 있습니다.
 - 남은 환경 작업: 각 팀원 PC 실행 확인, main 보호 규칙(소유자 권한), 모바일 담당·장치 확정. VPN 로그인/키 등록/다른 집 접속 검증은 이후 공용 서버를 선택할 때만 필요합니다.
 
 참고: [Next.js 설치](https://nextjs.org/docs/app/getting-started/installation), [Celery Redis](https://docs.celeryq.dev/en/stable/getting-started/backends-and-brokers/redis.html), [PaddleOCR](https://www.paddleocr.ai/main/en/quick_start.html), [Sentence-Transformers](https://sbert.net/docs/installation.html).

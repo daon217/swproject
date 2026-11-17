@@ -42,14 +42,15 @@ def request(base,path,payload=None,token=None):
         return 0,{},(time.perf_counter()-start)*1000
 
 
-def measure(name,items,fn,workers,expected):
+def measure(name,items,fn,workers,expected,validate=None):
     start=time.perf_counter()
     with ThreadPoolExecutor(workers) as pool:
         results=list(pool.map(fn,items))
     elapsed=time.perf_counter()-start
     timings=sorted(r[2] for r in results)
     percentile=lambda p:round(timings[max(0,math.ceil(len(timings)*p)-1)],2)
-    return {'phase':name,'requests':len(results),'errors':sum(r[0] not in expected for r in results),
+    return {'phase':name,'requests':len(results),'errors':sum(r[0] not in expected or
+            (validate is not None and not validate(r[1])) for r in results),
             'seconds':round(elapsed,3),'rps':round(len(results)/elapsed,2),
             'p50_ms':percentile(.5),'p95_ms':percentile(.95),'p99_ms':percentile(.99)}
 
@@ -87,10 +88,11 @@ def main():
                 'availability':'available','url':f'https://store.example.test/perf/{source}/{i}',
                 'field_presence':['name','price','currency','availability','url']}
     metrics=[]
-    metrics.append(measure('insert',range(args.rows),lambda i:request(base,path,payload(i),token),args.workers,{201}))
+    applied=lambda body:body.get('state')=='applied' and body.get('error_code') is None
+    metrics.append(measure('insert',range(args.rows),lambda i:request(base,path,payload(i),token),args.workers,{201},applied))
     count=min(100,args.rows)
-    metrics.append(measure('update',range(count),lambda i:request(base,path,payload(i,True),token),args.workers,{201}))
-    metrics.append(measure('duplicate',range(count),lambda i:request(base,path,payload(i,True),token),args.workers,{200}))
+    metrics.append(measure('update',range(count),lambda i:request(base,path,payload(i,True),token),args.workers,{201},applied))
+    metrics.append(measure('duplicate',range(count),lambda i:request(base,path,payload(i,True),token),args.workers,{200},applied))
     query='/v2/offers?'+urlencode({'selected_domain':'product','source':source,'limit':20})
     # Warm the read path; network and JSON overhead are deliberately included.
     request(base,query)
@@ -102,13 +104,18 @@ def main():
         status,body,_=request(base,'/v2/offers?'+urlencode(q))
         if status!=200: errors+=1; break
         incoming={r['offer_id'] for r in body['items']}
+        for item in body['items']:
+            index=int(item['source_listing_id'].removeprefix('item-'))
+            expected_price='12.5000' if index<count else '10.0000'
+            if item['price']!=expected_price or item['current_url']!=payload(index)['url']:
+                errors+=1
         if ids & incoming:errors+=1;break
         ids.update(incoming)
         cursor=body['next_cursor']
         if cursor is None:break
     passed=not errors and len(ids)==args.rows and all(m['errors']==0 and m['p95_ms']<=(args.read_p95_ms if m['phase']=='read' else args.write_p95_ms) for m in metrics)
     report={'source':source,'created_at':datetime.now(UTC).isoformat(),'rows':args.rows,'workers':args.workers,
-            'unique_rows_read':len(ids),'passed':passed,'metrics':metrics,
+            'unique_rows_read':len(ids),'verification_errors':errors,'passed':passed,'metrics':metrics,
             'scope':'local HTTP + PostgreSQL; no OCR, embeddings, payment provider or production sizing',
             'temporary_gates':{'read_p95_ms':args.read_p95_ms,'write_p95_ms':args.write_p95_ms}}
     if args.cleanup:

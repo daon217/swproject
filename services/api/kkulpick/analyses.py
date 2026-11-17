@@ -6,7 +6,6 @@ import secrets
 from typing import Literal
 from uuid import UUID,uuid4
 from fastapi import APIRouter,Depends,Header,Query,Request,Response
-from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials,HTTPBearer
 from pydantic import Field,HttpUrl,ValidationError,field_validator
 from starlette.datastructures import UploadFile
@@ -54,13 +53,24 @@ def worker(auth:HTTPAuthorizationCredentials|None=Depends(worker_bearer)):
         fail(401,'WORKER_AUTH_REQUIRED')
 
 
-async def expire(c):
-    await execute(c,"""UPDATE app.analyses SET state='failed',error_code='ANALYSIS_TIMEOUT',updated_at=now()
-        WHERE analysis_id IN (SELECT analysis_id FROM app.analyses WHERE state IN ('queued','running') AND deadline<=now() LIMIT 500 FOR UPDATE SKIP LOCKED)""")
-    await execute(c,"""UPDATE app.analyses SET state=CASE WHEN attempt<3 THEN 'queued' ELSE 'failed' END,
+async def expire(c, *, owner_id=None, analysis_id=None):
+    # Public requests only maintain the member/job they access. Workers and the
+    # periodic maintenance process still use bounded global batches.
+    scope=''
+    params={}
+    if owner_id is not None:
+        scope+=' AND owner_id=:expiry_owner'
+        params['expiry_owner']=owner_id
+    if analysis_id is not None:
+        scope+=' AND analysis_id=:expiry_id'
+        params['expiry_id']=analysis_id
+    await execute(c,f"""UPDATE app.analyses SET state='failed',error_code='ANALYSIS_TIMEOUT',updated_at=now()
+        WHERE analysis_id IN (SELECT analysis_id FROM app.analyses WHERE state IN ('queued','running') AND deadline<=now(){scope} LIMIT 500 FOR UPDATE SKIP LOCKED)""",**params)
+    await execute(c,f"""UPDATE app.analyses SET state=CASE WHEN attempt<3 THEN 'queued' ELSE 'failed' END,
         error_code=CASE WHEN attempt<3 THEN NULL ELSE 'WORKER_RETRIES_EXHAUSTED' END,
         lease_token=NULL,worker_id=NULL,lease_until=NULL,updated_at=now()
-        WHERE analysis_id IN (SELECT analysis_id FROM app.analyses WHERE state='running' AND lease_until<=now() LIMIT 500 FOR UPDATE SKIP LOCKED)""")
+        WHERE analysis_id IN (SELECT analysis_id FROM app.analyses WHERE state='running' AND lease_until<=now()
+        AND deadline>now(){scope} LIMIT 500 FOR UPDATE SKIP LOCKED)""",**params)
 
 
 async def input_data(req):
@@ -95,7 +105,7 @@ async def create_analysis(req:Request,response:Response,uid=Depends(member)):
             async with req.app.state.engine.begin() as c:
                 # Serializes per-member quota and idempotency checks without extra table.
                 await execute(c,"SELECT pg_advisory_xact_lock(hashtextextended(:k,0))",k='analysis:'+str(uid))
-                await expire(c)
+                await expire(c,owner_id=uid)
                 old=await row(c,'SELECT * FROM app.analyses WHERE owner_id=:u AND request_key=:k',u=uid,k=data.request_key)
                 if old:
                     if old['request_hash']!=digest:fail(409,'REQUEST_KEY_CONFLICT')
@@ -115,17 +125,24 @@ async def create_analysis(req:Request,response:Response,uid=Depends(member)):
     return wrap(dict(result)|{'status_url':'/analyses/'+str(result['analysis_id'])},req)
 
 
-async def public_result(c,r,premium):
+async def offer_cards(c,ids):
+    if not ids:
+        return {}
+    rows=(await execute(c,'''SELECT o.offer_id,i.name,o.price::text,o.currency,o.price_observed_at AS observed_at,
+        o.availability,o.current_url AS url,o.kind AS image_kind
+        FROM app.offers o JOIN app.catalog_items i USING(item_id)
+        WHERE o.offer_id=ANY(CAST(:ids AS uuid[])) AND o.availability='available' ''',
+        ids=list(set(ids)))).mappings().all()
+    return {x['offer_id']:x for x in rows}
+
+
+async def public_result(c,r,premium,by_id=None):
     cards=[]
     if r['state']=='completed' and r['offer_ids']:
-        rows=(await execute(c,'''SELECT o.offer_id,i.name,o.price::text,o.currency,o.price_observed_at AS observed_at,
-            o.availability,o.current_url AS url,o.kind AS image_kind
-            FROM app.offers o JOIN app.catalog_items i USING(item_id)
-            WHERE o.offer_id=ANY(CAST(:ids AS uuid[])) AND o.availability='available' AND o.kind=:kind''',
-            ids=r['offer_ids'],kind=r['selected_domain'])).mappings().all()
-        by_id={x['offer_id']:x for x in rows}
+        if by_id is None:
+            by_id=await offer_cards(c,r['offer_ids'])
         cards=[dict(by_id[ident])|{'subtitle':'','reason':'분석 작업자가 선택한 상품','affiliate':False}
-               for ident in r['offer_ids'] if ident in by_id][:3]
+               for ident in r['offer_ids'] if ident in by_id and by_id[ident]['image_kind']==r['selected_domain']][:3]
     cap=3 if premium else 1
     result_kind=('recommendation' if cards else 'empty') if r['state']=='completed' else None
     return {'analysis_id':r['analysis_id'],'state':r['state'],'result_kind':result_kind,
@@ -143,7 +160,7 @@ async def get_analysis(analysis_id:UUID,req:Request,uid=Depends(member)):
     async with access(req,uid) as m:
         premium=(await subscription_status(m,uid))['active']
         async with req.app.state.engine.begin() as c:
-            await expire(c)
+            await expire(c,owner_id=uid,analysis_id=analysis_id)
             r=await row(c,'SELECT * FROM app.analyses WHERE analysis_id=:id AND owner_id=:u',id=analysis_id,u=uid)
             if not r:fail(404,'ANALYSIS_NOT_FOUND')
             result=await public_result(c,r,premium)
@@ -171,9 +188,10 @@ async def history(req:Request,limit:int=Query(20,ge=1,le=100),uid=Depends(member
         premium=(await subscription_status(m,uid))['active']
         async with req.app.state.engine.connect() as c:
             rows=(await execute(c,"SELECT * FROM app.analyses WHERE owner_id=:u AND state='completed' ORDER BY created_at DESC,analysis_id DESC LIMIT :n",u=uid,n=limit)).mappings().all()
+            by_id=await offer_cards(c,[ident for r in rows for ident in r['offer_ids']])
             items=[]
             for r in rows:
-                result=await public_result(c,r,premium)
+                result=await public_result(c,r,premium,by_id)
                 if result['sections'][0]['items']:
                     items.append({'analysis_id':r['analysis_id'],'created_at':r['created_at'],'card':result['sections'][0]['items'][0]})
     return wrap(items,req)

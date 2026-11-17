@@ -1,6 +1,5 @@
 """Affiliate metadata is attached to an existing offer, never a duplicate product."""
 import os
-from datetime import UTC,datetime
 from uuid import UUID
 from fastapi import APIRouter,Depends,Query,Request
 from pydantic import AwareDatetime,Field,HttpUrl,model_validator

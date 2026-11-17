@@ -1,5 +1,15 @@
-# 꿀픽 카탈로그 API · 개발 1단계
-소병선 담당. 3개 DB 가운데 catalog에만 업무 테이블을 적용한다. 실제 수집 계정, 외부 사이트 호출, Claude 키, 임베딩 모델 다운로드 없이 실행한다.
+# 꿀픽 백엔드 API
+소병선 담당. 회원·상품·고객센터의 독립 DB 3개에 업무 테이블과 별도 마이그레이션을 적용한다. 개발환경과 자동 검사는 실제 사이트·Claude·결제사 호출 없이 실행한다.
+
+| 찾는 내용 | 기준 문서 |
+| --- | --- |
+| 공통 설치·실행·종료 | [로컬 개발환경](../../docs/LOCAL_DEVELOPMENT.md) |
+| 상품 데이터 수신·중복 제거·갱신 | [수집 데이터 안내](../../docs/backend/CATALOG_INGESTION.md) |
+| 회원·모의 결제·데이터 정리·성능 명령 | [DB 운영](../../docs/backend/DB_OPERATIONS.md) |
+| 상담·관리자·제휴·탈퇴·분석 작업 | [백엔드 업무](../../docs/backend/INDEPENDENT_BACKEND.md) |
+| 외부 호출 규격 | [API 계약 목록](../../contracts/README.md) |
+
+아래는 카탈로그와 벡터 모듈의 상세 안내다. 문서의 실행 명령은 저장소 루트 기준이다.
 
 ## 팀원이 실행하기
 Docker Compose v2 및 Python 3.10+가 있는 PC에서 저장소 루트에서 실행한다. API 컨테이너의 Python은 3.12다.
@@ -8,11 +18,11 @@ python services/api/dev.py init
 python services/api/dev.py up
 python services/api/dev.py seed
 ```
-Windows에서 필요하면 python 대신 py를 사용한다. 기존 infra/db/.env와 DB volume은 유지한다. owner로 catalog 마이그레이션을 끝낸 후 별도 app 계정으로 API가 시작된다. /health는 실제 catalog의 offers 읽기까지 확인한다.
+Windows에서 필요하면 python 대신 py를 사용한다. 기존 infra/db/.env와 DB volume은 유지한다. 각 DB의 owner 계정으로 3개 마이그레이션을 끝낸 후 별도 app 계정으로 API가 시작된다. /health는 상품·회원·상담 테이블에 대한 접근을 모두 확인한다.
 - 브라우저: http://127.0.0.1:8000/docs 및 http://127.0.0.1:8000/health
 - 웹: GET /v2/offers?selected_domain=product (또는 food). 최대 100건, next_cursor를 다음 요청의 after에 사용. 가격은 십진 문자열. 마지막 수집 상태 기준 판매 중 신품 목록이며 추천·상품 동일성 판정 결과가 아니다.
 - 종료: python services/api/dev.py down. 데이터 볼륨 보존.
-- 각자의 PC에 실행하는 환경이다. 공용 API/인증/운영 배포 전 단계.
+- 각자의 PC에 실행하는 개발환경이다. 회원 인증은 구현되어 있으며 외부 공개 운영 배포 검증은 별도다.
 - services/api/.env: COLLECTOR_TOKEN, API_PORT(기본 8000), DEV_ORIGINS(쉼표로 나눈 개발 웹 origin), CATALOG_URL_HOSTS(허용하는 판매처 호스트명, 쉼표 구분). 비밀번호/토큰은 Git에 올리지 않는다.
 - 테스트용 기본 URL 호스트는 store.example.test이며 다운로드하지 않는다. 실제 데이터 수신 전 허용 호스트와 수집원별 권한을 별도 설정한다. 이 단계의 단일 수집 토큰은 내부 로컬 통합용이다. 공개 서버에 그대로 배포하지 않는다.
 
@@ -23,7 +33,7 @@ POST /internal/v2/crawl-runs/{run_id}/observations. UUID run_id를 생성하고 
 - 내부 수신 201, 재전송 200, 같은 source/observation_key의 다른 payload 409, 형식 오류 422, 인증 실패 401. 201은 관측 보관 결과로, 본문 state가 applied인지 확인한다. normalized_payload에는 허용된 필드만 저장한다.
 - 가격/배송비·판매 상태·URL·설명·신품/중고 상태는 필드별 관측 시각으로 비교한다. 오래된 관측은 기록하고 현재값은 보존한다. 같은 시각 상충은 격리한다. 가격 변경 때만 가격 이력, URL 변경 때만 URL 이력/버전을 추가한다.
 - 수신 시 갱신: 24시간 만료 조건을 제거했다. 새 관측이 도착하면 observed_at을 비교해 적용한다. not_found는 suspect로 일반 목록에서 제외하고 timeout/blocked/error는 현재 판매 상태를 보존한다. 수집 파일에 없다는 이유로 삭제하지 않는다. last_seen_at을 화면에 표시하며 실시간 가격이라고 보장하지 않는다.
-- food와 product는 분리 조회한다. 중고는 condition=used로 조회하며 상세 스키마·제휴·회원 및 상담 API는 이번 범위에 포함하지 않는다.
+- food와 product는 분리 조회한다. 중고는 condition=used로 조회한다. 제휴·회원·상담 API는 위 업무별 문서를 참고한다. 실제 상품 상세정보 수집 연동은 별도다.
 
 ## 정우: 임베딩 연결
 근거: 2026-10-06 pgvector 설계서 2~4절, 통합 기술 명세 10장. product / food / ingredient별 테이블과 embedding_models 사용. Sentence-Transformers의 실제 모델명·가중치 revision·차원은 미정이다. 테스트의 3차원 배열은 인코더 결과가 아니다.
@@ -38,8 +48,8 @@ Catalog API integration CI는 실제 pgvector 컨테이너에서 Alembic upgrade
 ## 점검 후 보완 (2026-11-06)
 
 런타임은 requirements.lock으로 설치합니다. FastAPI 0.137.2 / Starlette 1.3.1 조합으로 보안 권고를 반영하고 계약·DB 통합 검사를 수행합니다. 버전 변경 시 requirements.txt와 lock을 함께 갱신합니다.
-현재 JSON 적재 요청 본문은 64 KiB 상한이며 초과하면 413입니다. 이미지 업로드 API는 아직 없으며 구현 시 별도의 스트리밍·크기·픽셀 제한이 필요합니다. 허용 origin의 공개 API 연동을 위해 GET/POST/PATCH/DELETE와 Authorization 헤더를 허용합니다. CORS는 인증을 대신하지 않으며 수집 토큰은 브라우저에 전달하지 않습니다.
+JSON 요청 본문은 64 KiB 상한이며 초과하면 413입니다. 분석 multipart 요청은 전체 3 MiB, 이미지 1개 2 MiB로 제한하며 비공개 저장합니다. 헤더 검사는 이미지 디코딩·픽셀 제한을 대신하지 않으며 실제 작업자에서 추가 검증해야 합니다. 허용 origin의 GET/POST/PATCH/PUT/DELETE와 Authorization·Idempotency-Key를 지원합니다. CORS는 인증을 대신하지 않으며 수집·분석 작업자 토큰은 브라우저에 전달하지 않습니다.
 
 ## 실제 크롤링 데이터 가져오기
 
-[수신 갱신·적재·검증 가이드](../../docs/CATALOG_INGESTION.md)를 참고한다. `tools/catalog.py`는 JSON 배열을 한 건씩 인증 API로 보낸다. 원본 시각과 키를 보존하며 파일 재실행은 중복 적재하지 않는다.
+[수신 갱신·적재·검증 가이드](../../docs/backend/CATALOG_INGESTION.md)를 참고한다. `tools/catalog.py`는 JSON 배열을 한 건씩 인증 API로 보낸다. 원본 시각과 키를 보존하며 파일 재실행은 중복 적재하지 않는다.

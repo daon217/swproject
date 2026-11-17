@@ -18,4 +18,4 @@
 ```json
 {"schema_version":2,"source":"demo","observation_key":"demo:check:1","observed_at":"2026-11-15T00:00:00+00:00","result":"success","selected_domain":"product","source_listing_id":"demo-product-1","variant_key":"default","condition":"new","name":"가상 상품","price":"12000","currency":"KRW","availability":"available","url":"https://store.example.test/p/1","field_presence":["name","price","currency","availability","url"]}
 ```
-다음 관측은 식별값을 유지하고 observation_key/observed_at을 새로 지정한다. 예를 들어 price=11000, URL=/p/1-new, availability=out_of_stock이면 기존 offer_id를 유지하며 해당 필드를 갱신한다. 상세 규칙과 실행은 [가이드](../docs/CATALOG_INGESTION.md)를 따른다.
+다음 관측은 식별값을 유지하고 observation_key/observed_at을 새로 지정한다. 예를 들어 price=11000, URL=/p/1-new, availability=out_of_stock이면 기존 offer_id를 유지하며 해당 필드를 갱신한다. 상세 규칙과 실행은 [가이드](../docs/backend/CATALOG_INGESTION.md)를 따른다.

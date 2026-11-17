@@ -36,7 +36,7 @@ API 문서: http://127.0.0.1:8000/docs. 평소에는 `up --scope core`, 종료�
 | 웹·작업 큐·OCR·추천 개발 틀 | [전체 개발환경](docs/WORKSPACE.md) |
 | 자동 검사·빌드 결과 확인 | [CI 안내](.ci/README.md) |
 | API·이벤트 계약 | [계약 안내](contracts/README.md) |
-| 선택적인 공용 서버/VPN 접속 | [공용 서버 안내](docs/TEAM_DEVELOPMENT.md) |
+| 선택적인 공용 서버/VPN 접속 | [공용 서버 안내](docs/optional/TEAM_DEVELOPMENT.md) |
 
 ## 담당자와 코드 위치
 
@@ -54,9 +54,10 @@ API 문서: http://127.0.0.1:8000/docs. 평소에는 `up --scope core`, 종료�
 
 ## 구현 상태와 설계 기준
 
-- 제공: 독립 PostgreSQL DB 3개, 카탈로그 업무 테이블 13개, 가상 수집 데이터 적재·상품 조회 API, pgvector 저장·검색 모듈, 로컬 실행·백업 도구.
+- 제공: 독립 PostgreSQL DB 3개, 수집 데이터 갱신·상품 조회·pgvector 저장/검색, 회원 인증·프로필, 모의 구독 결제, 고객센터·제휴·관리자·탈퇴, 분석 작업 관리 API.
 - 제공: 웹·관리자·확장·모바일 시작 코드, OCR·추천·수집 HTTP 개발 틀, Redis·Celery·비공개 임시 저장소, 9개 프로젝트 검사·빌드 설정.
-- 미완료: 회원·고객센터 업무 테이블, 회원·결제·상담·관리자 업무 기능, 실제 수집·OCR·추천 통합, 모델 가중치와 운영 배포.
+- 미완료: 프론트 화면 연결, 실제 수집·OCR·추천·임베딩 통합, 실제 결제사·정기청구, 비밀번호 재설정용 본인 확인과 운영 배포.
+- 백엔드 사용법은 [백엔드 업무 안내](docs/backend/INDEPENDENT_BACKEND.md), 요청·응답은 [API 계약 목록](contracts/README.md)을 기준으로 합니다.
 - 기본 환경 점검은 실제 크롤링·모델 추론·Claude 유료 호출을 하지 않습니다. 검사 통과는 서비스 기능 전체 완성을 뜻하지 않습니다.
 
 2026-11-02 기술 명세서와 팀 WBS를 기준으로 합니다. FastAPI/Pydantic, Celery/Redis, PostgreSQL/pgvector를 사용하며 과거 Java/Spring 목록은 적용하지 않습니다. 실행 버전은 코드의 의존성 명세·잠금 파일과 `.python-version`, `.nvmrc`를 기준으로 합니다.

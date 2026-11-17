@@ -12,7 +12,7 @@ py tools/workspace.py up --scope core
 py tools/workspace.py check --scope core
 ```
 
-독립 DB 3개를 유지한다. catalog=0004_workflows, member=member_0002, support=support_0001까지 자동 마이그레이션한다.
+독립 DB 3개를 유지한다. catalog=0005_efficiency, member=member_0002, support=support_0001까지 자동 마이그레이션한다.
 회원·상품·고객센터 중 하나의 마이그레이션이 실패하면 API가 정상 시작되지 않게 했다. Swagger: http://127.0.0.1:8000/docs.
 
 ## 관리자 계정
@@ -67,7 +67,7 @@ services/api/tests/test_independent_features.py에서 실제 DB 3개를 대상�
 비공개 파일·업로드 크기 제한, 구독별 결과 제한, 탈퇴 및 DB 간 부분 실패 후 재시도를 검증한다.
 기존 상품·회원·구독 검사와 실제 HTTP 성능 검사도 같은 CI에서 실행한다.
 
-API 전체 목록과 요청 형태: [독립 구현 API 계약](../contracts/independent-backend-v2.md).
+API 전체 목록과 요청 형태: [독립 구현 API 계약](../../contracts/independent-backend-v2.md).
 이전 구독·데이터 관리: [DB 운영 안내](DB_OPERATIONS.md).
 
 남은 연결: 프론트 실제 화면, OCR·추천·임베딩 모델, 성분/알레르기 판정, 실제 결제사, 비밀번호 재설정용 본인 확인 수단.

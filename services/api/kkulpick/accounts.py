@@ -2,7 +2,6 @@
 import secrets
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field, SecretStr
-from sqlalchemy import text
 from starlette.concurrency import run_in_threadpool
 from .access import access
 from .members import Strict, member, row, execute, fail, wrap, check_password

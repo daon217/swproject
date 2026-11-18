@@ -170,3 +170,28 @@ def test_claude_ranker_parses_structured_output(tmp_path):
     content = calls["messages"][0]["content"]
     assert "버터 쿠키" not in content and "demo:" not in content  # 알레르기 상품·긴 id 는 LLM 에 안 보냄
     assert any("후보 밖" in n for n in r.notes)
+
+
+def test_allergen_false_friends_not_flagged():
+    """'메밀가루'는 밀, '코코아버터'는 우유가 아님. 괄호로 따로 적힌 알레르기는 그대로 잡음."""
+    soba = CollectedProduct.from_dict({"source": "t", "source_listing_id": "soba", "name": "메밀면",
+                                       "ingredients_raw": "메밀가루 100%"})
+    choco = CollectedProduct.from_dict({"source": "t", "source_listing_id": "choco", "name": "다크",
+                                        "ingredients_raw": "카카오매스, 코코아버터, 설탕"})
+    milky = CollectedProduct.from_dict({"source": "t", "source_listing_id": "milky", "name": "쿠키",
+                                        "ingredients_raw": "밀가루(밀), 버터(우유)"})
+    assert assess(soba, UserProfile.from_dict({"user_id": "u", "allergens": ["wheat"]})).safe
+    assert not assess(soba, UserProfile.from_dict({"user_id": "u", "allergens": ["buckwheat"]})).safe
+    assert assess(choco, UserProfile.from_dict({"user_id": "u", "allergens": ["milk"]})).safe
+    assert not assess(milky, UserProfile.from_dict({"user_id": "u", "allergens": ["milk"]})).safe
+
+
+def test_compact_keeps_cheapest_duplicate():
+    from services.recommendation.compress import compact_candidates
+
+    a = CollectedProduct.from_dict({"source": "s1", "source_listing_id": "a", "name": "귀리 오트밀크 1L",
+                                    "price": "4200", "currency": "KRW"})
+    b = CollectedProduct.from_dict({"source": "s2", "source_listing_id": "b", "name": "귀리 오트밀크 1L",
+                                    "price": "3900", "currency": "KRW"})
+    c = compact_candidates(UserProfile.from_dict({"user_id": "u"}), "오트밀크", [(a, 0.9), (b, 0.8)])
+    assert list(c.id_map.values()) == [b.product_id] and c.dropped_duplicates == 1

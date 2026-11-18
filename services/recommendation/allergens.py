@@ -53,8 +53,20 @@ def split_ingredients(raw: str | None) -> list[str]:
     return items
 
 
-def _match(token: str, synonyms: list[str]) -> str | None:
+# 알레르기 단어를 품고 있지만 그 알레르기와 무관한 성분 (5차 실험에서 발견한 오탐).
+# 예: '메밀가루' 안의 '밀가루', '코코아버터' 안의 '버터'. 원재료 표시에 '(우유)' 처럼 따로 적혀 있으면 그건 그대로 잡힘.
+_FALSE_FRIENDS: dict[str, tuple[str, ...]] = {
+    "milk": ("코코아버터", "카카오버터", "땅콩버터", "피넛버터", "아몬드버터", "시어버터", "쉐어버터",
+             "코코넛밀크", "코코넛크림", "아몬드밀크", "오트밀크", "귀리밀크", "라이스밀크", "cocoabutter",
+             "coconutmilk"),
+    "wheat": ("메밀",),
+}
+
+
+def _match(token: str, synonyms: list[str], code: str | None = None) -> str | None:
     low = token.lower().replace(" ", "")
+    for ff in _FALSE_FRIENDS.get(code or "", ()):
+        low = low.replace(ff, "")
     for s in synonyms:
         s2 = s.lower().replace(" ", "")
         if len(s2) == 1:
@@ -70,7 +82,7 @@ def detect(texts: list[str]) -> dict[str, str]:
     found: dict[str, str] = {}
     for token in texts:
         for code, (_, syn) in ALLERGENS.items():
-            if code not in found and _match(token, syn):
+            if code not in found and _match(token, syn, code):
                 found[code] = token
     return found
 

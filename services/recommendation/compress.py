@@ -3,7 +3,7 @@
 원칙
 1. 안전·판매 판정은 이미 코드가 끝냄 -> 성분 전체나 알레르기 근거를 LLM 에 보낼 필요 없음.
 2. 긴 상품 id 대신 c1, c2 ... 짧은 번호를 보내고 코드에서 다시 바꿈 (LLM 이 없는 id 를 지어내도 버려짐).
-3. 이름이 사실상 같은 후보는 하나만 (판매처만 다른 같은 상품).
+3. 이름이 사실상 같은 후보는 하나만 (판매처만 다른 같은 상품). 그중 가장 싼 것을 남김.
 4. 한 줄에 한 상품, 고정 열 순서: 번호|이름|분류|가격|주요성분
    - 주요성분: 원재료는 함량 순이라 앞 몇 개가 상품 성격을 거의 결정함. 흔한 첨가물은 뺌.
    - 검색어/선호에 나온 단어가 성분에 있으면 그 성분은 순서와 상관없이 남김.
@@ -65,6 +65,13 @@ def _price(p: CollectedProduct) -> str:
     return f"{v}{p.currency or ''}"
 
 
+def _price_value(p: CollectedProduct) -> float:
+    try:
+        return float(p.price) if p.price is not None else float("inf")
+    except ValueError:
+        return float("inf")
+
+
 def _field(s: str | None, n: int) -> str:
     s = _WS.sub(" ", (s or "").replace("|", "/")).strip()
     return s if len(s) <= n else s[: n - 1] + "…"
@@ -74,13 +81,14 @@ def compact_candidates(profile: UserProfile, query: str, items: list[tuple[Colle
                        max_items: int = 12, name_len: int = 40, ing_limit: int = 3,
                        show_category: bool = True) -> Compact:
     keywords = {w.lower() for w in re.findall(r"[\w가-힣]{2,}", f"{query} {profile.preferences}")}
-    seen, lines, id_map, dup = set(), [], {}, 0
+    # 이름이 같은 후보(판매처만 다름)는 하나로: 자리는 가장 비슷한 것의 순서, 대표는 가장 싼 것
+    groups: dict[str, list[CollectedProduct]] = {}
     for p, _ in sorted(items, key=lambda x: -x[1]):
-        k = _norm(p.name)
-        if k in seen:
-            dup += 1
-            continue
-        seen.add(k)
+        groups.setdefault(_norm(p.name), []).append(p)
+    lines, id_map = [], {}
+    dup = sum(len(g) - 1 for g in groups.values())
+    for group in groups.values():
+        p = min(group, key=_price_value)
         cid = f"c{len(id_map) + 1}"
         id_map[cid] = p.product_id
         cols = [cid, _field(p.name, name_len)]

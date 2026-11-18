@@ -43,10 +43,11 @@ VARIANTS = {
 METHODS = list(VARIANTS)
 
 
-def load():
+def load(dataset="bench"):
+    """bench: 기본 24개/8질의, hard: 헷갈리는 44개/13질의 (5차부터)."""
     products = [CollectedProduct.from_dict(json.loads(l)) for l in
-                (HERE / "foods.bench.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
-    queries = json.loads((HERE / "queries.bench.json").read_text(encoding="utf-8"))
+                (HERE / f"foods.{dataset}.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+    queries = json.loads((HERE / f"queries.{dataset}.json").read_text(encoding="utf-8"))
     return products, queries
 
 
@@ -114,7 +115,7 @@ def count_tokens(client, model, system, user):
 
 
 def run(args):
-    products, queries = load()
+    products, queries = load(args.dataset)
     emb = HashEmbedder()
     client, ranker, model = None, None, None
     if args.tokens or args.llm == "claude":
@@ -254,6 +255,7 @@ def main(argv=None):
     ap.add_argument("--methods", nargs="+", default=METHODS, choices=METHODS)
     ap.add_argument("--note", default="", help="실험 로그에 남길 메모")
     ap.add_argument("--repeat", type=int, default=3, help="압축 시간 측정 반복 횟수 (중앙값)")
+    ap.add_argument("--dataset", default="bench", choices=["bench", "hard"], help="실험 데이터셋")
     ap.add_argument("--pace", type=float, default=0.0, help="LLM 호출 사이 대기(초). 학교 서버는 2.5 권장")
     a = ap.parse_args(argv)
     rows, skipped, model = run(a)
@@ -261,7 +263,7 @@ def main(argv=None):
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     (HERE / "results").mkdir(exist_ok=True)
     out = {"time": stamp, "model": model if (a.llm or a.tokens) else None, "llm": a.llm, "tokens": a.tokens,
-           "skipped": skipped, "summary": summary, "rows": rows, "note": a.note}
+           "dataset": a.dataset, "skipped": skipped, "summary": summary, "rows": rows, "note": a.note}
     path = HERE / "results" / f"compression-{stamp}.json"
     path.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     save_per_method(out)

@@ -134,6 +134,13 @@ def run(args):
     rows, skipped = [], {}
     import sys
 
+    if "llmlingua2" in args.methods:  # 압축 모델 로딩은 압축 시간에서 뺌 (서버에서는 한 번만 로딩)
+        try:
+            p0, i0 = candidates(products, queries[0], emb)
+            render("llmlingua2", p0, queries[0]["query"], i0)
+        except Exception:
+            pass
+
     for qi, q in enumerate(queries, 1):
         print(f"[{qi}/{len(queries)}] {q['qid']} {q['query']}", file=sys.stderr, flush=True)
         prof, items = candidates(products, q, emb)
@@ -148,7 +155,12 @@ def run(args):
             except Exception as e:  # 모델 다운로드 실패 등
                 skipped[m] = f"{type(e).__name__}: {str(e)[:120]}"
                 continue
-            compress_ms = round((time.perf_counter() - t_c) * 1000, 2)  # 압축(입력 만들기)에 걸린 시간
+            times = [time.perf_counter() - t_c]
+            for _ in range(args.repeat - 1):  # 같은 입력으로 반복해서 중앙값 (첫 실행 흔들림 제거)
+                t1 = time.perf_counter()
+                render(m, prof, q["query"], items)
+                times.append(time.perf_counter() - t1)
+            compress_ms = round(statistics.median(times) * 1000, 2)  # 압축(입력 만들기)에 걸린 시간
             per_kind, ret = retention(user, items, id_map, keywords)
             row = {"qid": q["qid"], "method": m, "chars": len(system) + len(user),
                    "bytes": len((system + user).encode()), "user_bytes": len(user.encode()),
@@ -241,6 +253,7 @@ def main(argv=None):
     ap.add_argument("--tokens", action="store_true", help="count_tokens API 로 정확한 입력 토큰만 측정")
     ap.add_argument("--methods", nargs="+", default=METHODS, choices=METHODS)
     ap.add_argument("--note", default="", help="실험 로그에 남길 메모")
+    ap.add_argument("--repeat", type=int, default=3, help="압축 시간 측정 반복 횟수 (중앙값)")
     ap.add_argument("--pace", type=float, default=0.0, help="LLM 호출 사이 대기(초). 학교 서버는 2.5 권장")
     a = ap.parse_args(argv)
     rows, skipped, model = run(a)

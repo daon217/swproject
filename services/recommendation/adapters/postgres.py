@@ -124,18 +124,21 @@ class PgCatalog:
             return {}
         rows = self.conn.execute(
             """SELECT o.source, o.source_listing_id, o.variant_key, i.name, i.description, o.price::text,
-                      o.currency, o.current_url, o.price_observed_at
+                      o.currency, o.current_url, o.price_observed_at,
+                      o.condition, o.availability, o.last_checked_at
                FROM app.offers o JOIN app.catalog_items i USING(item_id)
                WHERE o.kind=%s AND (o.source, o.source_listing_id, o.variant_key) IN
                      (SELECT * FROM unnest(%s::text[], %s::text[], %s::text[]))""",
             (self.kind, [k[0] for k in keys], [k[1] for k in keys], [k[2] or "default" for k in keys])).fetchall()
         out = {}
-        for s, l, v, name, desc, price, cur, url, seen in rows:
+        for s, l, v, name, desc, price, cur, url, seen, cond, avail, checked in rows:
             pid = join_product_id(s, l, v)
             out[pid] = CollectedProduct.from_dict({
                 k: x for k, x in {"source": s, "source_listing_id": f"{l}#{v}" if v else l, "name": name,
                                   "description": desc, "category": self.kind, "price": price, "currency": cur,
-                                  "url": url, "collected_at": seen.isoformat() if seen else None}.items()
+                                  "url": url, "collected_at": seen.isoformat() if seen else None,
+                                  "condition": cond, "availability": avail,
+                                  "checked_at": checked.isoformat() if checked else None}.items()
                 if x is not None})
         # 요청한 id 철자(variant 생략 등) 그대로 돌려주기
         return {p: out[join_product_id(*(k[0], k[1], k[2] or "default"))] for p, k in zip(product_ids, keys)

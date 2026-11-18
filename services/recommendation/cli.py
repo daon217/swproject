@@ -165,7 +165,16 @@ def cmd_recommend(a) -> int:
     if profile is None:
         print(f"프로필 없음: {a.user} (먼저 profile 명령으로 저장)", file=sys.stderr)
         return 2
-    result = _recommender(a).recommend(profile, a.query, top_k=a.top_k, candidate_limit=a.candidates)
+    rec = _recommender(a)
+    if a.live_check:
+        from .used_check import HttpListingChecker
+
+        hosts = os.getenv("CATALOG_URL_HOSTS", "").split(",")
+        if not any(h.strip() for h in hosts):
+            print("--live-check 에는 환경변수 CATALOG_URL_HOSTS(허용 판매처 호스트) 필요", file=sys.stderr)
+            return 2
+        rec.used_checker = HttpListingChecker(hosts)
+    result = rec.recommend(profile, a.query, top_k=a.top_k, candidate_limit=a.candidates)
     print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
     return 0
 
@@ -198,6 +207,7 @@ def main(argv=None) -> int:
     s = sub.add_parser("recommend")
     s.add_argument("--user", required=True); s.add_argument("--query", default="")
     s.add_argument("--top-k", type=int, default=5); s.add_argument("--candidates", type=int, default=30)
+    s.add_argument("--live-check", action="store_true", help="중고 후보를 판매 페이지에서 실시간 재확인")
     s.set_defaults(fn=cmd_recommend)
     a = ap.parse_args(argv)
     return a.fn(a)

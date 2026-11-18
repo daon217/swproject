@@ -30,9 +30,11 @@ def _source_code(s: str) -> str:
 
 
 def _common(d: dict[str, Any], *, source: str, listing: str, url: str | None,
-            collected_at: str | None, category: str | None) -> dict[str, Any]:
+            collected_at: str | None, category: str | None, checked_at: str | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"source": _source_code(source), "source_listing_id": listing,
-                           "name": d["name"], "category": category}
+                           "name": d["name"], "category": category, "description": d.get("description"),
+                           "condition": d.get("condition"), "availability": d.get("availability"),
+                           "checked_at": checked_at}
     if d.get("price") is not None and d.get("currency"):
         out["price"], out["currency"] = str(d["price"]), d["currency"]
     if url:
@@ -56,7 +58,8 @@ def observation_to_product(obs: dict[str, Any]) -> CollectedProduct:
         listing = f"{listing}#{obs['variant_key']}"
     return CollectedProduct.from_dict(_common(
         obs, source=obs["source"], listing=listing, url=obs.get("url"),
-        collected_at=obs.get("observed_at"), category=obs.get("selected_domain")))
+        collected_at=obs.get("observed_at"), category=obs.get("selected_domain"),
+        checked_at=obs.get("observed_at") if obs.get("availability") else None))
 
 
 def offer_to_product(offer: dict[str, Any], domain: str) -> CollectedProduct:
@@ -66,7 +69,8 @@ def offer_to_product(offer: dict[str, Any], domain: str) -> CollectedProduct:
         listing = f"{listing}#{offer['variant_key']}"
     return CollectedProduct.from_dict(_common(
         offer, source=offer["source"], listing=listing, url=offer.get("current_url"),
-        collected_at=offer.get("price_observed_at") or offer.get("last_seen_at"), category=domain))
+        collected_at=offer.get("price_observed_at") or offer.get("last_seen_at"), category=domain,
+        checked_at=offer.get("last_checked_at")))
 
 
 def fetch_offers(api_base: str, domain: str = "food", *, page_size: int = 100,
@@ -80,7 +84,8 @@ def fetch_offers(api_base: str, domain: str = "food", *, page_size: int = 100,
     fetch = opener or (lambda u: json.loads(urllib.request.urlopen(u, timeout=timeout).read()))
     after = None
     for _ in range(max_pages):
-        q = {"selected_domain": domain, "limit": page_size}
+        # 중고·품절도 받아서 추천 쪽에서 판단 (API 기본값은 new + available 만)
+        q = {"selected_domain": domain, "limit": page_size, "condition": "all", "availability": "all"}
         if after:
             q["after"] = after
         page = fetch(f"{base}/v2/offers?{urllib.parse.urlencode(q)}")

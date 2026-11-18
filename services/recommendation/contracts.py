@@ -45,11 +45,18 @@ class CollectedProduct:
     ingredients: list[str] | None = None    # 수집기가 이미 나눈 성분 목록 (없으면 원문을 파싱)
     description: str | None = None
     collected_at: str | None = None         # ISO-8601
+    condition: str | None = None            # "new" | "used" (없으면 new 로 봄)
+    availability: str | None = None         # "available" | "out_of_stock" | "ended" | "suspect"
+    checked_at: str | None = None           # 판매 상태를 마지막으로 확인한 시각 (ISO-8601)
     schema: str = PRODUCT_SCHEMA
 
     @property
     def product_id(self) -> str:
         return f"{self.source}:{self.source_listing_id}"
+
+    @property
+    def is_used(self) -> bool:
+        return self.condition == "used"
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "CollectedProduct":
@@ -72,6 +79,10 @@ class CollectedProduct:
             errors.append("price 와 currency 는 함께 보내야 함")
         if cur is not None and (not isinstance(cur, str) or not _CURRENCY.match(cur)):
             errors.append("currency 는 KRW 같은 3글자 대문자")
+        if data.get("condition") not in (None, "new", "used"):
+            errors.append("condition 은 new | used")
+        if data.get("availability") not in (None, "available", "out_of_stock", "ended", "suspect"):
+            errors.append("availability 는 available | out_of_stock | ended | suspect")
         ing = data.get("ingredients")
         if ing is not None and (not isinstance(ing, list) or not all(isinstance(x, str) for x in ing)):
             errors.append("ingredients 는 문자열 목록")
@@ -95,6 +106,7 @@ class UserProfile:
     preferences: str = ""                                       # 자연어 선호. 예: "단백질 많은 간식"
     exclude_cross_contact: bool = True   # "같은 시설 제조" 표시도 제외할지
     exclude_unknown: bool = True         # 성분 정보 없는 상품을 제외할지 (알레르기가 있을 때만 적용)
+    include_used: bool = False           # 중고 포함 (member DB user_profiles.include_used, 식품에는 적용 안 함)
     schema: str = PROFILE_SCHEMA
 
     @classmethod

@@ -14,6 +14,14 @@ async function backend(page, path, body, method = 'GET') {
     return { status: r.status, json: await r.json().catch(() => null) };
   }, { path, body, method });
 }
+async function clickCheckbox(page, name) {
+  const checkbox = page.getByRole('checkbox', { name });
+  // 확장의 실제 클릭 대상은 숨겨진 input을 감싼 label이다.
+  if (await checkbox.evaluate(element => element.tagName === 'INPUT')) await checkbox.locator('..').click();
+  else await checkbox.click();
+  await expect(checkbox).toBeChecked();
+}
+
 async function signup(page, id) {
   await page.getByPlaceholder('아이디 입력', { exact: true }).fill(id);
   await page.getByRole('button', { name: '중복확인', exact: true }).click();
@@ -21,7 +29,7 @@ async function signup(page, id) {
   await page.getByRole('button', { name: '확인', exact: true }).click();
   await page.getByPlaceholder('비밀번호 입력', { exact: true }).fill(password);
   await page.getByPlaceholder('비밀번호를 다시 입력하세요', { exact: true }).fill(password);
-  await page.getByRole('checkbox', { name: /필수/ }).click();
+  await clickCheckbox(page, /필수/);
   const saved = page.waitForResponse(r => r.url().endsWith('/v2/auth/signup') && r.request().method() === 'POST');
   await page.getByRole('button', { name: '동의하고 가입하기', exact: true }).click();
   expect((await saved).status()).toBe(201);
@@ -66,7 +74,7 @@ test('extension UI: real signup, profile persistence, support, upload/cancel, mo
   await page.getByRole('button', { name: '결제하기', exact: true }).click();
   await expect(page.getByText(/개발용 테스트 결제입니다/)).toBeVisible();
   await page.getByRole('radio', { name: '신용카드 결제', exact: true }).click();
-  await page.getByRole('checkbox', { name: /필수/ }).click();
+  await clickCheckbox(page, /필수/);
   await page.getByRole('button', { name: '결제하기', exact: true }).click();
   await expect.poll(async () => (await backend(page, '/v2/me/subscription')).json.data.active).toBe(true);
   await page.reload();
@@ -81,7 +89,7 @@ test('extension UI: real signup, profile persistence, support, upload/cancel, mo
   await expect(page.getByLabel('생년월일', { exact: true })).toHaveValue('2001-02-03');
   await page.getByRole('button', { name: '회원 탈퇴', exact: true }).click();
   await page.getByPlaceholder('현재 비밀번호 입력', { exact: true }).fill(password);
-  await page.getByRole('checkbox', { name: /탈퇴에 동의/ }).click();
+  await clickCheckbox(page, /탈퇴에 동의/);
   await page.getByRole('button', { name: '탈퇴하기', exact: true }).click();
   await page.getByRole('dialog', { name: '정말 탈퇴할까요?' }).getByRole('button', { name: '탈퇴하기', exact: true }).click();
   await expect(page.getByText('탈퇴가 접수됐어요', { exact: true })).toBeVisible();

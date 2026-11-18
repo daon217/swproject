@@ -19,7 +19,7 @@ test('pending payment keeps one idempotent request and never enables premium', a
   await page.getByRole('button', { name: '프리미엄 알아보기', exact: true }).click();
   await page.getByRole('button', { name: '결제하기', exact: true }).click();
   await page.getByRole('radio', { name: '신용카드 결제', exact: true }).click();
-  await page.getByRole('checkbox', { name: /필수/ }).click();
+  await page.getByRole('checkbox', { name: /필수/ }).locator('..').click();
   let paymentId;
   for (let attempt = 0; attempt < 2; attempt++) {
     const response = page.waitForResponse(r => r.url().endsWith('/v2/me/subscriptions') && r.request().method() === 'POST');

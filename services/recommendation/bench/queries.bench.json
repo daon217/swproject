@@ -1,0 +1,10 @@
+[
+ {"qid":"q1","user":{"user_id":"b-milk","allergens":["milk"],"preferences":"아이 간식, 달지 않은 것"},"query":"아이 간식","gold":["bench:f11","bench:f12","bench:f02"]},
+ {"qid":"q2","user":{"user_id":"b-none","allergens":[],"preferences":"운동 후 단백질"},"query":"단백질 많은 간식","gold":["bench:f04","bench:f05","bench:f06"]},
+ {"qid":"q3","user":{"user_id":"b-peanut","allergens":["peanut"],"preferences":""},"query":"현미로 만든 과자","gold":["bench:f02","bench:f13"]},
+ {"qid":"q4","user":{"user_id":"b-wheat","allergens":["wheat"],"preferences":""},"query":"밀가루 없는 면","gold":["bench:f15"]},
+ {"qid":"q5","user":{"user_id":"b-milksoy","allergens":["milk","soy"],"preferences":"우유 대신 마실 것"},"query":"우유 대체 음료","gold":["bench:f09"]},
+ {"qid":"q6","user":{"user_id":"b-none2","allergens":[],"preferences":"설탕 적은 것"},"query":"아침 시리얼","gold":["bench:f20"]},
+ {"qid":"q7","user":{"user_id":"b-none3","allergens":[],"preferences":""},"query":"카카오 함량 높은 초콜릿","gold":["bench:f16"]},
+ {"qid":"q8","user":{"user_id":"b-egg","allergens":["egg"],"preferences":"짜지 않은 것"},"query":"견과류 간식","gold":["bench:f18","bench:f19"]}
+]

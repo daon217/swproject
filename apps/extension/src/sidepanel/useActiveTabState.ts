@@ -4,6 +4,7 @@ import { sendMessage, type Message, type TabState } from '../shared/messages';
 import { shouldCapture } from '../shared/pageFilter';
 import { getAuth } from '../shared/auth';
 import { KEYS, onItemChange } from '../shared/storage';
+import { isRecommendEnabled } from '../shared/recommendSetting';
 
 const inExtension = typeof chrome !== 'undefined' && !!chrome.runtime?.id;
 
@@ -26,8 +27,10 @@ export function useActiveTabState(): { state: TabState | null; retry: () => void
       const reload = () => void load();
       window.addEventListener('kp-reanalyze', reload);
       const off = onItemChange(KEYS.auth, reload);
+      const offRecommend = onItemChange(KEYS.recommendEnabled, reload);
       return () => {
         off();
+        offRecommend();
         window.removeEventListener('kp-reanalyze', reload);
       };
     }
@@ -68,7 +71,7 @@ async function runPreview(set: (s: TabState) => void, counter: { run: number }) 
     analysis: null,
     error: null,
   };
-  if (!isMockApi || !shouldCapture(url)) return set(base); // 실제 분석은 확장에서 캡처하거나 별도 업로드로 테스트
+  if (!(await isRecommendEnabled()) || !isMockApi || !shouldCapture(url)) return set(base); // 실제 분석은 확장에서 캡처하거나 별도 업로드로 테스트
   set({ ...base, status: 'analyzing' });
   await getAuth();
   const created = await api.createAnalysis({ image: null, page_url: url, page_session_id: base.page_session_id, page_revision: run, request_key: `${base.page_session_id}:${run}` });

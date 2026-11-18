@@ -1,0 +1,221 @@
+[
+ {
+  "qid": "k01",
+  "kind": "복합 알레르기+설탕 없음",
+  "user": {
+   "user_id": "k-milksoy",
+   "allergens": [
+    "milk",
+    "soy"
+   ],
+   "preferences": "커피에 넣을 것, 설탕 없는"
+  },
+  "query": "우유 대신 마실 것",
+  "gold": [
+   "hard:h02",
+   "hard:h04"
+  ]
+ },
+ {
+  "qid": "k02",
+  "kind": "함량 함정(현미맛 3%)",
+  "user": {
+   "user_id": "k-none",
+   "allergens": [],
+   "preferences": ""
+  },
+  "query": "현미 함량 높은 과자",
+  "gold": [
+   "hard:h15",
+   "hard:h13"
+  ]
+ },
+ {
+  "qid": "k03",
+  "kind": "비슷한 상품 구분(카카오 %)",
+  "user": {
+   "user_id": "k-soy",
+   "allergens": [
+    "soy"
+   ],
+   "preferences": ""
+  },
+  "query": "카카오 함량 제일 높은 초콜릿",
+  "gold": [
+   "hard:h10",
+   "hard:h09"
+  ]
+ },
+ {
+  "qid": "k04",
+  "kind": "복합 알레르기+영양 수치",
+  "user": {
+   "user_id": "k-milkpeanut",
+   "allergens": [
+    "milk",
+    "peanut"
+   ],
+   "preferences": "운동 후"
+  },
+  "query": "단백질 많은 간식",
+  "gold": [
+   "hard:h23",
+   "hard:h22",
+   "hard:h26"
+  ]
+ },
+ {
+  "qid": "k05",
+  "kind": "알레르기+원재료 조건",
+  "user": {
+   "user_id": "k-wheat",
+   "allergens": [
+    "wheat"
+   ],
+   "preferences": ""
+  },
+  "query": "면 요리 하려는데 밀가루 없는 거",
+  "gold": [
+   "hard:h28",
+   "hard:h30",
+   "hard:h32",
+   "hard:h24"
+  ]
+ },
+ {
+  "qid": "k06",
+  "kind": "복합 알레르기(밀·메밀)",
+  "user": {
+   "user_id": "k-wheatbuck",
+   "allergens": [
+    "wheat",
+    "buckwheat"
+   ],
+   "preferences": ""
+  },
+  "query": "국수",
+  "gold": [
+   "hard:h28",
+   "hard:h32",
+   "hard:h24"
+  ]
+ },
+ {
+  "qid": "k07",
+  "kind": "모호한 표현(구어)",
+  "user": {
+   "user_id": "k-milkegg",
+   "allergens": [
+    "milk",
+    "egg"
+   ],
+   "preferences": ""
+  },
+  "query": "애기 간식 안 짠 걸로",
+  "gold": [
+   "hard:h36",
+   "hard:h34",
+   "hard:h35",
+   "hard:h16"
+  ]
+ },
+ {
+  "qid": "k08",
+  "kind": "복합 알레르기+짜지 않음",
+  "user": {
+   "user_id": "k-nut",
+   "allergens": [
+    "peanut",
+    "walnut"
+   ],
+   "preferences": "짜지 않은 것"
+  },
+  "query": "견과류 간식",
+  "gold": [
+   "hard:h39",
+   "hard:h42",
+   "hard:h43"
+  ]
+ },
+ {
+  "qid": "k09",
+  "kind": "영양 수치(당)",
+  "user": {
+   "user_id": "k-none2",
+   "allergens": [],
+   "preferences": "당 적은 것"
+  },
+  "query": "아침에 먹을 시리얼",
+  "gold": [
+   "hard:h18"
+  ]
+ },
+ {
+  "qid": "k10",
+  "kind": "모호한 표현+알레르기",
+  "user": {
+   "user_id": "k-milk",
+   "allergens": [
+    "milk"
+   ],
+   "preferences": ""
+  },
+  "query": "초콜릿 먹고 싶은데 유제품 안 되는",
+  "gold": [
+   "hard:h10",
+   "hard:h09",
+   "hard:h12",
+   "hard:h08"
+  ]
+ },
+ {
+  "qid": "k11",
+  "kind": "같은 상품 판매처 중복+가격",
+  "user": {
+   "user_id": "k-none3",
+   "allergens": [],
+   "preferences": ""
+  },
+  "query": "오트밀크 제일 싼 거",
+  "gold": [
+   "hard:h02"
+  ]
+ },
+ {
+  "qid": "k12",
+  "kind": "복합 알레르기+저염",
+  "user": {
+   "user_id": "k-eggmilk",
+   "allergens": [
+    "egg",
+    "milk"
+   ],
+   "preferences": "아이 반찬, 짜지 않게"
+  },
+  "query": "밥반찬",
+  "gold": [
+   "hard:h44"
+  ]
+ },
+ {
+  "qid": "k13",
+  "kind": "알레르기 4개+영양",
+  "user": {
+   "user_id": "k-four",
+   "allergens": [
+    "milk",
+    "soy",
+    "wheat",
+    "peanut"
+   ],
+   "preferences": "단백질 있는 것"
+  },
+  "query": "간식 추천",
+  "gold": [
+   "hard:h23",
+   "hard:h22",
+   "hard:h26",
+   "hard:h27"
+  ]
+ }
+]

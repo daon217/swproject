@@ -353,3 +353,76 @@
     animation-duration: 2.4s;
   }
 }
+
+/* AI 분석 중(가운데 로딩) */
+.kp-ai-loader {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--kp-primary);
+  margin-bottom: 8px;
+}
+.kp-ai-loader::before {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--kp-primary-soft);
+}
+.kp-ai-loader svg {
+  position: relative;
+  animation: kp-ai-pulse 1.6s ease-in-out infinite;
+}
+.kp-ai-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid var(--kp-primary-soft);
+  border-top-color: var(--kp-primary);
+  animation: kp-spin 0.9s linear infinite;
+}
+@keyframes kp-ai-pulse {
+  50% {
+    transform: scale(0.86);
+    opacity: 0.7;
+  }
+}
+.kp-analyzing-step {
+  min-height: 1.4em;
+  margin: 0;
+}
+.kp-analyzing-dots {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+}
+.kp-analyzing-dots li {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--kp-border);
+  transition: background 0.2s, width 0.2s;
+}
+.kp-analyzing-dots li.is-on {
+  width: 16px;
+  border-radius: 3px;
+  background: var(--kp-primary);
+}
+.kp-analyzing-note {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--kp-muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  .kp-ai-ring {
+    animation-duration: 2.4s;
+  }
+  .kp-ai-loader svg {
+    animation: none;
+  }
+}

@@ -1,0 +1,400 @@
+{
+  "checked_at": "2026-11-15T07:55:26.939307+00:00",
+  "sample_schema_valid": 300,
+  "sample_unique_products": 300,
+  "all_observations": 14695,
+  "all_products": 14678,
+  "all_native_mappings": 14695,
+  "all_native_input_file_hashes_valid": 90,
+  "used_count": 22,
+  "used_source_distribution": {
+    "smartify": 10,
+    "spnid": 12
+  },
+  "used_checks": [
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-LOGIC-MACHINE-LITE-POWER",
+      "variant_key": "CLR-LOGIC-MACHINE-LITE-POWER",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:c376f55c5ba79591f67464733324bb45bb4a088615b1660c6e7638818a992a7c",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-STEINEL-IR-QUATTRO-SLIM-KNX",
+      "variant_key": "CLR-STEINEL-IR-QUATTRO-SLIM-KNX",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:b0e833fa1cf353d195d8e14d5a4af14f043d53c0593587e5500008657502336e",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-PROLITE-4-CHANNEL-0-10V-16A-ACTUATOR",
+      "variant_key": "CLR-PROLITE-4-CHANNEL-0-10V-16A-ACTUATOR",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:f20755cd9389374a6c2fbf62fffa2acdcdb6d99786904d4fd1e917a728b31ea9",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-PROLITE-4-CHANNEL-400W-DIMMER-ACTUATOR",
+      "variant_key": "CLR-PROLITE-4-CHANNEL-400W-DIMMER-ACTUATOR",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:815a9f9b4bc50faf523642cfc9a4bbb0790a2d1a76e084fb3476d868a8a58fb3",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-PROLITE-4-FOLD-6A-SHUTTER-ACTUATOR",
+      "variant_key": "CLR-PROLITE-4-FOLD-6A-SHUTTER-ACTUATOR",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:4b55cf67cd84809d7b15b0516210890b1981b26544f88f25ecbe19eb103757f5",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-PROLITE-4-FOLD-UNIVERSAL-INTERFACE",
+      "variant_key": "CLR-PROLITE-4-FOLD-UNIVERSAL-INTERFACE",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:5debe71167ee8b6d98f5efbe2cf1abcf530457dab1d8a46d9c6aa59c27346330",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-PROLITE-640MA-POWER-SUPPLY",
+      "variant_key": "CLR-PROLITE-640MA-POWER-SUPPLY",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:ce35d0131cdd3f78990852a79ccf305aaa8cc9d6ae1edf1136c39ca3702f688e",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-PROLITE-8-FOLD-16A-SWITCH-ACTUATOR",
+      "variant_key": "CLR-PROLITE-8-FOLD-16A-SWITCH-ACTUATOR",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:90237c83a9e5ac20d07179fd059294110b469d19d5b6f3d3eb9deaa444f31505",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-PROLITE-CAPACITIVE-6-BUTTON-BLACK",
+      "variant_key": "CLR-PROLITE-CAPACITIVE-6-BUTTON-BLACK",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:1573cfea9bf5ddfeea9a26e438db2928dc89bbf909c4af3a6799f9b4ccbdf4dc",
+      "matched": true
+    },
+    {
+      "source": "smartify",
+      "source_listing_id": "CLR-PROLITE-INTELLIGENT-PUSH-3-GANG-86-BLACK",
+      "variant_key": "CLR-PROLITE-INTELLIGENT-PUSH-3-GANG-86-BLACK",
+      "condition": "used",
+      "basis": "Original feed condition=used with native ID/MPN and complete price/currency/availability/URL match",
+      "classification": "ex-demo / previously used display equipment",
+      "native_file": "research_domestic/bulk_suppliers_20261115/smartify_full.xml",
+      "observation_key": "native-feed:f0a6a62ac54d15ba364b198c54566850e82bd12bafd8bd4aafa41996a911b2ff",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-853",
+      "variant_key": "Spnid-853",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:c42d64a61c78cb705cdd03cbf69101529eab0644b65a45e756d971062243b911",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1085",
+      "variant_key": "Spnid-1085",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:940bf4ec487f4f3e5db47dabb6cd664b44bf9a1ef5675e7b55fa9e49e272e531",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1100",
+      "variant_key": "Spnid-1100",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:4aecbb3e5839a3cde66d1d37c2bcc553615f137bc69dd279ab37b916c14fd310",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1104",
+      "variant_key": "Spnid-1104",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:3b02533dc39d2235f72c2dd194b35e6aeb0364b7a0d1f5b48f3ab0ca9d7b1848",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1105",
+      "variant_key": "Spnid-1105",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:9721e66b5f84c4676a592c7926061991a3cc5ff1fd60e7978a9586018f26ca7d",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1107",
+      "variant_key": "Spnid-1107",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:612e47fa6fcbb074442aa54415642341ced981a6580210be258d631d3952b8ae",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1109",
+      "variant_key": "Spnid-1109",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:37d11b2b013021c6925306b2e5a1522dbaccf4b9b4dc905eebdfa0bcce7ac307",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1112",
+      "variant_key": "Spnid-1112",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:d4cf9efe26412c2408e42d6984d395702d5a1d54e0f8e75a7cf378ba4f1b14f6",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1164",
+      "variant_key": "Spnid-1164",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:409b966c202b63abd4a0aac695d11de9ce9ac378c78c294156fb5379c08fe5b8",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1173",
+      "variant_key": "Spnid-1173",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:7a7adab9dd0af3e22abdecc0f67efba892c030b624e0cfd1a5e6311526543a93",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1199",
+      "variant_key": "Spnid-1199",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:f8592ff23865ef6c91c2dc548c49821a9b22abae3bfcd7b100880aeb2efe4b1d",
+      "matched": true
+    },
+    {
+      "source": "spnid",
+      "source_listing_id": "SPNID-1212",
+      "variant_key": "Spnid-1212",
+      "condition": "used",
+      "basis": "CSV condition=used plus explicit native Product/Offer UsedCondition and full offer match",
+      "classification": "used marketplace listing; private/business seller type unconfirmed",
+      "native_file": "research_domestic/bulk_suppliers_20261115/spnid_details.jsonl",
+      "observation_key": "native-feed:07b321fae532df197b2f9e01e11bda5fd4a5a03880a9733c6dda57d7a052d04a",
+      "matched": true
+    }
+  ],
+  "duplicates_db_identity_three_fields": 0,
+  "observed_url_hosts": [
+    "adafruit.com",
+    "littlebirdelectronics.com.au",
+    "pludor.com",
+    "shop.pimoroni.com",
+    "smartify.in",
+    "spnid.com",
+    "www.perfumeregistry.com",
+    "www.yappykids.com"
+  ],
+  "model_commit": "0c2bff56d04a085e8e92e1889afcfd4f5fc63105",
+  "model_sha256": "0e953527a169429d8435d5df56a9c1faac5eb0bfe7312e2e517b3bad097cf8b1",
+  "team_working_tree_api_code_present": false,
+  "stale_sample_now": 0,
+  "stale_all_now": 0,
+  "planning_monday": "2026-11-16 09:00 Asia/Seoul (planning assumption)",
+  "stale_sample_at_monday_0900": 212,
+  "stale_all_at_monday_0900": 13059,
+  "max_sample_body_bytes": 815,
+  "db_connections": 0,
+  "db_insertions": 0,
+  "team_api_requests": 0,
+  "external_uploads": 0,
+  "planned_monday_sample_public_filter_candidates": 50,
+  "planned_monday_all_public_filter_candidates": 1310,
+  "smartify_native_ex_demo_urls": 10,
+  "dataset_root": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6",
+  "files": [
+    {
+      "relative_to_dataset_root": "db_review/observations_v2_300.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\observations_v2_300.json",
+      "sha256": "6c9fdc7bebaf9e75883f30e7207d14de9f89eed44a537ecee87bf5965d775b7c",
+      "bytes": 237765,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/observations_v2_all.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\observations_v2_all.json",
+      "sha256": "a66e08ed4b7cd457988380f111e353b2867a4782e9182f7f5a238e14757fbd79",
+      "bytes": 11856927,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/sample_provenance_300.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\sample_provenance_300.json",
+      "sha256": "0d6ffd6053e40b619936b568a2bcbf9eabf0d255ef309bc3047d60c47cca0808",
+      "bytes": 339338,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "observation_provenance_all.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\observation_provenance_all.json",
+      "sha256": "7445857387f14d10c8f59b39496fa900fec91dc666b2e91837ae127ecec97122",
+      "bytes": 17597449,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/product_listing_links_all.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\product_listing_links_all.json",
+      "sha256": "f0291e73b8180a069f9bd9adcc6b26c67f50a093907d02c14f71dbe01b795964",
+      "bytes": 4406265,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "native_input_hashes.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\native_input_hashes.json",
+      "sha256": "115869dad012a9a1e1cca1800c19f060a73cdc3a87b1c460e6c64f31f6ca25fb",
+      "bytes": 13072,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/FIELD_MAPPING.md",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\FIELD_MAPPING.md",
+      "sha256": "b35cd36b2f3a2dc96286cafdf10f83155447d515c8c9944dba67ad2cd35af00e",
+      "bytes": 5738,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/url_hosts.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\url_hosts.json",
+      "sha256": "6f808d29bda285da371467b54e8344c7180e44bfb738ead089731e8c85220217",
+      "bytes": 519,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/source_rights_matrix.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\source_rights_matrix.json",
+      "sha256": "15f86ca4907701fdb3ea71a4d337ec297d55ff2834f957cd0e87fdfb9ad8d3af",
+      "bytes": 2662,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/api_request_previews_300.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\api_request_previews_300.json",
+      "sha256": "8a8c211b2be6138240b5c73853ca7223c6af5c78b7447a4a5d526f5e5c41ca95",
+      "bytes": 367594,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/request_example.http",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\request_example.http",
+      "sha256": "b6a10020665aec87e364f79709ce14be13ffdc713ab469a07f028fed497cc75a",
+      "bytes": 926,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/request_body_example.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\request_body_example.json",
+      "sha256": "7abe879ca46c2da1cca62a26f7fb75292222e2cb22224c9dcb598a8da3852018",
+      "bytes": 782,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "db_review/team_contract.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\db_review\\team_contract.json",
+      "sha256": "a32b1492cfd3da10e04fc96eb7ba77d65c8c9250b8aef9377ba85315fe8595cc",
+      "bytes": 877,
+      "copied_into_team_repository": false
+    },
+    {
+      "relative_to_dataset_root": "delivery_manifest.json",
+      "absolute_local_path": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\research_domestic\\new_sources_db_handoff_20261115_round6\\delivery_manifest.json",
+      "sha256": "471ca554e542683de87cf66c471464c811f930f6c038d5390bc4a68f151f4c15",
+      "bytes": 7250,
+      "copied_into_team_repository": false
+    }
+  ],
+  "raw_or_observation_copies_created": 0,
+  "source_of_truth": "Existing round6 artifacts only",
+  "reference_only_handoff": true,
+  "required_backend_decisions": [
+    "actual deployment commit and runtime availability",
+    "approved isolated DB/migrations/app-role access",
+    "API_BASE, secret token and approved host environment",
+    "per-source run UUID assignment; server auto-creates crawl_runs",
+    "source-specific retention/search-display/sharing authorization",
+    "historical ingestion versus live-public-search test scope"
+  ],
+  "run_creation_correction": "accept() inserts app.crawl_runs on first request; manual preregistration not required; reuse with different source raises409",
+  "team_working_tree_api_note": "Only services/api/README.md exists locally; contract validated from local tracking branch, not a running deployment",
+  "README_sha256": "2eed994bec13eaa44eb9715767ce8e3de4e9924a2a47959fc158dd8dc4846391"
+}

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>꿀픽 ADMIN - 운영 콘솔</title>
+  <!-- Pretendard Font CDN -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', 'sans-serif'],
+          },
+          colors: {
+            primary: '#0066ff',
+            primaryLight: '#ebf3ff',
+            danger: '#dc3545',
+            topbar: '#1e2430',
+            pageBg: '#f8fafc',
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+    }
+    /* 공통 인풋 및 셀렉트 높이 44px 규칙 */
+    .form-input {
+      height: 44px;
+      background-color: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 0.5rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
+      font-size: 0.875rem;
+      color: #0f172a;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .form-input::placeholder {
+      color: #94a3b8;
+    }
+    .form-input:focus {
+      border-color: #0066ff;
+      box-shadow: 0 0 0 2px rgba(0, 102, 255, 0.12);
+    }
+    .btn-primary {
+      background-color: #0066ff;
+      color: #ffffff;
+      border-radius: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      font-weight: 500;
+      font-size: 0.875rem;
+      transition: background-color 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 44px;
+      white-space: nowrap;
+    }
+    .btn-primary:hover {
+      background-color: #0052cc;
+    }
+    .btn-secondary {
+      background-color: #ffffff;
+      border: 1px solid #cbd5e1;
+      color: #0066ff;
+      border-radius: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      font-weight: 500;
+      font-size: 0.875rem;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 44px;
+      white-space: nowrap;
+    }
+    .btn-secondary:hover {
+      background-color: #f8fafc;
+      border-color: #94a3b8;
+    }
+    .btn-danger {
+      background-color: #dc3545;
+      color: #ffffff;
+      border-radius: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      font-weight: 500;
+      font-size: 0.875rem;
+      transition: background-color 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 44px;
+      white-space: nowrap;
+    }
+    .btn-danger:hover {
+      background-color: #bb2d3b;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#f8fafc]">
+
+  <!-- 상단 고정 헤더 (Top Bar): 높이 56px, 배경색 #1e2430 -->
+  <header class="fixed top-0 left-0 right-0 h-[56px] bg-[#1e2430] text-white flex items-center justify-between px-6 z-40 select-none">
+    <div class="font-bold text-lg tracking-tight cursor-pointer" onclick="app.navigate('crawling')">
+      꿀픽 ADMIN
+    </div>
+    <div class="text-sm text-slate-300 font-normal">
+      운영 관리 &nbsp;&nbsp;/&nbsp;&nbsp; 관리자
+    </div>
+  </header>
+
+  <!-- 전체 화면 구조: 좌측 고정 사이드바(240px) + 우측 메인 콘텐츠 -->
+  <div class="flex flex-1 pt-[56px]">
+    <!-- 좌측 고정 사이드바 -->
+    <aside class="fixed top-[56px] left-0 bottom-0 w-[240px] bg-white border-r border-slate-200 px-4 py-6 flex flex-col justify-between z-30 select-none overflow-y-auto">
+      <div>
+        <div class="text-xs text-[#64748b] font-bold px-3 mb-3 tracking-wider">WORKSPACE</div>
+        <nav id="sidebar-nav" class="space-y-1 text-sm">
+          <!-- JS에서 렌더링 -->
+        </nav>
+      </div>
+
+      <!-- 사이드바 하단 고정 정보 카드 -->
+      <div class="bg-white border border-slate-200 rounded-lg p-4 mt-6">
+        <div class="font-bold text-slate-900 text-sm">꿀픽 운영 콘솔</div>
+        <div class="text-xs text-slate-500 mt-1">KST · Asia/Seoul</div>
+      </div>
+    </aside>
+
+    <!-- 우측 메인 콘텐츠 영역 -->
+    <main class="flex-1 ml-[240px] p-8 md:p-10">
+      <div id="app-content" class="max-w-[1200px] mx-auto">
+        <!-- JS에서 SPA 화면 렌더링 -->
+      </div>
+    </main>
+  </div>
+
+  <!-- 모달 및 토스트 알림 영역 -->
+  <div id="modal-root"></div>
+  <div id="toast-root" class="fixed bottom-6 right-6 z-50 space-y-2 pointer-events-none"></div>
+
+  <script src="./shared/state.js"></script>
+  <script src="./shared/layout.js"></script>
+  <script src="./shared/charts.js"></script>
+  <script src="./pages/crawling/index.js"></script>
+  <script src="./pages/affiliate/index.js"></script>
+  <script src="./pages/customers/index.js"></script>
+  <script src="./pages/counseling/index.js"></script>
+  <script src="./pages/stats/index.js"></script>
+  <script src="./pages/dashboard/index.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
+

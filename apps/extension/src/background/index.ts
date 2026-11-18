@@ -3,6 +3,7 @@ import { getAuthToken } from '../shared/auth';
 import type { Message, PanelRoute, TabState } from '../shared/messages';
 import { safeHttpUrl } from '../shared/format';
 import { captureRule, shouldCapture } from '../shared/pageFilter';
+import { isRecommendEnabled } from '../shared/recommendSetting';
 import { KEYS } from '../shared/storage';
 import type { PageScan } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
@@ -112,6 +113,7 @@ async function analyze(tabId: number, url: string) {
   const token = await getAuthToken();
   const state = await resetForUrl(tabId, url);
   owners.set(state, token);
+  if (!(await isRecommendEnabled())) return; // 상품 추천이 꺼져 있으면 캡처·분석하지 않는다
   const rule = captureRule(url);
   if (!rule) return; // 상품 페이지가 아니면 'none' 상태(E01 빈 화면)
 
@@ -194,7 +196,8 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // 로그인/로그아웃 시 권한·개인화가 바뀌므로 현재 탭을 다시 분석한다.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && KEYS.auth in changes) {
+  // 로그인 계정이 바뀌거나 상품 추천을 켜고 끄면 모든 탭 결과를 지우고 현재 탭을 다시 판단한다.
+  if (area === 'local' && (KEYS.auth in changes || KEYS.recommendEnabled in changes)) {
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
     void chrome.tabs.query({}).then(async tabs => {

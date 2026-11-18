@@ -36,7 +36,11 @@ function ContentApp() {
   return (
     <div className="kp-root fl-root">
       {/* 사이드 패널은 사용자 클릭 직후에만 열 수 있어 클릭 핸들러에서 바로 메시지를 보낸다 */}
-      <Floating state={state} onOpenPanel={(route) => void sendMessage({ type: 'openSidePanel', route })} />
+      <Floating
+        state={state}
+        onOpenPanel={(route) => void sendMessage({ type: 'openSidePanel', route })}
+        onRetry={() => void sendMessage({ type: 'retry' })}
+      />
     </div>
   );
 }

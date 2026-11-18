@@ -35,6 +35,9 @@ const statsPage = {
   },
 
   getStatsHtml() {
+    if (!this.isLocalAuthDemo()) {
+      return this.renderPageHeader('통계', '팀 서버에서 전체 구독·매출 통계 조회 API를 제공하면 이 화면에서 표시할 수 있습니다.');
+    }
     const unit = this.state.statsUnit;
     const dataConfig = this.getStatsDatasetByUnit(unit);
 

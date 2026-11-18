@@ -1,5 +1,12 @@
 const dashboardPage = {
   getMainDashboardHtml() {
+    if (!this.isLocalAuthDemo()) {
+      return `
+        ${this.renderPageHeader('MAIN · 대시보드', '팀 서버의 상담과 제휴 현황을 확인합니다.')}
+        ${this.getDashboardTasksHtml()}
+        <p class="text-sm text-slate-600">전체 구독·매출 집계는 현재 팀 서버에서 제공하지 않습니다.</p>
+      `;
+    }
     return `
       ${this.renderPageHeader(
         'MAIN · 대시보드',
@@ -71,9 +78,13 @@ const dashboardPage = {
   },
 
   getDashboardTasksHtml() {
-    const waiting = this.state.counselingList.filter((item) => item.status === '대기').length;
+    const waiting = this.getCounselingItems().filter((item) => item.status === '대기').length;
+    const phase = this.isLocalAuthDemo() ? 'ready' : this.liveCounseling?.phase;
+    const waitingLabel = phase === 'ready' ? `${waiting}건` : phase === 'error' ? '조회 실패' : '조회 중';
     const now = Date.now();
-    const ending = this.state.affiliateProducts.filter((item) => this.isAffiliateEndingSoon(item, now)).length;
+    const ending = this.getAffiliateItems().filter((item) => this.isAffiliateEndingSoon(item, now)).length;
+    const affiliatePhase = this.isLocalAuthDemo() ? 'ready' : this.liveAffiliates?.phase;
+    const endingLabel = affiliatePhase === 'ready' ? `${ending}건` : affiliatePhase === 'error' ? '조회 실패' : '조회 중';
 
     return `
       <section aria-labelledby="dashboard-tasks-title" class="mb-6">
@@ -82,14 +93,14 @@ const dashboardPage = {
           <li>
             <button type="button" class="group flex h-full w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-colors hover:border-[#0066ff] hover:bg-[#ebf3ff] focus-visible:outline-[#0066ff]" onclick="app.openWaitingCounseling()">
               <span><span class="block text-sm font-semibold text-slate-700">답변 대기 상담</span>
-              <span class="mt-2 block text-3xl font-bold tracking-tight tabular-nums text-[#0066ff]">${waiting}건</span></span>
+              <span class="mt-2 block text-3xl font-bold tracking-tight tabular-nums text-[#0066ff]">${waitingLabel}</span></span>
               <span aria-hidden="true" class="rounded-full bg-[#ebf3ff] px-3 py-2 text-[#0066ff] group-hover:bg-white">→</span>
             </button>
           </li>
           <li>
             <button type="button" class="group flex h-full w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-colors hover:border-[#0066ff] hover:bg-[#ebf3ff] focus-visible:outline-[#0066ff]" onclick="app.openEndingAffiliates()">
               <span><span class="block text-sm font-semibold text-slate-700">7일 이내 종료되는 제휴상품</span>
-              <span class="mt-2 block text-3xl font-bold tracking-tight tabular-nums text-[#0066ff]">${ending}건</span></span>
+              <span class="mt-2 block text-3xl font-bold tracking-tight tabular-nums text-[#0066ff]">${endingLabel}</span></span>
               <span aria-hidden="true" class="rounded-full bg-[#ebf3ff] px-3 py-2 text-[#0066ff] group-hover:bg-white">→</span>
             </button>
           </li>

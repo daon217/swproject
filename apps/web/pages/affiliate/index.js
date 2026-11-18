@@ -1,6 +1,48 @@
 const affiliatePage = {
+  liveAffiliates: null,
+
+  refreshLiveAffiliates() {
+    return this.refreshAdminData('liveAffiliates', async (token) => {
+      const rows = await this.requestAdminList('/v2/admin/affiliate-offers', token, 'offer_id');
+      return {
+        items: rows.map((row) => ({
+          id: row.offer_id,
+          partner: row.partner_name,
+          url: row.affiliate_url,
+          startsAt: row.starts_at,
+          endsAt: row.ends_at,
+          startDateTime: this.formatKstDateTime(row.starts_at),
+          endDateTime: this.formatKstDateTime(row.ends_at),
+          enabled: row.enabled,
+          version: row.version,
+          updatedAt: row.updated_at,
+        })),
+      };
+    });
+  },
+
+  getAffiliateItems() {
+    return this.isLocalAuthDemo() ? this.state.affiliateProducts : this.liveAffiliates?.items || [];
+  },
+
+  getAffiliateStatus(item, now) {
+    if (this.isLocalAuthDemo()) return item.status;
+    if (!item.enabled) return '비활성';
+    if (item.endsAt && Date.parse(item.endsAt) <= now) return '종료';
+    if (Date.parse(item.startsAt) > now) return '시작 예정';
+    return '제휴 중';
+  },
+
   getAffiliateHtml() {
     const sub = this.state.affiliateSubView;
+    if (!this.isLocalAuthDemo()) {
+      if (sub !== 'create' && this.liveAffiliates?.phase !== 'ready') {
+        return this.renderPageHeader('제휴상품 관리', '팀 서버의 제휴 상품을 확인합니다.') +
+          this.renderAdminDataStatus(this.liveAffiliates,
+            '<button type="button" class="btn-secondary" onclick="app.refreshLiveAffiliates()">다시 시도</button>');
+      }
+      if (sub !== 'list') return this.getLiveAffiliateFormHtml(sub);
+    }
     if (sub === 'create') {
       return this.getAffiliateFormHtml('create');
     }
@@ -11,6 +53,7 @@ const affiliatePage = {
   },
 
   getAffiliateListHtml() {
+    const demo = this.isLocalAuthDemo();
     const statusFilter = this.state.affiliateStatusFilter;
     const filtered = this.getFilteredAffiliateProducts();
 
@@ -31,8 +74,8 @@ const affiliatePage = {
     return `
       ${this.renderPageHeader(
         '제휴상품 관리',
-        '제휴사별 상품명, 금액 및 URL을 관리하세요. · 예시 데이터',
-        toggleBtnHtml
+        demo ? '제휴사별 상품명, 금액 및 URL을 관리하세요. · 예시 데이터' : '팀 서버의 제휴사, 연결 URL과 유효기간을 관리합니다.',
+        demo ? toggleBtnHtml : '<button type="button" class="btn-secondary" onclick="app.refreshLiveAffiliates()">새로고침</button>'
       )}
 
       <!-- 상단 컨트롤 바 (한 줄 배치) -->
@@ -44,7 +87,7 @@ const affiliatePage = {
               id="affiliate-search-input"
               type="text"
               value="${this.escapeHtml(this.state.affiliateSearch)}"
-              placeholder="상품명 또는 제휴사 검색"
+              placeholder="${demo ? '상품명 또는 제휴사 검색' : '판매정보 ID 또는 제휴사 검색'}"
               class="form-input max-w-full w-[340px]"
               oninput="app.handleAffiliateFilterChange(this.value, null)"
             />
@@ -59,6 +102,10 @@ const affiliatePage = {
               <option value="제휴 중" ${statusFilter === '제휴 중' ? 'selected' : ''}>제휴 중</option>
               <option value="종료 예정" ${statusFilter === '종료 예정' ? 'selected' : ''}>7일 이내 종료 예정</option>
               <option value="종료" ${statusFilter === '종료' ? 'selected' : ''}>종료</option>
+              ${demo ? '' : `
+                <option value="시작 예정" ${statusFilter === '시작 예정' ? 'selected' : ''}>시작 예정</option>
+                <option value="비활성" ${statusFilter === '비활성' ? 'selected' : ''}>비활성</option>
+              `}
             </select>
           </div>
         </div>
@@ -72,7 +119,7 @@ const affiliatePage = {
             선택 편집
           </button>
           <button onclick="app.openAffiliateDeleteModal()" class="btn-secondary">
-            선택 삭제
+            ${demo ? '선택 삭제' : '선택 비활성화'}
           </button>
         </div>
       </div>
@@ -81,13 +128,12 @@ const affiliatePage = {
       <div class="w-full overflow-x-auto">
         <!-- 테이블 컬럼 헤더 -->
         <div class="grid min-w-[880px] grid-cols-12 items-center px-5 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
-          <div class="col-span-1">제휴상품 ID</div>
-          <div class="col-span-1">제휴사</div>
-          <div class="col-span-2">상품명</div>
-          <div class="col-span-1">금액</div>
+          <div class="${demo ? 'col-span-1' : 'col-span-2'}">${demo ? '제휴상품 ID' : '판매정보 ID'}</div>
+          <div class="${demo ? 'col-span-1' : 'col-span-2'}">제휴사</div>
+          ${demo ? '<div class="col-span-2">상품명</div><div class="col-span-1">금액</div>' : ''}
           <div class="col-span-3">URL</div>
           <div class="col-span-1">제휴 상태</div>
-          <div class="col-span-2">유효기간</div>
+          <div class="${demo ? 'col-span-2' : 'col-span-3'}">유효기간 · KST</div>
           <div class="col-span-1 text-right">선택</div>
         </div>
 
@@ -110,6 +156,7 @@ const affiliatePage = {
     }
 
     const now = Date.now();
+    const demo = this.isLocalAuthDemo();
     return `
       <div class="space-y-2">
         ${filtered
@@ -118,21 +165,28 @@ const affiliatePage = {
             const rowBorder = isSelected
               ? 'border-[#0066ff] ring-1 ring-[#0066ff]/20 bg-[#ebf3ff]'
               : 'border-slate-200 bg-white hover:border-slate-300';
-            const status = this.isAffiliateEndingSoon(item, now) ? '종료 예정' : item.status;
+            const status = this.isAffiliateEndingSoon(item, now) ? '종료 예정' : this.getAffiliateStatus(item, now);
             return `
               <div
-                onclick="app.selectAffiliateItem('${item.id}')"
+                data-id="${this.escapeHtml(item.id)}" onclick="app.selectAffiliateItem(this.dataset.id)"
                 class="grid min-w-[880px] grid-cols-12 items-center px-5 py-4 rounded-lg border ${rowBorder} text-sm cursor-pointer transition-all"
               >
-                <div class="col-span-1 font-semibold text-slate-900">${item.id}</div>
-                <div class="col-span-1 text-slate-700">${this.escapeHtml(item.partner)}</div>
-                <div class="col-span-2 font-medium text-slate-900 pr-2 truncate">${this.escapeHtml(item.name)}</div>
-                <div class="col-span-1 text-slate-800">${this.escapeHtml(item.price)}</div>
+                <div class="${demo ? 'col-span-1' : 'col-span-2'} truncate pr-2 font-semibold text-slate-900" title="${this.escapeHtml(item.id)}">${this.escapeHtml(item.id)}</div>
+                <div class="${demo ? 'col-span-1' : 'col-span-2'} truncate pr-2 text-slate-700">${this.escapeHtml(item.partner)}</div>
+                ${demo ? `
+                  <div class="col-span-2 font-medium text-slate-900 pr-2 truncate">${this.escapeHtml(item.name)}</div>
+                  <div class="col-span-1 text-slate-800">${this.escapeHtml(item.price)}</div>
+                ` : ''}
                 <div class="col-span-3 text-slate-500 pr-3 truncate text-xs">${this.escapeHtml(item.url)}</div>
                 <div class="col-span-1">
                   ${this.renderStatusBadge(status)}
                 </div>
-                <div class="col-span-2 text-slate-600 text-xs">${this.escapeHtml(item.period)}</div>
+                <div class="${demo ? 'col-span-2' : 'col-span-3'} text-slate-600 text-xs">
+                  ${demo ? this.escapeHtml(item.period) : `
+                    <div>시작 ${this.escapeHtml(item.startDateTime || '—')}</div>
+                    <div>${item.endDateTime ? `종료 ${this.escapeHtml(item.endDateTime)}` : '종료일 없음'}</div>
+                  `}
+                </div>
                 <div class="col-span-1 text-right">
                   <span class="${
                     isSelected ? 'text-[#0066ff] font-bold' : 'text-slate-400 hover:text-slate-600 font-medium'
@@ -187,24 +241,24 @@ const affiliatePage = {
     const statusFilter = this.state.affiliateStatusFilter;
     const now = Date.now();
 
-    return this.state.affiliateForceEmpty
+    return this.isLocalAuthDemo() && this.state.affiliateForceEmpty
       ? []
-      : this.state.affiliateProducts.filter((item) => {
+      : this.getAffiliateItems().filter((item) => {
           const matchesSearch =
             !search ||
-            item.name.toLowerCase().includes(search) ||
+            (item.name || '').toLowerCase().includes(search) ||
             item.partner.toLowerCase().includes(search) ||
             item.id.toLowerCase().includes(search);
           const matchesStatus = statusFilter === '종료 예정'
             ? this.isAffiliateEndingSoon(item, now)
-            : statusFilter === '전체' || item.status === statusFilter;
+            : statusFilter === '전체' || this.getAffiliateStatus(item, now) === statusFilter;
           return matchesSearch && matchesStatus;
         });
   },
 
   isAffiliateEndingSoon(item, now) {
-    if (item.status !== '제휴 중' || !item.endDateTime) return false;
-    const end = Date.parse(item.endDateTime.replaceAll('.', '-').replace(' ', 'T') + ':00+09:00');
+    if (this.getAffiliateStatus(item, now) !== '제휴 중' || !item.endDateTime) return false;
+    const end = Date.parse(item.endsAt || item.endDateTime.replaceAll('.', '-').replace(' ', 'T') + ':00+09:00');
     return end >= now && end <= now + 7 * 24 * 60 * 60 * 1000;
   },
 
@@ -222,8 +276,13 @@ const affiliatePage = {
   },
 
   openAffiliateDeleteModal() {
-    if (!this.getVisibleAffiliateSelection()) {
-      this.showToast('목록에서 삭제할 제휴 상품을 선택해 주세요.');
+    const selected = this.getVisibleAffiliateSelection();
+    if (!selected) {
+      this.showToast('목록에서 제휴 상품을 선택해 주세요.');
+      return;
+    }
+    if (!this.isLocalAuthDemo() && !selected.enabled) {
+      this.showToast('이미 비활성화된 제휴 상품입니다.');
       return;
     }
     this.state.showDeleteModal = true;
@@ -236,9 +295,19 @@ const affiliatePage = {
   },
 
   confirmDeleteAffiliate() {
-    const targetId = this.getVisibleAffiliateSelection()?.id;
+    const item = this.getVisibleAffiliateSelection();
+    const targetId = item?.id;
     if (!this.state.showDeleteModal || !targetId) {
       this.closeDeleteModal();
+      return;
+    }
+    if (!this.isLocalAuthDemo()) {
+      if (item.enabled) {
+        return this.saveLiveAffiliate(item.id, {
+          method: 'DELETE', expectedVersion: item.version, buttonId: 'affiliate-delete-submit',
+          successMessage: '제휴 상품을 비활성화했습니다.',
+        });
+      }
       return;
     }
     this.state.affiliateProducts = this.state.affiliateProducts.filter((p) => p.id !== targetId);
@@ -251,6 +320,134 @@ const affiliatePage = {
     this.renderModal();
     this.renderContent();
     this.showToast(`${targetId} 제휴 상품이 삭제되었습니다.`);
+  },
+
+  getLiveAffiliateFormHtml(mode) {
+    const isEdit = mode === 'edit';
+    const item = isEdit ? this.getAffiliateItems().find(({ id }) => id === this.state.selectedAffiliateId) : null;
+    const title = isEdit ? '제휴 상품 편집' : '새 제휴 상품 등록';
+    const header = this.renderPageHeader(title, '카탈로그 판매정보에 제휴사, URL, 유효기간을 연결합니다.');
+    if (isEdit && !item) {
+      return header + '<p class="mb-4 text-sm text-slate-600">이 판매정보의 제휴 연결을 찾을 수 없습니다.</p><a href="#/affiliate" class="btn-secondary inline-flex">목록으로</a>';
+    }
+
+    return `
+      ${header}
+      <form class="space-y-4 rounded-xl border border-slate-200 bg-white p-5 sm:p-6"
+        onsubmit="event.preventDefault(); app.submitLiveAffiliateForm('${mode}')">
+        ${item ? `
+          <p class="break-all text-sm"><span class="font-semibold">판매정보 ID</span> ${this.escapeHtml(item.id)}</p>
+        ` : `
+          <div>
+            <label for="aff-form-offer" class="block text-sm font-semibold">판매정보</label>
+            <input id="aff-offer-search" type="search" aria-label="판매정보 검색" aria-controls="aff-form-offer"
+              placeholder="상품명, 판매처 또는 ID 검색" class="form-input mb-2 mt-1 w-full"
+              oninput="app.filterOfferCatalog(this.value)" disabled />
+            <select id="aff-form-offer" class="form-input w-full" onchange="app.handleOfferSelectChange(this.value)" required disabled>
+              <option value="">판매정보 선택</option>
+            </select>
+            <p id="aff-offer-status" class="mt-1 text-xs text-slate-600" role="status"></p>
+            <button id="aff-offer-retry" type="button" hidden class="mt-1 text-xs text-[#0066ff]" onclick="app.loadOfferCatalog()">다시 시도</button>
+            <p id="aff-offer-info-title" class="mt-2 text-sm font-semibold"></p>
+            <p id="aff-offer-info-sub" class="text-xs text-slate-600"></p>
+            <p id="aff-offer-info-id" class="break-all text-xs text-slate-600"></p>
+          </div>
+        `}
+        <label class="block text-sm font-semibold">제휴사
+          <input id="aff-form-partner" class="form-input mt-1 w-full" maxlength="100" required value="${this.escapeHtml(item?.partner)}" />
+        </label>
+        <label class="block text-sm font-semibold">제휴 URL
+          <input id="aff-form-url" type="url" class="form-input mt-1 w-full" maxlength="2083" placeholder="https://" required value="${this.escapeHtml(item?.url)}" />
+        </label>
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="block text-sm font-semibold">시작 일시 · KST
+            <input id="aff-form-start" class="form-input mt-1 w-full" placeholder="YYYY.MM.DD HH:mm" required value="${this.escapeHtml(item?.startDateTime)}" />
+          </label>
+          <label class="block text-sm font-semibold">종료 일시 · KST (선택)
+            <input id="aff-form-end" class="form-input mt-1 w-full" placeholder="YYYY.MM.DD HH:mm" value="${this.escapeHtml(item?.endDateTime)}" />
+          </label>
+        </div>
+        <label class="flex items-center gap-2 text-sm">
+          <input id="aff-form-enabled" type="checkbox" class="accent-[#0066ff]" ${item?.enabled === false ? '' : 'checked'} /> 제휴 활성화
+        </label>
+        ${item?.updatedAt ? `<p class="text-xs text-slate-500">최근 수정 ${this.escapeHtml(this.formatKstDateTime(item.updatedAt))} · KST</p>` : ''}
+        <p id="affiliate-save-status" class="text-sm text-slate-600 empty:hidden" role="status"></p>
+        <div class="flex flex-wrap justify-end gap-2">
+          <a href="#/affiliate" class="btn-secondary inline-flex">취소</a>
+          <button id="affiliate-save-submit" type="submit" class="btn-primary disabled:opacity-50">${isEdit ? '변경사항 저장' : '제휴 상품 등록'}</button>
+        </div>
+      </form>
+    `;
+  },
+
+  submitLiveAffiliateForm(mode) {
+    const value = (id) => (document.getElementById(`aff-form-${id}`)?.value || '').trim();
+    const item = mode === 'edit' ? this.getAffiliateItems().find(({ id }) => id === this.state.selectedAffiliateId) : null;
+    const offerId = item?.id || value('offer');
+    const partner = value('partner');
+    const url = value('url');
+    const start = value('start');
+    const end = value('end');
+    const status = document.getElementById('affiliate-save-status');
+    if (!this.isUuid(offerId) || (mode === 'edit' ? !item : !this.state.offerCatalog.some((offer) => offer.offer_id === offerId))) {
+      status.textContent = '판매정보를 선택해 주세요.';
+      return;
+    }
+    const affiliateUrl = URL.canParse(url) ? new URL(url) : null;
+    if (!partner || !/^https:\/\//i.test(url) || !affiliateUrl || affiliateUrl.username || affiliateUrl.password) {
+      status.textContent = '제휴사 이름과 올바른 HTTPS URL을 입력해 주세요.';
+      return;
+    }
+    const dateTime = /^\d{4}\.\d{2}\.\d{2} (?:[01]\d|2[0-3]):[0-5]\d$/;
+    if (!dateTime.test(start) || (end && !dateTime.test(end)) ||
+        !this.parseDateRange(`${start.slice(0, 10)} ~ ${(end || start).slice(0, 10)}`)) {
+      status.textContent = '시작과 종료 일시를 YYYY.MM.DD HH:mm 형식으로 입력해 주세요.';
+      return;
+    }
+    const toIso = (entry) => entry.replaceAll('.', '-').replace(' ', 'T') + ':00+09:00';
+    const startsAt = start === item?.startDateTime ? item.startsAt : toIso(start);
+    const endsAt = !end ? null : (end === item?.endDateTime ? item.endsAt : toIso(end));
+    if (endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) {
+      status.textContent = '종료 일시는 시작 일시보다 늦어야 합니다.';
+      return;
+    }
+    return this.saveLiveAffiliate(offerId, {
+      method: 'PUT', buttonId: 'affiliate-save-submit', successMessage: '제휴 상품을 저장했습니다.',
+      body: {
+        partner_name: partner, affiliate_url: url, starts_at: startsAt, ends_at: endsAt,
+        enabled: document.getElementById('aff-form-enabled').checked, expected_version: item?.version ?? 0,
+      },
+    });
+  },
+
+  async saveLiveAffiliate(id, { method, body, expectedVersion, buttonId, successMessage }) {
+    const button = document.getElementById(buttonId);
+    if (!button || button.disabled || this.adminSession?.role !== 'admin' || this.isLocalAuthDemo()) return;
+    const session = this.adminSession;
+    const route = window.location.hash;
+    const status = document.getElementById(method === 'PUT' ? 'affiliate-save-status' : 'affiliate-delete-status');
+    button.disabled = true;
+    status.textContent = '팀 서버에 저장하는 중입니다.';
+    const path = `/v2/admin/affiliate-offers/${encodeURIComponent(id)}`;
+    try {
+      const query = method === 'DELETE' ? `?${new URLSearchParams({ expected_version: expectedVersion })}` : '';
+      await this.requestAdminAuth(path + query, { token: session.token, method, body });
+      if (this.adminSession !== session || window.location.hash !== route || !button.isConnected) return;
+      this.navigate('affiliate', 'list', undefined, { replace: true });
+      this.showToast(successMessage);
+    } catch (error) {
+      if (this.adminSession !== session || !button.isConnected) return;
+      const messages = {
+        401: '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
+        403: '제휴 상품을 변경할 권한이 없습니다.',
+        404: '판매정보를 찾을 수 없습니다.',
+        409: '이미 등록됐거나 다른 변경이 반영됐습니다. 목록을 다시 열어 확인해 주세요.',
+        422: '입력값을 확인해 주세요. 제휴 URL은 서버가 허용한 HTTPS 주소여야 합니다.',
+      };
+      status.textContent = messages[error.status] || '팀 서버에서 저장 결과를 확인하지 못했습니다.';
+    } finally {
+      button.disabled = false;
+    }
   },
 
   // 새 제휴 상품 등록 / 제휴 상품 편집 공통 폼 화면
@@ -624,19 +821,20 @@ const affiliatePage = {
     modalRoot.innerHTML = `
       <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
         <div class="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-[420px] p-6">
-          <h3 class="text-xl font-bold text-slate-900">제휴 상품을 삭제할까요?</h3>
+          <h3 class="text-xl font-bold text-slate-900">${this.isLocalAuthDemo() ? '제휴 상품을 삭제할까요?' : '제휴 상품을 비활성화할까요?'}</h3>
           <p class="font-bold text-slate-900 mt-4 text-sm">
             ${this.escapeHtml(item.id)} &nbsp;·&nbsp; ${this.escapeHtml(item.partner)} ${this.escapeHtml(item.name)}
           </p>
           <p class="text-sm text-slate-500 mt-1.5">
-            해당 상품의 제휴 연결이 삭제됩니다.
+            ${this.isLocalAuthDemo() ? '해당 상품의 제휴 연결이 삭제됩니다.' : '해당 상품의 제휴 노출이 중단됩니다.'}
           </p>
+          <p id="affiliate-delete-status" class="mt-2 text-sm text-slate-600 empty:hidden" role="status"></p>
           <div class="grid grid-cols-2 gap-3 mt-6">
             <button onclick="app.closeDeleteModal()" class="btn-secondary w-full">
               취소
             </button>
-            <button onclick="app.confirmDeleteAffiliate()" class="btn-danger w-full">
-              삭제
+            <button id="affiliate-delete-submit" onclick="app.confirmDeleteAffiliate()" class="btn-danger w-full disabled:opacity-50">
+              ${this.isLocalAuthDemo() ? '삭제' : '비활성화'}
             </button>
           </div>
         </div>

@@ -235,6 +235,11 @@ const loginPage = {
       document.getElementById('admin-role').textContent =
         this.isLocalAuthDemo() ? '로컬 데모 · 관리자' : this.adminSession.role === 'admin' ? '관리자' : '상담 담당자';
     } else {
+      this.liveCounseling = null;
+      this.liveAffiliates = null;
+      this.liveCustomers = null;
+      this.liveCatalog = null;
+      this.state.offerCatalog = [];
       this.destroyCharts();
       document.getElementById('app-content').innerHTML = '';
       document.getElementById('modal-root').innerHTML = '';

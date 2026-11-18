@@ -1,5 +1,69 @@
 const customersPage = {
+  liveCustomers: null,
+
+  refreshLiveCustomers() {
+    return this.refreshAdminData('liveCustomers', async (token) => ({
+      items: await this.requestAdminList('/v2/admin/members', token),
+    }));
+  },
+
+  getLiveCustomersHtml() {
+    const view = this.liveCustomers;
+    const header = this.renderPageHeader('고객정보', '팀 서버의 활성 회원을 최근 가입순으로 최대 100명 조회합니다.');
+    if (view?.phase !== 'ready') {
+      return header + this.renderAdminDataStatus(view,
+        '<button type="button" class="btn-secondary" onclick="app.refreshLiveCustomers()">다시 시도</button>');
+    }
+    if (this.state.customerSubView === 'detail') {
+      const member = view.items.find((item) => item.user_id === this.state.selectedCustomerId);
+      return `
+        ${header}
+        ${member ? `
+          <dl class="mb-4 grid gap-4 rounded-xl border border-slate-200 bg-white p-5 text-sm">
+            <div><dt class="text-slate-500">로그인 아이디</dt><dd class="font-semibold">${this.escapeHtml(member.login_id)}</dd></div>
+            <div><dt class="text-slate-500">회원 UUID</dt><dd class="break-all">${this.escapeHtml(member.user_id)}</dd></div>
+            <div><dt class="text-slate-500">가입 일시</dt><dd>${this.escapeHtml(this.formatKstDateTime(member.created_at) || '—')}</dd></div>
+          </dl>
+        ` : '<p class="mb-4 text-sm text-slate-600">현재 조회 범위에 회원이 없습니다.</p>'}
+        <a href="#/customers" class="btn-secondary inline-flex">목록으로</a>
+      `;
+    }
+    return `
+      ${header}
+      <div class="mb-5 flex flex-wrap items-end gap-3">
+        <label class="text-sm">회원 검색
+          <input type="search" class="form-input mt-1 block w-full sm:w-[320px]"
+            value="${this.escapeHtml(this.state.customerSearch)}" placeholder="로그인 아이디 또는 회원 UUID"
+            oninput="app.handleCustomerFilterChange(this.value, null, null)" />
+        </label>
+        <button type="button" class="btn-secondary" onclick="app.refreshLiveCustomers()">새로고침</button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table class="w-full min-w-[540px] text-left text-sm">
+          <thead class="border-b border-slate-200 text-xs text-slate-600">
+            <tr><th class="p-4">로그인 아이디</th><th class="p-4">회원 UUID</th><th class="p-4">가입 일시 · KST</th></tr>
+          </thead>
+          <tbody id="customer-table-body" class="divide-y divide-slate-200">${this.getLiveCustomerRowsHtml()}</tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  getLiveCustomerRowsHtml() {
+    const search = this.state.customerSearch.trim().toLowerCase();
+    const members = (this.liveCustomers?.items || []).filter((member) =>
+      `${member.login_id} ${member.user_id}`.toLowerCase().includes(search));
+    return members.length ? members.map((member) => `
+      <tr>
+        <td class="p-4"><a class="font-semibold text-blue-700 hover:underline" href="#/customers/detail/${this.escapeHtml(encodeURIComponent(member.user_id))}">${this.escapeHtml(member.login_id)}</a></td>
+        <td class="break-all p-4">${this.escapeHtml(member.user_id)}</td>
+        <td class="whitespace-nowrap p-4">${this.escapeHtml(this.formatKstDateTime(member.created_at) || '—')}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="3" class="p-4 text-slate-600">조건에 일치하는 고객정보가 없습니다.</td></tr>';
+  },
+
   getCustomersHtml() {
+    if (!this.isLocalAuthDemo()) return this.getLiveCustomersHtml();
     if (this.state.customerSubView === 'detail') {
       return this.getCustomerDetailHtml();
     }
@@ -115,6 +179,11 @@ const customersPage = {
     if (searchVal !== null) this.state.customerSearch = searchVal;
     if (typeVal !== null) this.state.customerTypeFilter = typeVal;
     if (statusVal !== null) this.state.customerStatusFilter = statusVal;
+    if (!this.isLocalAuthDemo()) {
+      const tbody = document.getElementById('customer-table-body');
+      if (tbody) tbody.innerHTML = this.getLiveCustomerRowsHtml();
+      return;
+    }
 
     const search = this.state.customerSearch.trim().toLowerCase();
     const typeFilter = this.state.customerTypeFilter;

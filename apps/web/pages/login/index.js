@@ -239,6 +239,7 @@ const loginPage = {
       this.liveAffiliates = null;
       this.liveCustomers = null;
       this.liveCatalog = null;
+      this.liveOverview = null;
       this.state.offerCatalog = [];
       this.destroyCharts();
       document.getElementById('app-content').innerHTML = '';

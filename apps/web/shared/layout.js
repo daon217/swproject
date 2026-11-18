@@ -55,17 +55,23 @@ const consoleLayout = {
     this.state.currentPage = page;
     const demo = this.isLocalAuthDemo();
     if (page === 'affiliate') {
-      const product = demo && subView === 'edit' &&
-        this.state.affiliateProducts.find((item) => encodeURIComponent(item.id) === id);
-      const liveId = !demo && subView === 'edit' && this.isUuid(id) ? id.toLowerCase() : null;
+      const decodedId = id ? decodeURIComponent(id) : '';
+      const product = subView === 'edit' && (
+        this.getAffiliateItems().find((item) => item.id === decodedId || encodeURIComponent(item.id) === id) ||
+        this.state.affiliateProducts.find((item) => item.id === decodedId || encodeURIComponent(item.id) === id)
+      );
+      const liveId = !demo && subView === 'edit' && this.isUuid(decodedId) ? decodedId.toLowerCase() : null;
       this.state.affiliateSubView = product || liveId ? 'edit' : subView === 'create' ? 'create' : 'list';
-      if (demo ? product : liveId) this.state.selectedAffiliateId = demo ? product.id : liveId;
+      if (product) this.state.selectedAffiliateId = product.id;
+      else if (liveId) this.state.selectedAffiliateId = liveId;
     } else if (page === 'customers') {
-      const customer = demo && subView === 'detail' &&
-        this.state.customers.find((item) => encodeURIComponent(item.id) === id);
-      const liveId = !demo && subView === 'detail' && this.isUuid(id) ? id.toLowerCase() : null;
+      const decodedId = id ? decodeURIComponent(id) : '';
+      const customer = subView === 'detail' &&
+        this.getCustomerItems().find((item) => item.userId === decodedId || item.id === decodedId || encodeURIComponent(item.id) === id);
+      const liveId = !demo && subView === 'detail' && this.isUuid(decodedId) ? decodedId.toLowerCase() : null;
       this.state.customerSubView = customer || liveId ? 'detail' : 'list';
-      if (demo ? customer : liveId) this.state.selectedCustomerId = demo ? customer.id : liveId;
+      if (customer) this.state.selectedCustomerId = customer.userId || customer.id;
+      else if (liveId) this.state.selectedCustomerId = liveId;
     } else if (page === 'counseling') {
       if (demo) {
         const counseling = subView === 'detail' &&
@@ -74,18 +80,29 @@ const consoleLayout = {
         if (counseling) this.state.selectedCounselingId = counseling.id;
       } else {
         const detail = subView === 'detail' && this.isUuid(id);
-        this.state.counselingSubView = detail ? 'detail' : 'list';
+        this.state.counselingSubView = detail ? 'detail' : subView === 'settings' ? 'settings' : 'list';
         this.state.selectedCounselingId = detail ? id.toLowerCase() : null;
       }
     }
     this.state.showDeleteModal = false;
     this.renderSidebar();
     if (!demo) {
-      if (page === 'main' || (page === 'affiliate' && this.state.affiliateSubView !== 'create')) {
+      if (page === 'main' || page === 'stats' || (page === 'affiliate' && this.state.affiliateSubView !== 'create')) {
         this.refreshLiveAffiliates();
       }
-      if (page === 'main' || page === 'counseling') this.refreshLiveCounseling();
-      if (page === 'customers') this.refreshLiveCustomers();
+      if (page === 'main' || page === 'stats' || page === 'counseling') {
+        this.refreshLiveCounseling();
+      }
+      if (page === 'counseling') {
+        this.refreshLiveCounselingSettings();
+      }
+      if (page === 'main' || page === 'stats' || page === 'customers' ||
+          (page === 'counseling' && this.adminSession.role === 'admin')) {
+        this.refreshLiveCustomers();
+      }
+      if (page === 'main' || page === 'stats' || page === 'crawling') {
+        this.refreshLiveOverview();
+      }
       if (page === 'crawling') this.refreshLiveCatalog();
     }
     this.renderContent();
@@ -101,6 +118,35 @@ const consoleLayout = {
     const utc = typeof value === 'number' ? value : Date.parse(value);
     if (!Number.isFinite(utc)) return '';
     return new Date(utc + 9 * 60 * 60 * 1000).toISOString().slice(0, 16).replaceAll('-', '.').replace('T', ' ');
+  },
+
+  async fetchAllCatalogOffers() {
+    const offers = new Map();
+    for (const domain of ['product', 'food']) {
+      try {
+        const url = new URL('/v2/offers', this.getApiBase());
+        url.search = new URLSearchParams({
+          selected_domain: domain, condition: 'all', availability: 'all', limit: '100',
+        });
+        const cursors = new Set();
+        for (let page = 0; page < 5; page++) {
+          const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+          if (!response.ok) break;
+          const data = await response.json();
+          if (!Array.isArray(data?.items)) break;
+          for (const item of data.items) {
+            offers.set(item.offer_id, { ...item, selected_domain: item.selected_domain || domain });
+          }
+          const cursor = data.next_cursor;
+          if (!cursor || cursors.has(cursor)) break;
+          cursors.add(cursor);
+          url.searchParams.set('after', cursor);
+        }
+      } catch {
+        // 개별 도메인 조회 실패 시 수집된 목록까지만 반환한다.
+      }
+    }
+    return [...offers.values()];
   },
 
   async requestAdminList(path, token, cursorField) {
@@ -122,8 +168,9 @@ const consoleLayout = {
   async refreshAdminData(key, load) {
     const session = this.adminSession;
     if (!session || this.isLocalAuthDemo()) return;
-    const route = window.location.hash;
-    const view = { phase: 'loading', items: [] };
+    const targetPage = this.state.currentPage;
+    const prevItems = this[key]?.items || [];
+    const view = { phase: 'loading', items: prevItems };
     this[key] = view;
     this.renderContent();
     try {
@@ -134,7 +181,7 @@ const consoleLayout = {
         error.status === 401 ? '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.' :
           '팀 서버의 데이터를 불러오지 못했습니다.';
     }
-    if (this[key] === view && this.adminSession === session && window.location.hash === route) {
+    if (this[key] === view && this.adminSession === session && this.state.currentPage === targetPage) {
       this.renderContent();
     }
   },
@@ -164,6 +211,18 @@ const consoleLayout = {
     }, 2600);
   },
 
+  navigateMenu(page) {
+    if (page === 'affiliate') {
+      this.state.affiliateStatusFilter = '전체';
+      this.state.affiliateSearch = '';
+      this.state.affiliateForceEmpty = false;
+    } else if (page === 'counseling') {
+      this.state.counselingCategoryFilter = '전체';
+      this.state.counselingSearch = '';
+    }
+    this.navigate(page);
+  },
+
   // 좌측 사이드바 렌더링 (계층 및 활성 스타일 완벽 반영)
   renderSidebar() {
     const nav = document.getElementById('sidebar-nav');
@@ -181,7 +240,7 @@ const consoleLayout = {
       stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
       aria-hidden="true"><path d="${path}"/></svg>`;
     const menu = (page, label, path) => `
-      <button type="button" onclick="app.navigate('${page}')" class="${itemClass(p === page)}"
+      <button type="button" onclick="app.navigateMenu('${page}')" class="${itemClass(p === page)}"
         ${p === page ? 'aria-current="page"' : ''}>
         ${icon(path)} <span>${label}</span>
       </button>`;
@@ -194,7 +253,7 @@ const consoleLayout = {
     nav.innerHTML = `
       ${menu('main', 'MAIN', 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z')}
       <div>
-        <button type="button" onclick="app.navigate('affiliate')" class="${itemClass(false)} ${isProductGroup ? 'text-[#0066ff]' : ''}">
+        <button type="button" onclick="app.navigateMenu('affiliate')" class="${itemClass(false)} ${isProductGroup ? 'text-[#0066ff]' : ''}">
           ${icon('M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10')} <span>상품관리</span>
         </button>
         <div class="mt-1 space-y-1 pl-3">
@@ -229,7 +288,7 @@ const consoleLayout = {
         </div>
         <div class="flex items-center gap-3 self-end sm:self-auto">
           ${extraRightHtml}
-          <span class="text-sm text-slate-500 font-normal whitespace-nowrap">${this.isLocalAuthDemo() ? '2026.10.12' : this.formatKstDateTime(Date.now()).slice(0, 10)} · KST</span>
+          <span class="text-sm text-slate-500 font-normal whitespace-nowrap">${this.formatKstDateTime(Date.now()).slice(0, 10)} · KST</span>
         </div>
       </div>
     `;
@@ -248,7 +307,7 @@ const consoleLayout = {
     } else if (p === 'affiliate') {
       container.innerHTML = this.getAffiliateHtml();
       const sub = this.state.affiliateSubView;
-      if ((sub === 'create' || this.isLocalAuthDemo() && sub === 'edit') &&
+      if ((sub === 'create' || sub === 'edit') &&
           document.getElementById('aff-offer-search')) this.loadOfferCatalog();
     } else if (p === 'customers') {
       container.innerHTML = this.getCustomersHtml();

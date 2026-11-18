@@ -88,6 +88,28 @@ const counselingPage = {
     return this.refreshLiveCounseling(draft);
   },
 
+  async refreshLiveCounselingSettings() {
+    const session = this.adminSession;
+    if (!session || this.isLocalAuthDemo()) return;
+    try {
+      const settings = await this.requestAdminAuth('/v2/admin/support/settings', { token: session.token });
+      if (settings && typeof settings === 'object' && this.adminSession === session) {
+        this.state.counselingSettings = {
+          days: settings.days || '월요일 ~ 금요일',
+          startTime: settings.startTime || '09:00',
+          endTime: settings.endTime || '18:00',
+          awayMessage: settings.awayMessage ?? '',
+          version: settings.version ?? 1,
+        };
+        if (this.state.currentPage === 'counseling' && this.state.counselingSubView === 'settings') {
+          this.renderContent();
+        }
+      }
+    } catch {
+      // 설정 조회 실패 시 기존 설정 값을 유지한다.
+    }
+  },
+
   getCounselingApiError(error, fallback) {
     const messages = {
       401: '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
@@ -101,6 +123,10 @@ const counselingPage = {
   },
 
   getCounselingHtml() {
+    const sub = this.state.counselingSubView;
+    if (sub === 'settings') {
+      return this.getCounselingSettingsHtml();
+    }
     if (!this.isLocalAuthDemo() && this.liveCounseling?.phase !== 'ready') {
       const view = this.liveCounseling;
       return `
@@ -110,12 +136,8 @@ const counselingPage = {
         ${view?.id ? '<a href="#/counseling" class="btn-secondary inline-flex">목록으로</a>' : ''}
       `;
     }
-    const sub = this.state.counselingSubView;
     if (sub === 'detail') {
       return this.getCounselingDetailHtml();
-    }
-    if (sub === 'settings') {
-      return this.getCounselingSettingsHtml();
     }
     return this.getCounselingListHtml();
   },
@@ -128,8 +150,8 @@ const counselingPage = {
 
     return `
       ${this.renderPageHeader('상담관리', demo
-        ? '문의 제목·분류·상태·담당자를 확인하세요. · 예시 데이터'
-        : '팀 서버의 상담 상태와 대화 내역을 확인하세요.')}
+      ? '문의 제목·분류·상태·담당자를 확인하세요. · 예시 데이터'
+      : '팀 서버의 상담 상태와 대화 내역을 확인하세요.')}
 
       <!-- 상단 검색 필터 바 -->
       <div class="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -165,16 +187,16 @@ const counselingPage = {
           </div>
         </div>
 
-        ${demo ? `
-        <div>
+        <div class="flex items-center gap-2.5">
+          ${demo ? '' : '<button type="button" class="btn-secondary" onclick="app.refreshCounselingView()">새로고침</button>'}
           <button
+            type="button"
             onclick="app.navigate('counseling', 'settings')"
             class="bg-white border border-[#cbd5e1] text-[#0066ff] font-bold rounded-lg px-5 py-2.5 text-sm h-[44px] hover:bg-slate-50 transition-colors"
           >
             상담설정
           </button>
         </div>
-        ` : '<button type="button" class="btn-secondary" onclick="app.refreshCounselingView()">새로고침</button>'}
       </div>
 
       <!-- 테이블 -->
@@ -269,8 +291,10 @@ const counselingPage = {
         <a href="#/counseling" class="btn-secondary inline-flex">목록으로</a>
       `;
     }
-    const customer = demo ? this.state.customers.find((c) => c.id === cs.customerId) : null;
-    const customerLabel = cs.customerLoginId || cs.customerId;
+    const customer = this.getCustomerItems().find(
+      (c) => c.userId === cs.customerId || c.id === cs.customerLoginId || c.id === cs.customerId
+    ) || null;
+    const customerLabel = cs.customerLoginId || customer?.id || cs.customerId;
     const messages = demo ? cs.messages : this.liveCounseling.messages;
     const draft = demo ? '' : this.liveCounseling.draft;
 
@@ -302,16 +326,16 @@ const counselingPage = {
           <!-- 대화 메시지 리스트 -->
           <div id="chat-message-list" class="space-y-3 mb-6">
             ${messages.length ? messages
-              .map(
-                (m) => `
+        .map(
+          (m) => `
               <div class="bg-[#f1f5f9] rounded-lg p-4 mb-3">
                 <div class="font-bold text-sm text-slate-900">${this.escapeHtml(m.sender)}</div>
                 <div class="text-sm text-slate-800 mt-1 whitespace-pre-wrap break-words">${this.escapeHtml(m.text)}</div>
                 <div class="text-xs text-slate-500 mt-1.5">${this.escapeHtml(m.time)}</div>
               </div>
             `
-              )
-              .join('') : '<p class="text-sm text-slate-500">아직 메시지가 없습니다.</p>'}
+        )
+        .join('') : '<p class="text-sm text-slate-500">아직 메시지가 없습니다.</p>'}
           </div>
 
           <!-- 하단 답변 입력 영역 -->
@@ -347,6 +371,9 @@ const counselingPage = {
 
             <div class="text-xs text-slate-500">성별</div>
             <div class="text-lg font-bold text-slate-900 mt-0.5 mb-4">${this.escapeHtml(customer.gender)}</div>
+
+            <div class="text-xs text-slate-500">구독 여부</div>
+            <div class="text-lg font-bold text-slate-900 mt-0.5 mb-4">${customer.subscribed === 'O' ? '구독 중' : '미구독'}</div>
             ` : ''}
           </div>
         </div>
@@ -509,8 +536,8 @@ const counselingPage = {
     `;
   },
 
-  saveCounselingSettings() {
-    const days = document.getElementById('cs-setting-days')?.value || '월요일 ~ 금요일';
+  async saveCounselingSettings() {
+    const days = (document.getElementById('cs-setting-days')?.value || '').trim() || '월요일 ~ 금요일';
     const startTime = document.getElementById('cs-setting-start')?.value || '';
     const endTime = document.getElementById('cs-setting-end')?.value || '';
     const awayMessage = document.getElementById('cs-setting-away')?.value || '';
@@ -518,6 +545,32 @@ const counselingPage = {
     const time = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
     if (!time.test(startTime) || !time.test(endTime) || startTime >= endTime) {
       this.showToast('같은 날의 운영시간을 입력해 주세요. 종료 시간은 시작 시간보다 늦어야 합니다.');
+      return;
+    }
+
+    if (!this.isLocalAuthDemo()) {
+      try {
+        const expectedVersion = this.state.counselingSettings?.version || 1;
+        const saved = await this.requestAdminAuth('/v2/admin/support/settings', {
+          method: 'PUT',
+          token: this.adminSession?.token,
+          body: { days, startTime, endTime, awayMessage, expected_version: expectedVersion },
+        });
+        this.state.counselingSettings = {
+          days: saved.days,
+          startTime: saved.startTime,
+          endTime: saved.endTime,
+          awayMessage: saved.awayMessage,
+          version: saved.version,
+        };
+        this.showToast('상담 설정을 팀 서버 DB에 저장했습니다.');
+      } catch (error) {
+        this.showToast(
+          error.status === 409
+            ? '다른 담당자가 설정을 수정했습니다. 화면을 새로고침해 주세요.'
+            : '상담 설정을 서버에 저장하지 못했습니다.'
+        );
+      }
       return;
     }
 

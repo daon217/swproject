@@ -47,12 +47,28 @@ async def list_conversations(req:Request,limit:int=Query(20,ge=1,le=100),uid=Dep
 
 @router.get('/v2/admin/support/conversations')
 async def admin_conversations(req:Request,limit:int=Query(20,ge=1,le=100),after:UUID|None=None,uid=Depends(member)):
-    async with access(req,uid,{'admin','support'}):
-        async with req.app.state.support_engine.connect() as c:
-            rows=(await execute(c,'''SELECT * FROM app.conversations
-                WHERE CAST(:a AS uuid) IS NULL OR conversation_id>CAST(:a AS uuid)
-                ORDER BY conversation_id LIMIT :n''',a=after,n=limit)).mappings().all()
-    return wrap([conversation(r)|{'owner_id':r['owner_id']} for r in rows],req)
+    async with access(req,uid,{'admin','support'}) as member_conn:
+        async with req.app.state.support_engine.connect() as support_conn:
+            rows = (await execute(support_conn, '''SELECT c.*, reply.sender_id AS last_agent_id
+                FROM app.conversations c
+                LEFT JOIN LATERAL (
+                    SELECT sender_id FROM app.messages
+                    WHERE conversation_id=c.conversation_id AND sender='agent'
+                    ORDER BY sequence_no DESC LIMIT 1
+                ) reply ON true
+                WHERE CAST(:a AS uuid) IS NULL OR c.conversation_id>CAST(:a AS uuid)
+                ORDER BY c.conversation_id LIMIT :n''', a=after, n=limit)).mappings().all()
+
+        agent_ids = list({r['last_agent_id'] for r in rows if r['last_agent_id'] is not None})
+        agent_names = {}
+        if agent_ids:
+            agents = (await execute(member_conn, '''SELECT user_id, login_id FROM app.members
+                WHERE user_id=ANY(CAST(:ids AS uuid[])) AND deleted_at IS NULL''',
+                ids=agent_ids)).mappings().all()
+            agent_names = {agent['user_id']: agent['login_id'] for agent in agents}
+
+    return wrap([conversation(r) | {'owner_id': r['owner_id'],
+        'agent_name': agent_names.get(r['last_agent_id'])} for r in rows], req)
 
 
 async def read_messages(cid,req,uid,limit,after,admin=False):

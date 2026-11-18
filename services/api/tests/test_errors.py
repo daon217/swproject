@@ -25,7 +25,7 @@ def test_member_cors_idempotency_header():
 
 def test_private_support_and_analysis_errors_cannot_be_cached():
     client = TestClient(app)
-    for path in ['/v2/support/conversations', '/v2/analyses/00000000-0000-0000-0000-000000000001']:
+    for path in ['/v2/support/conversations', '/analyses/00000000-0000-0000-0000-000000000001']:
         response = client.get(path)
         assert response.status_code == 401
         assert response.headers['Cache-Control'] == 'no-store'

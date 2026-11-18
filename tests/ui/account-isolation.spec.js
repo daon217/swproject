@@ -49,7 +49,7 @@ for (const platform of ['extension','mobile']) {
       await login(page,a); await shortcuts(page);
       await page.getByRole('button',{name:'바로가기 추가',exact:true}).click();
       await page.getByLabel('이름',{exact:true}).fill('A 전용 상점');
-      await page.getByLabel(platform==='mobile'?'주소':'주소 (URL)',{exact:true}).fill('https://example.com/item');
+      await page.getByPlaceholder('https://www.oasis.co.kr',{exact:true}).fill('https://example.com/item');
       await page.getByRole('button',{name:'추가',exact:true}).click();
       await expect(page.getByText('A 전용 상점',{exact:true})).toBeVisible();
       await expect(page.getByText('내가 저장',{exact:true})).toBeVisible();

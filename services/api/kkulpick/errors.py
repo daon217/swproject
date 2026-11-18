@@ -37,7 +37,7 @@ def install_errors(app):
         req.state.request_id = uuid4().hex
         response = await call_next(req)
         response.headers['X-Request-ID'] = req.state.request_id
-        if req.url.path.startswith(('/v2/', '/internal/')):
+        if req.url.path.startswith(('/v2/', '/analyses', '/internal/')):
             response.headers['Cache-Control'] = 'no-store'
         return response
 

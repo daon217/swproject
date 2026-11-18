@@ -1,18 +1,26 @@
+import { KEYS, onItemChange } from '../shared/storage';
 import { useEffect, useRef, useState } from 'react';
 import { api, isMockApi } from '../shared/api';
 import type { Analysis } from '../shared/types';
 
 /** 개발용 미리보기에서 실제 업로드 계약을 확인한다. 확장 번들에는 포함되지 않는다. */
 export function AnalysisCheck() {
+  const [generation, setGeneration] = useState(0);
+  useEffect(() => onItemChange(KEYS.auth, () => setGeneration(n => n + 1)), []);
+  return <AccountAnalysisCheck key={generation} />;
+}
+function AccountAnalysisCheck() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<Analysis | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const active = useRef<string | null>(null);
+  const mounted = useRef(true);
   const url = 'https://store.example.test/product/preview';
-  useEffect(() => () => {
+  useEffect(() => { mounted.current = true; return () => {
+    mounted.current = false;
     if (active.current) void api.cancelAnalysis(active.current).catch(() => undefined);
-  }, []);
+  }; }, []);
   useEffect(() => {
     if (!result || !['queued', 'running'].includes(result.state)) return;
     let alive = true;
@@ -29,8 +37,10 @@ export function AnalysisCheck() {
       if (file.size > 2 * 1024 * 1024) throw new Error('이미지는 2MiB 이하만 가능합니다.');
       const id = crypto.randomUUID();
       const created = await api.createAnalysis({ image: file, page_url: url, page_session_id: id, page_revision: 1, request_key: id });
+      if (!mounted.current) return;
       active.current = created.analysis_id;
-      setResult(await api.getAnalysis(created.analysis_id));
+      const result = await api.getAnalysis(created.analysis_id);
+      if (mounted.current) setResult(result);
     } catch (e) { setError(e instanceof Error ? e.message : '접수 실패'); }
     finally { setBusy(false); }
   };

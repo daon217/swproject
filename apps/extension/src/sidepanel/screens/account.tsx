@@ -192,7 +192,7 @@ export function SignupScreen() {
       <SubHeader title="회원가입" />
       <Page
         footer={
-          <button className="kp-btn kp-btn-primary kp-btn-block" onClick={() => void submit()} disabled={busy}>
+          <button className="kp-btn kp-btn-primary kp-btn-block" onClick={() => void submit()} disabled={busy || !!loginIdError(form.id) || !!passwordError(form.pw) || form.pw !== form.pw2}>
             동의하고 가입하기
           </button>
         }

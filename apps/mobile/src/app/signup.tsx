@@ -122,7 +122,7 @@ export default function SignupScreen() {
   return (
     <View style={{ flex: 1 }}>
       <SubHeader title="회원가입" />
-      <Page scrollRef={scrollRef} footer={<Button label="동의하고 가입하기" onPress={() => void submit()} loading={busy} />}>
+      <Page scrollRef={scrollRef} footer={<Button label="동의하고 가입하기" onPress={() => void submit()} loading={busy} disabled={!!loginIdError(form.id) || !!passwordError(form.pw) || form.pw !== form.pw2} />}>
         <Text style={st.heading}>나에게 맞는 추천의 시작</Text>
         <View style={cs.field}>
           <Text style={cs.label}>ID</Text>

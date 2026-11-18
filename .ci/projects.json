@@ -190,6 +190,10 @@
           "npm",
           "run",
           "typecheck"
+        ],
+        [
+          "node",
+          "../../tools/test_account_privacy.cjs"
         ]
       ],
       "build": [
@@ -222,6 +226,10 @@
           "npm",
           "run",
           "lint"
+        ],
+        [
+          "node",
+          "../../tools/test_account_privacy.cjs"
         ]
       ],
       "build": [

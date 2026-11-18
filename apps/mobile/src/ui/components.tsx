@@ -81,7 +81,7 @@ export function Button({
       onPress={onPress}
       disabled={disabled || loading}
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!(disabled || loading) }}
+      accessibilityState={{ disabled: !!(disabled || loading) }} aria-disabled={!!(disabled || loading)}
       style={({ pressed }) => [
         s.btn,
         v === 'primary' && s.btnPrimary,
@@ -162,7 +162,7 @@ export function RowButton({ label, onPress, danger }: { label: string; onPress: 
 
 export function Checkbox({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
-    <Pressable style={s.check} onPress={() => onChange(!checked)} accessibilityRole="checkbox" accessibilityState={{ checked }} hitSlop={4}>
+    <Pressable style={s.check} onPress={() => onChange(!checked)} accessibilityRole="checkbox" accessibilityState={{ checked }} aria-checked={checked} hitSlop={4}>
       <View style={[s.checkBox, checked && s.checkBoxOn]}>{checked && <IconCheck size={14} color="#fff" strokeWidth={3} />}</View>
       <Text style={s.checkLabel}>{label}</Text>
     </Pressable>
@@ -179,7 +179,7 @@ export function AllergyPicker({ value, onChange }: { value: string[]; onChange: 
         const picked = g.items.filter((i) => value.includes(i.code)).length;
         return (
           <View key={g.group}>
-            <Pressable style={s.allergyHead} onPress={() => setOpen({ ...open, [g.group]: !isOpen })} accessibilityRole="button" accessibilityState={{ expanded: isOpen }}>
+            <Pressable style={s.allergyHead} onPress={() => setOpen({ ...open, [g.group]: !isOpen })} accessibilityRole="button" accessibilityState={{ expanded: isOpen }} aria-expanded={isOpen}>
               {isOpen ? <IconChevronDown size={16} /> : <IconForward size={16} />}
               <Text style={s.allergyHeadText}>{g.group}</Text>
               {picked > 0 && <Text style={s.allergyCount}>{picked}</Text>}
@@ -205,7 +205,7 @@ export function GenderSelect({ value, onChange }: { value: string; onChange: (v:
         {GENDERS.map((g) => {
           const on = value === g.v;
           return (
-            <Pressable key={g.v} onPress={() => onChange(on ? '' : g.v)} style={[s.chip, on && s.chipOn]} accessibilityRole="radio" accessibilityState={{ checked: on }}>
+            <Pressable key={g.v} onPress={() => onChange(on ? '' : g.v)} style={[s.chip, on && s.chipOn]} accessibilityRole="radio" accessibilityState={{ checked: on }} aria-checked={on}>
               <Text style={[s.chipText, on && { color: C.primary, fontWeight: '700' }]}>{g.l}</Text>
             </Pressable>
           );

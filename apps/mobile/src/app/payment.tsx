@@ -76,13 +76,13 @@ export default function PaymentScreen() {
         <H2>결제수단</H2>
         <View style={{ gap: 10 }} accessibilityRole="radiogroup">
           {METHODS.map((m) => (
-            <Pressable key={m.id} style={[st.method, method === m.id && st.methodOn]} onPress={() => setMethod(m.id)} accessibilityRole="radio" accessibilityState={{ checked: method === m.id }}>
+            <Pressable key={m.id} style={[st.method, method === m.id && st.methodOn]} onPress={() => setMethod(m.id)} accessibilityRole="radio" accessibilityState={{ checked: method === m.id }} aria-checked={method === m.id}>
               <Text style={{ color: C.primary, fontWeight: '700', fontSize: 15 }}>{m.label}</Text>
             </Pressable>
           ))}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {EASY.map((m) => (
-              <Pressable key={m.id} style={[st.method, st.easy, method === m.id && st.methodOn]} onPress={() => setMethod(m.id)} accessibilityRole="radio" accessibilityLabel={m.label} accessibilityState={{ checked: method === m.id }}>
+              <Pressable key={m.id} style={[st.method, st.easy, method === m.id && st.methodOn]} onPress={() => setMethod(m.id)} accessibilityRole="radio" accessibilityLabel={m.label} accessibilityState={{ checked: method === m.id }} aria-checked={method === m.id}>
                 <View style={[st.mark, { backgroundColor: m.bg }]}>
                   <Text style={{ color: m.fg, fontWeight: '900', fontSize: 14 }}>{m.mark}</Text>
                 </View>

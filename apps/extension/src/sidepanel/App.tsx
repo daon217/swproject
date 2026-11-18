@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PanelRoute } from '../shared/messages';
-import { getItem, KEYS, onItemChange, removeItem } from '../shared/storage';
+import { getItem, KEYS, onItemChange, removeItem, setItem } from '../shared/storage';
 import { useRecommendEnabled } from './useRecommendEnabled';
 import { Toggle } from './components';
 import { NavCtx, type Nav, type Screen, type Tab } from './nav';
@@ -133,12 +133,16 @@ function Shell() {
 /** 사이드 패널 맨 위: 상품 추천 켜기/끄기(기본 꺼짐) */
 function RecommendSwitch() {
   const [on, setOn] = useRecommendEnabled();
+  const { me } = useSession();
+  const [domain, setDomain] = useState('product');
+  useEffect(() => { void getItem<string>('kp.selectedDomain','product').then(setDomain); }, []);
   return (
     <div className="sp-recommend-switch">
       <div>
         <div className="sp-recommend-switch-title">상품 추천</div>
-        <div className="sp-recommend-switch-desc">{on ? '상품 페이지를 열면 AI가 분석해요' : '꺼져 있어요 · 화면을 분석하지 않아요'}</div>
+        <div className="sp-recommend-switch-desc">{!me ? '기본 추천은 비회원도 이용 가능 · 화면 분석은 로그인 후' : on ? '상품 페이지를 열면 AI가 분석해요' : '꺼져 있어요 · 화면을 분석하지 않아요'}</div>
       </div>
+      <label>분석 종류 <select aria-label="분석 종류" value={domain} onChange={e => { setDomain(e.target.value); void setItem('kp.selectedDomain',e.target.value); }}><option value="product">상품</option><option value="food">식품</option></select></label>
       <Toggle checked={!!on} onChange={setOn} label="상품 추천" disabled={on === null} />
     </div>
   );

@@ -341,6 +341,11 @@ function createMockImpl(): KkulpickApi {
       return (await requireUser(db)).history;
     },
 
+    async listBasic(domain = 'product') {
+      await wait(200);
+      return FEATURED.filter(c => c.image_kind === domain);
+    },
+
     async listFeatured() {
       await wait(200);
       return FEATURED;

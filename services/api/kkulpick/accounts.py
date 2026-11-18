@@ -1,5 +1,6 @@
 """Administrator read APIs and durable, resumable account withdrawal."""
 import secrets
+import os
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field, SecretStr
 from starlette.concurrency import run_in_threadpool
@@ -22,8 +23,13 @@ async def admin_me(req:Request,uid=Depends(member)):
 @router.get('/v2/admin/members')
 async def member_list(req:Request,limit:int=Query(20,ge=1,le=100),uid=Depends(member)):
     async with access(req,uid,{'admin'}) as c:
-        rows=(await execute(c,'''SELECT user_id,login_id,created_at FROM app.members
-            WHERE deleted_at IS NULL ORDER BY created_at DESC,user_id DESC LIMIT :n''',n=limit)).mappings().all()
+        rows=(await execute(c,'''SELECT m.user_id,m.login_id,m.created_at,m.gender,
+            (extract(year FROM age(current_date,m.birth_date))::int/10)*10 AS age_decade,
+            coalesce(s.entitlement_end>now() AND s.billing_mode=:mode AND :enabled,false) AS subscribed,
+            (SELECT min(i.period_start) FROM app.invoices i JOIN app.payments p USING(invoice_id)
+                WHERE i.user_id=m.user_id AND p.status='succeeded') AS subscription_started_at
+            FROM app.members m LEFT JOIN app.subscriptions s USING(user_id)
+            WHERE m.deleted_at IS NULL ORDER BY m.created_at DESC,m.user_id DESC LIMIT :n''',n=limit,mode=os.getenv('BILLING_MODE','disabled'),enabled=os.getenv('APP_ENV','development')=='development')).mappings().all()
         return wrap([dict(r) for r in rows],req)
 
 

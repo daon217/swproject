@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useRef } from 'react';
+import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../shared/ui/styles.css';
 import '../sidepanel/sidepanel.css';
@@ -13,7 +13,7 @@ import { setItem, KEYS } from '../shared/storage';
 // 개발용 미리보기(확장 설치 없이 화면 확인). 왼쪽: 쇼핑몰 페이지 + 인페이지 플로팅, 오른쪽: 사이드 패널.
 // ?url= 로 분석할 페이지 주소를 바꾼다. 예) ?url=https://smartstore.naver.com/snackmarket/products/4021
 
-function FloatingInShadow() {
+function FloatingInShadow({ panelOpen, onOpen }: { panelOpen: boolean; onOpen: () => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<ReturnType<typeof createRoot> | null>(null);
   const { state, retry } = useActiveTabState();
@@ -30,15 +30,17 @@ function FloatingInShadow() {
     }
     rootRef.current.render(
       <div className="kp-root fl-root">
-        <Floating state={state} onOpenPanel={(route) => void setItem(KEYS.pendingRoute, { route, at: Date.now() })} onRetry={retry} />
+        <Floating state={state} panelOpen={panelOpen} onOpenPanel={(route) => { onOpen(); void setItem(KEYS.pendingRoute, { route, at: Date.now() }); }} onRetry={retry} />
       </div>,
     );
-  }, [state, retry]);
+  }, [state, retry, panelOpen, onOpen]);
 
   return <div ref={hostRef} />;
 }
 
 function Preview() {
+  const [panelOpen, setPanelOpen] = useState(new URLSearchParams(location.search).get('panel') !== 'closed');
+  const openPanel = useCallback(() => setPanelOpen(true), []);
   const url = new URLSearchParams(location.search).get('url') ?? 'https://brand.naver.com/epson/products/1120';
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui', background: '#e9edf3' }}>
@@ -54,10 +56,11 @@ function Preview() {
           </p>
         </div>
         <div style={{ padding: 32 }}><AnalysisCheck /></div>
-        <FloatingInShadow />
+        <FloatingInShadow panelOpen={panelOpen} onOpen={openPanel} />
       </div>
-      <div style={{ width: 400, borderLeft: '1px solid #d5dae3', background: '#fff' }}>
-        <App />
+      <div aria-label="꿀픽 사이드바" style={{ display: panelOpen ? 'flex' : 'none', flexDirection: 'column', width: 400, borderLeft: '1px solid #d5dae3', background: '#fff' }}>
+        <button onClick={() => setPanelOpen(false)} aria-label="사이드바 닫기">사이드바 닫기</button>
+        <div style={{ flex: 1, minHeight: 0 }}><App /></div>
       </div>
     </div>
   );

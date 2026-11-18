@@ -1,0 +1,16 @@
+data/
+.env
+.env.*
+!.env.example
+.venv*/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+*.tmp
+backend_outbox.json
+backend_outbox.json.*
+pgdata/
+postgres-binaries/
+private_test_secrets.json
+*.private

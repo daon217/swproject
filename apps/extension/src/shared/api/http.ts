@@ -1,6 +1,7 @@
 import { getAuthToken } from '../auth';
 import { ApiError } from '../types';
 import type { KkulpickApi } from './index';
+import { dlog } from '../debug';
 
 // 실제 백엔드 연결용 구현. 응답 래퍼({data, request_id})와 오류({code,message,retryable})는 명세 17.1 기준.
 export function createHttpApi(baseUrl: string): KkulpickApi {
@@ -13,13 +14,18 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
       (init.headers as Record<string, string>)['Content-Type'] = 'application/json';
       init.body = JSON.stringify(body);
     }
+    const url = `${baseUrl.replace(/\/$/, '')}${path}`;
+    const t0 = Date.now();
+    dlog('http', `→ ${method} ${url}`, body);
     let res: Response;
     try {
-      res = await fetch(`${baseUrl.replace(/\/$/, '')}${path}`, init);
-    } catch {
+      res = await fetch(url, init);
+    } catch (e) {
+      dlog('http', `✕ ${method} ${url} 네트워크 실패 (${Date.now() - t0}ms) — 서버 꺼짐/주소 오류/CORS`, String(e));
       throw new ApiError(0, 'NETWORK', '네트워크 연결을 확인해 주세요.', true);
     }
     const json = res.status === 204 ? null : await res.json().catch(() => null);
+    dlog('http', `← ${res.status} ${method} ${path} (${Date.now() - t0}ms)`, json);
     if (!res.ok) {
       const err = json?.error ?? json ?? {};
       throw new ApiError(res.status, err.code ?? 'UNKNOWN', err.message ?? '요청을 처리하지 못했어요.', !!err.retryable);
@@ -43,6 +49,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
       const form = new FormData();
       if (req.image) form.append('image', req.image, 'capture.jpg');
       form.append('page_url', req.page_url);
+      form.append('selected_domain', req.selected_domain ?? 'product');
       form.append('page_session_id', req.page_session_id);
       form.append('page_revision', String(req.page_revision));
       form.append('request_key', req.request_key);
@@ -52,6 +59,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
     getAnalysis: (id) => request('GET', `/analyses/${encodeURIComponent(id)}`),
     cancelAnalysis: (id) => request('POST', `/analyses/${encodeURIComponent(id)}/cancel`),
     listHistory: () => request('GET', '/v2/me/analyses?limit=20'),
+    listBasic: (domain = 'product') => request('GET', `/v2/recommendations/basic?limit=10&selected_domain=${domain}`),
     listFeatured: () => request('GET', '/v2/recommendations/featured?limit=10'),
     deleteAllHistory: () => request('POST', '/v2/me/data-deletions', { scope: 'history' }),
     deleteAccount: (current_password) => request('POST', '/v2/me/withdrawal', { current_password }),

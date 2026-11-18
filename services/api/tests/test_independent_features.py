@@ -81,17 +81,32 @@ def test_support_ownership_idempotency_and_sequence(client):
 
 
 def test_support_admin_reply_close_and_revocation(client):
-    h,_,_=account(client);admin,_,uid=account(client)
+    h,_,_=account(client);admin,profile,uid=account(client)
+    other_admin,other_profile,other_uid=account(client)
     grant(uid,'support')
+    grant(other_uid)
     cid=client.post('/v2/support/conversations',headers=h).json()['data']['conversation_id']
     path=f'/v2/admin/support/conversations/{cid}'
     assert client.get('/v2/admin/members',headers=admin).status_code==403
     assert client.get('/v2/admin/support/conversations',headers=h).status_code==403
+
+    def displayed_agent():
+        result=client.get('/v2/admin/support/conversations?limit=100',headers=admin)
+        assert result.status_code==200
+        return next(c['agent_name'] for c in result.json()['data'] if c['conversation_id']==cid)
+
+    assert displayed_agent() is None
     r=client.post(path+'/messages',headers=admin,json={'body':'답변입니다','client_message_id':str(uuid4())})
     assert r.status_code==200 and r.json()['data']['sender']=='agent'
+    assert displayed_agent()==profile['login_id']
+    r=client.post(path+'/messages',headers=other_admin,json={'body':'후속 답변','client_message_id':str(uuid4())})
+    assert r.status_code==200
+    assert displayed_agent()==other_profile['login_id']
+    public=client.get('/v2/support/conversations',headers=h)
+    assert next(c['agent_name'] for c in public.json()['data'] if c['conversation_id']==cid) is None
     r=client.patch(path,headers=admin,json={'expected_version':1,'status':'closed'})
     assert r.status_code==409
-    r=client.patch(path,headers=admin,json={'expected_version':2,'status':'closed'})
+    r=client.patch(path,headers=admin,json={'expected_version':3,'status':'closed'})
     assert r.status_code==200,r.text
     assert client.post(f'/v2/support/conversations/{cid}/messages',headers=h,json={'body':'추가','client_message_id':str(uuid4())}).status_code==409
     with db('member','owner') as c:c.execute('UPDATE app.admin_accounts SET enabled=false WHERE user_id=%s',(uid,))
@@ -272,3 +287,22 @@ def test_deletion_retries_after_partial_cross_database_failure(client,worker_hea
     with db('member') as c:assert c.execute('SELECT state FROM app.account_deletions WHERE user_id=%s',(uid,)).fetchone()[0]=='pending'
     assert run_deletions()>=1
     with db('catalog') as c:assert c.execute('SELECT count(*) FROM app.analyses WHERE owner_id=%s',(uid,)).fetchone()[0]==0
+
+
+def test_console_aggregates_settings_and_public_basic(client):
+    ordinary,_,_=account(client)
+    admin,_,uid=account(client);grant(uid)
+    assert client.get('/v2/admin/overview',headers=ordinary).status_code==403
+    r=client.get('/v2/admin/overview',headers=admin)
+    assert r.status_code==200,r.text
+    assert r.json()['data']['members']>=2
+    path='/v2/admin/support/settings'
+    r=client.get(path,headers=admin);assert r.status_code==200,r.text
+    v=r.json()['data']['version']
+    data={'days':'월요일 ~ 금요일','startTime':'10:00','endTime':'19:00','awayMessage':'운영시간 안내','expected_version':v}
+    assert client.put(path,headers=ordinary,json=data).status_code==403
+    assert client.put(path,headers=admin,json=data).status_code==200
+    assert client.put(path,headers=admin,json=data).status_code==409
+    assert client.get(path,headers=admin).json()['data']['startTime']=='10:00'
+    assert client.get('/v2/recommendations/basic').status_code==200
+    assert client.get('/v2/recommendations/basic?selected_domain=invalid').status_code==422

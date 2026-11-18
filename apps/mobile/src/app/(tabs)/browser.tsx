@@ -77,6 +77,7 @@ function AccountBrowser() {
   const [tabs, setTabs] = useState<BrowserTab[]>(() => [newTab()]);
   const [activeId, setActiveId] = useState(() => tabs[0].id);
   const [switcher, setSwitcher] = useState(false);
+  const [domain, setDomain] = useState<'product' | 'food'>('product');
   const [input, setInput] = useState('');
   const [editing, setEditing] = useState(false);
   const webRefs = useRef<Record<string, WebPageHandle | null>>({});
@@ -88,7 +89,7 @@ function AccountBrowser() {
   // 주소의 #… 과 끝 / 차이는 같은 페이지로 본다(리다이렉트·해시 이동 대비).
   const pageKey = (u: string) => u.split('#')[0].replace(/\/+$/, '');
   const getPageScan = useCallback((u: string) => pageScans.current.get(pageKey(u)), []);
-  const page = usePageAnalysis(active.url, active.nav.loading, captureTarget, getPageScan);
+  const page = usePageAnalysis(active.url, active.nav.loading, captureTarget, getPageScan, domain);
 
   const patchTab = useCallback((id: string, patch: Partial<BrowserTab>) => {
     setTabs((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -223,6 +224,9 @@ function AccountBrowser() {
         )}
       </View>
 
+      <View style={{ flexDirection: 'row', gap: 16, padding: 8 }}>
+        {(['product', 'food'] as const).map(k => <Pressable key={k} accessibilityRole="button" accessibilityState={{ selected: domain === k }} onPress={() => setDomain(k)}><Text style={{ color: domain === k ? C.primary : C.sub }}>{k === 'product' ? '상품 분석' : '식품 분석'}</Text></Pressable>)}
+      </View>
       <View style={st.bar}>
         <Pressable onPress={goHome} accessibilityLabel="바로가기 홈" hitSlop={6}>
           <IconHome size={24} color={C.text} />

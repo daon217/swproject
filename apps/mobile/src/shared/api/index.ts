@@ -41,6 +41,8 @@ export interface KkulpickApi {
   listHistory(): Promise<AnalysisHistoryItem[]>;
   /** 기록이 없는 비회원 시작 화면용 추천 상품(제휴 상품 포함, 보완안 경로) */
   listFeatured(): Promise<OfferCard[]>;
+  /** 로그인 없이 상품/식품 공개 목록 조회. 분석 생성·개인화 없음. */
+  listBasic(domain?: 'product' | 'food'): Promise<OfferCard[]>;
   deleteAllHistory(): Promise<{ request_id: string }>;
 
   // 구독·결제 (실제 VAN/PG 연동 없음: 흐름만 구현)

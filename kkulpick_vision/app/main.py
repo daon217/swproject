@@ -268,3 +268,16 @@ async def get_vision_session_status(session_id: str) -> VisionAnalysisResultResp
         message=session_state.get("message", ""),
     )
 
+
+# Integrated deployments use a private service credential; never ship it to clients.
+import os
+import secrets
+from starlette.responses import JSONResponse
+@app.middleware('http')
+async def service_auth(request,call_next):
+    token=os.getenv('VISION_SERVICE_TOKEN','')
+    if request.url.path.startswith('/api/') and token:
+        given=request.headers.get('authorization','')
+        if not secrets.compare_digest(given.encode(),('Bearer '+token).encode()):
+            return JSONResponse({'detail':'SERVICE_AUTH_REQUIRED'},status_code=401)
+    return await call_next(request)

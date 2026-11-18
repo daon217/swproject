@@ -88,6 +88,14 @@
           "install",
           "-r",
           "../dev_runtime/requirements.lock"
+        ],
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "pytest==9.2.0",
+          "toon-format==1.2.0"
         ]
       ],
       "check": [
@@ -95,6 +103,13 @@
           "python",
           "../../tools/check_adapter.py",
           "recommendation"
+        ],
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests"
         ]
       ],
       "build": [
@@ -124,6 +139,16 @@
           "install",
           "-r",
           "../dev_runtime/requirements.lock"
+        ],
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "pytest==9.2.0",
+          "jsonschema==4.26.0",
+          "-r",
+          "domeggook_live/requirements.txt"
         ]
       ],
       "check": [
@@ -131,6 +156,20 @@
           "python",
           "../../tools/check_adapter.py",
           "collector"
+        ],
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "domeggook_live/tests"
+        ],
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "elevenst_offline/tests"
         ]
       ],
       "build": [
@@ -194,6 +233,10 @@
         [
           "node",
           "../../tools/test_account_privacy.cjs"
+        ],
+        [
+          "node",
+          "../../tools/test_debug_privacy.cjs"
         ]
       ],
       "build": [
@@ -290,7 +333,7 @@
           "-m",
           "pytest",
           "-q",
-          "test_service.py"
+          "."
         ]
       ],
       "build": [

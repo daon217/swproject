@@ -15,6 +15,8 @@ export interface TabState {
 export type PanelRoute = 'premium' | 'filter' | 'login' | 'recommend';
 
 export type Message =
+  | { type: 'getPanelVisibility' }
+  | { type: 'panelVisibility'; open: boolean }
   | { type: 'getTabState' } // content → bg (sender 탭)
   | { type: 'getActiveTabState' } // sidepanel → bg
   | { type: 'reanalyze' } // sidepanel → bg (로그인·설정·결제 변경 후)

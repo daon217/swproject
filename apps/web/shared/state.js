@@ -1,11 +1,10 @@
 const consoleState = {
   // 현재 활성화된 화면 및 서브 상태
   state: {
-    currentPage: 'crawling', // 'main' | 'affiliate' | 'crawling' | 'counseling' | 'stats' | 'customers'
+    currentPage: 'main', // 'main' | 'affiliate' | 'crawling' | 'counseling' | 'stats' | 'customers'
 
     // [화면 1] 상품 크롤링 검토 상태
     crawlingPeriod: '2026.10.06 ~ 2026.10.12',
-    crawlingFilterQuery: '',
     crawlingData: [
       { date: '2026.10.12', count: 128 },
       { date: '2026.10.11', count: 342 },
@@ -22,6 +21,7 @@ const consoleState = {
     affiliateStatusFilter: '전체',
     affiliateForceEmpty: false, // 우측 상단 [빈 상태 토글] 테스트용
     selectedAffiliateId: 'AF-001',
+    nextAffiliateNumber: 4,
     showDeleteModal: false,
     affiliateProducts: [
       {
@@ -76,45 +76,7 @@ const consoleState = {
         linkExpiry: '2026.10.13 09:00'
       }
     ],
-    // 판매정보 카탈로그 (등록/편집 시 선택 가능)
-    offerCatalog: [
-      {
-        code: 'OF-001 · 엡손 M1120',
-        partner: '엡손',
-        name: 'M1120 흑백 프린터',
-        price: '179,000원',
-        url: 'https://shop.example/products/OF-001',
-        infoTitle: '일반 상품 · 엡손 M1120',
-        infoSub: '179,000 KRW · 배송비 0 KRW'
-      },
-      {
-        code: 'OF-002 · 그레인 라이스 크리스프',
-        partner: '그레인',
-        name: '라이스 크리스프',
-        price: '12,000원',
-        url: 'https://shop.example/products/OF-002',
-        infoTitle: '일반 상품 · 그레인 라이스 크리스프',
-        infoSub: '12,000 KRW · 배송비 2,500 KRW'
-      },
-      {
-        code: 'OF-003 · 베이직 코튼 셔츠',
-        partner: '베이직',
-        name: '코튼 셔츠',
-        price: '29,000원',
-        url: 'https://shop.example/products/OF-003',
-        infoTitle: '일반 상품 · 베이직 코튼 셔츠',
-        infoSub: '29,000 KRW · 배송비 0 KRW'
-      },
-      {
-        code: 'OF-004 · 로지텍 무소음 마우스',
-        partner: '로지텍',
-        name: 'M331 무소음 마우스',
-        price: '24,900원',
-        url: 'https://shop.example/products/OF-004',
-        infoTitle: '일반 상품 · 로지텍 M331',
-        infoSub: '24,900 KRW · 배송비 0 KRW'
-      }
-    ],
+    offerCatalog: [],
 
     // [화면 3] 고객정보 & 고객 세부정보 상태
     customerSubView: 'list', // 'list' | 'detail'
@@ -151,7 +113,7 @@ const consoleState = {
         category: '결제',
         status: '진행 중',
         agent: '김상담',
-        lastMessageTime: '10.12 14:32',
+        lastMessageAt: '2026-10-12T14:32:00+09:00',
         messages: [
           { sender: 'moa123', text: '안녕하세요. 프리미엄 결제가 완료됐는지 확인하고 싶어요.', time: '14:30' },
           { sender: '김상담', text: '안녕하세요, 꿀픽입니다. 결제하신 시간을 알려주시면 확인해 드릴게요.', time: '14:31' },
@@ -165,7 +127,7 @@ const consoleState = {
         category: '이용 문의',
         status: '대기',
         agent: '미배정',
-        lastMessageTime: '10.12 14:10',
+        lastMessageAt: '2026-10-12T14:10:00+09:00',
         messages: [
           { sender: 'honey24', text: '프로필에서 알레르기 유발 성분을 추가로 등록하고 싶은데 어디서 하나요?', time: '14:10' }
         ]
@@ -177,7 +139,7 @@ const consoleState = {
         category: '오류',
         status: '대기',
         agent: '미배정',
-        lastMessageTime: '10.12 13:55',
+        lastMessageAt: '2026-10-12T13:55:00+09:00',
         messages: [
           { sender: 'pick305', text: '메인 화면에서 맞춤 추천 상품 이미지가 간헐적으로 보이지 않습니다.', time: '13:55' }
         ]
@@ -189,7 +151,7 @@ const consoleState = {
         category: '계정',
         status: '완료',
         agent: '이상담',
-        lastMessageTime: '10.11 17:08',
+        lastMessageAt: '2026-10-11T17:08:00+09:00',
         messages: [
           { sender: 'daily88', text: '휴대폰 번호 변경은 마이페이지에서 바로 가능한가요?', time: '17:05' },
           { sender: '이상담', text: '네 고객님, 마이페이지 > 계정 설정에서 본인인증 후 변경하실 수 있습니다.', time: '17:08' }
@@ -202,7 +164,7 @@ const consoleState = {
         category: '구독',
         status: '완료',
         agent: '김상담',
-        lastMessageTime: '10.11 15:24',
+        lastMessageAt: '2026-10-11T15:24:00+09:00',
         messages: [
           { sender: 'green72', text: '이번 달 구독 해지 신청하면 언제까지 이용 가능한가요?', time: '15:20' },
           { sender: '김상담', text: '결제일 기준 다음 갱신일 전날까지 프리미엄 혜택이 그대로 유지됩니다.', time: '15:24' }
@@ -215,3 +177,5 @@ const consoleState = {
     statsPeriodInput: '2026.10.06 ~ 2026.10.12',
   },
 };
+
+Object.assign(consoleState.state, {affiliateProducts:[],customers:[],counselingList:[],crawlingData:[],crawlingPeriod:"최근 30일",overview:null});

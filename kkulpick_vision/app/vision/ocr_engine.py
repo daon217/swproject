@@ -62,6 +62,8 @@ class OCRSingletonEngine:
             self._ocr_model = PaddleOCR(
                 lang="korean",
                 use_angle_cls=False,
+                use_gpu=False,
+                cpu_threads=2,
                 show_log=False,
             )
             logger.info("[OCRSingletonEngine] PaddleOCR 싱글톤 로드 완료.")

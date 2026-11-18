@@ -9,7 +9,9 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "prebuild": "node prepare-console.cjs",
+    "predev": "node prepare-console.cjs"
   },
   "dependencies": {
     "next": "16.4.5",

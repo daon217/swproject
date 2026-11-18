@@ -1,5 +1,6 @@
 const app = {
   ...consoleState,
+  ...loginPage,
   ...consoleLayout,
   ...consoleCharts,
   ...crawlingPage,
@@ -8,6 +9,7 @@ const app = {
   ...counselingPage,
   ...statsPage,
   ...dashboardPage,
+  ...consoleBackend,
 };
 
 window.addEventListener('DOMContentLoaded', () => {

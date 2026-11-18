@@ -13,3 +13,6 @@ packages = ["services.collector"]
 
 [tool.setuptools.package-dir]
 "services.collector" = "."
+
+[tool.pytest.ini_options]
+pythonpath = ["../.."]

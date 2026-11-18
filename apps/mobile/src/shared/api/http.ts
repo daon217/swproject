@@ -88,6 +88,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
       // React Native FormData 파일 형식
       if (req.image) form.append('image', { uri: req.image.uri, name: 'capture.jpg', type: 'image/jpeg' } as unknown as Blob);
       form.append('page_url', req.page_url);
+      form.append('selected_domain', req.selected_domain ?? 'product');
       form.append('page_session_id', req.page_session_id);
       form.append('page_revision', String(req.page_revision));
       form.append('request_key', req.request_key);
@@ -97,6 +98,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
     getAnalysis: (id) => request('GET', `/analyses/${encodeURIComponent(id)}`),
     cancelAnalysis: (id) => request('POST', `/analyses/${encodeURIComponent(id)}/cancel`),
     listHistory: () => request('GET', '/v2/me/analyses?limit=20'),
+    listBasic: (domain = 'product') => request('GET', `/v2/recommendations/basic?limit=10&selected_domain=${domain}`),
     listFeatured: () => request('GET', '/v2/recommendations/featured?limit=10'),
     deleteAllHistory: () => request('POST', '/v2/me/data-deletions', { scope: 'history' }),
     deleteAccount: (current_password) => request('POST', '/v2/me/withdrawal', { current_password }),

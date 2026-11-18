@@ -57,6 +57,7 @@ export type IngredientStatus = 'complete' | 'partial' | 'not_found' | 'error' | 
 export type Domain = 'product' | 'food';
 
 export interface CreateAnalysisRequest {
+  selected_domain?: Domain;
   /** 앱 내 브라우저 캡처 파일(react-native-view-shot tmpfile) */
   image: { uri: string } | null;
   page_url: string;

@@ -57,6 +57,7 @@ export type IngredientStatus = 'complete' | 'partial' | 'not_found' | 'error' | 
 export type Domain = 'product' | 'food';
 
 export interface CreateAnalysisRequest {
+  selected_domain?: Domain;
   image: Blob | null;
   page_url: string;
   page_session_id: string;

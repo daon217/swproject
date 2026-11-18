@@ -1,8 +1,27 @@
 # 사용자 웹
 
-담당: 김호진
+WBS 담당: 김호진
 
-[각자 PC 개발 안내](../../docs/LOCAL_DEVELOPMENT.md)를 따릅니다. 현재는 API 연결 확인용 시작 코드이며 실제 업무 화면/기능은 별도 구현합니다.
+이 브랜치에는 정적 관리자 콘솔이 있습니다. 크롤링·통계·고객·상담 화면은 예시 데이터를 사용하며 변경은 현재 브라우저 세션의 메모리에 반영됩니다.
 
-저장소 루트에서 `py tools/workspace.py init`, `py tools/workspace.py up --scope core` 실행 후 이 폴더에서 `npm ci`, `npm run dev`. Node 버전은 루트 `.nvmrc`를 사용합니다.
-기본 API는 `.env.local`의 `INTERNAL_API_URL=http://127.0.0.1:8000`입니다. 기존 터널 주소 18000은 필요할 때만 사용합니다.
+## 관리자 로그인 및 판매정보 조회
+
+소병선 담당 FastAPI 서버의 기존 회원 PostgreSQL DB와 로그인 세션을 사용합니다. 어드민 웹에는 DB 연결 정보가 필요하지 않습니다. 백엔드 담당자에게 받은 `admin` 또는 `support` 권한의 기존 계정으로 로그인합니다. `admin`은 전체 메뉴, `support`는 고객상담 메뉴를 사용할 수 있습니다.
+
+계정이 없다면 로그인 화면에서 **회원가입**을 선택합니다. 가입은 기존 `POST /v2/auth/signup`을 사용하며 일반 회원으로 생성됩니다. 가입한 아이디를 백엔드 담당자에게 알려 권한 부여를 요청합니다. 가입 화면의 개인정보 동의 문안과 버전은 팀 모바일 앱의 초안을 사용합니다. 팀에서 문안을 변경하면 가입 화면의 문안과 버전도 함께 갱신합니다.
+
+백엔드 API가 실행 중일 때 저장소 루트에서 아래 명령으로 웹을 실행하고 `http://localhost:3000`에 접속합니다.
+
+```sh
+node apps/web/local-demo.cjs --api
+```
+
+API 기본 주소는 `http://localhost:8000`이며 `index.html`의 `api-base`에서 설정합니다. 웹 주소를 변경하면 백엔드의 `DEV_ORIGINS`에 웹 origin을 추가합니다. 공유 환경에서는 HTTPS 주소를 사용합니다. [백엔드 실행 안내](https://github.com/daon217/swproject/blob/main/services/api/README.md)
+
+## 백엔드 없이 로그인 화면 검증
+
+저장소 루트에서 `node apps/web/local-demo.cjs`를 실행하고 [로컬 데모 회원가입](http://localhost:3001/?demo=1#/signup)을 엽니다.
+
+가입한 아이디와 비밀번호 검증용 scrypt 해시는 `apps/web/.local-demo/accounts.txt`에 저장됩니다. 이 파일은 웹에서 제공하지 않으며 Git에서도 제외됩니다. 로컬 데모 서버를 다시 시작해도 가입한 계정은 남고, 로그인 세션은 다시 생성해야 합니다.
+
+데모 모드는 `http://localhost:3001/?demo=1`에서만 사용합니다. 앞의 FastAPI 실행 방법으로 접속하면 기존 회원 DB를 사용하는 인증으로 연결됩니다. 판매정보 조회는 별도로 카탈로그 API 연결이 필요합니다.

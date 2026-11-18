@@ -1,0 +1,846 @@
+{
+ "time": "20261118-182513",
+ "model": null,
+ "llm": null,
+ "tokens": false,
+ "skipped": {},
+ "summary": {
+  "json": {
+   "queries": 8,
+   "errors": 0,
+   "avg_bytes": 4593,
+   "avg_user_bytes": 3457,
+   "avg_retention": 1.0,
+   "avg_compress_ms": 0.402,
+   "bytes_vs_json": 1.0
+  },
+  "toon": {
+   "queries": 8,
+   "errors": 0,
+   "avg_bytes": 3176,
+   "avg_user_bytes": 2040,
+   "avg_retention": 1.0,
+   "avg_compress_ms": 0.62,
+   "bytes_vs_json": 0.691
+  },
+  "llmlingua2": {
+   "queries": 8,
+   "errors": 0,
+   "avg_bytes": 3012,
+   "avg_user_bytes": 1866,
+   "avg_retention": 0.912,
+   "avg_compress_ms": 1011.805,
+   "bytes_vs_json": 0.656
+  },
+  "compact": {
+   "queries": 8,
+   "errors": 0,
+   "avg_bytes": 2222,
+   "avg_user_bytes": 1042,
+   "avg_retention": 1.0,
+   "avg_compress_ms": 0.349,
+   "bytes_vs_json": 0.484
+  },
+  "compact8": {
+   "queries": 8,
+   "errors": 0,
+   "avg_bytes": 1897,
+   "avg_user_bytes": 717,
+   "avg_retention": 1.0,
+   "avg_compress_ms": 0.227,
+   "bytes_vs_json": 0.413
+  },
+  "compact8_lean": {
+   "queries": 8,
+   "errors": 0,
+   "avg_bytes": 1774,
+   "avg_user_bytes": 594,
+   "avg_retention": 0.917,
+   "avg_compress_ms": 0.221,
+   "bytes_vs_json": 0.386
+  }
+ },
+ "rows": [
+  {
+   "qid": "q1",
+   "method": "json",
+   "chars": 3064,
+   "bytes": 4604,
+   "user_bytes": 3468,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.36
+  },
+  {
+   "qid": "q1",
+   "method": "toon",
+   "chars": 1646,
+   "bytes": 3186,
+   "user_bytes": 2050,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.56
+  },
+  {
+   "qid": "q1",
+   "method": "llmlingua2",
+   "chars": 1576,
+   "bytes": 2998,
+   "user_bytes": 1852,
+   "retention": 0.913,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.667,
+    "price": 1.0,
+    "ingredient": 0.939
+   },
+   "n_candidates": 12,
+   "compress_ms": 928.64
+  },
+  {
+   "qid": "q1",
+   "method": "compact",
+   "chars": 1051,
+   "bytes": 2227,
+   "user_bytes": 1047,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.35
+  },
+  {
+   "qid": "q1",
+   "method": "compact8",
+   "chars": 885,
+   "bytes": 1897,
+   "user_bytes": 717,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.2
+  },
+  {
+   "qid": "q1",
+   "method": "compact8_lean",
+   "chars": 835,
+   "bytes": 1773,
+   "user_bytes": 593,
+   "retention": 0.933,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.857
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.2
+  },
+  {
+   "qid": "q2",
+   "method": "json",
+   "chars": 3136,
+   "bytes": 4798,
+   "user_bytes": 3662,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.44
+  },
+  {
+   "qid": "q2",
+   "method": "toon",
+   "chars": 1722,
+   "bytes": 3384,
+   "user_bytes": 2248,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.93
+  },
+  {
+   "qid": "q2",
+   "method": "llmlingua2",
+   "chars": 1639,
+   "bytes": 3123,
+   "user_bytes": 1977,
+   "retention": 0.882,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.583,
+    "price": 1.0,
+    "ingredient": 0.906
+   },
+   "n_candidates": 12,
+   "compress_ms": 1254.16
+  },
+  {
+   "qid": "q2",
+   "method": "compact",
+   "chars": 1021,
+   "bytes": 2177,
+   "user_bytes": 997,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.43
+  },
+  {
+   "qid": "q2",
+   "method": "compact8",
+   "chars": 868,
+   "bytes": 1876,
+   "user_bytes": 696,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.29
+  },
+  {
+   "qid": "q2",
+   "method": "compact8_lean",
+   "chars": 820,
+   "bytes": 1760,
+   "user_bytes": 580,
+   "retention": 0.955,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.9
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.28
+  },
+  {
+   "qid": "q3",
+   "method": "json",
+   "chars": 3101,
+   "bytes": 4701,
+   "user_bytes": 3565,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.6
+  },
+  {
+   "qid": "q3",
+   "method": "toon",
+   "chars": 1685,
+   "bytes": 3285,
+   "user_bytes": 2149,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.62
+  },
+  {
+   "qid": "q3",
+   "method": "llmlingua2",
+   "chars": 1637,
+   "bytes": 3081,
+   "user_bytes": 1935,
+   "retention": 0.871,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.5,
+    "price": 1.0,
+    "ingredient": 0.912
+   },
+   "n_candidates": 12,
+   "compress_ms": 1152.66
+  },
+  {
+   "qid": "q3",
+   "method": "compact",
+   "chars": 1035,
+   "bytes": 2207,
+   "user_bytes": 1027,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.38
+  },
+  {
+   "qid": "q3",
+   "method": "compact8",
+   "chars": 870,
+   "bytes": 1874,
+   "user_bytes": 694,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.24
+  },
+  {
+   "qid": "q3",
+   "method": "compact8_lean",
+   "chars": 818,
+   "bytes": 1748,
+   "user_bytes": 568,
+   "retention": 0.915,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.826
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.22
+  },
+  {
+   "qid": "q4",
+   "method": "json",
+   "chars": 3070,
+   "bytes": 4594,
+   "user_bytes": 3458,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.37
+  },
+  {
+   "qid": "q4",
+   "method": "toon",
+   "chars": 1654,
+   "bytes": 3178,
+   "user_bytes": 2042,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.59
+  },
+  {
+   "qid": "q4",
+   "method": "llmlingua2",
+   "chars": 1590,
+   "bytes": 2994,
+   "user_bytes": 1848,
+   "retention": 0.944,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.75,
+    "price": 1.0,
+    "ingredient": 0.971
+   },
+   "n_candidates": 12,
+   "compress_ms": 1124.73
+  },
+  {
+   "qid": "q4",
+   "method": "compact",
+   "chars": 1056,
+   "bytes": 2236,
+   "user_bytes": 1056,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.33
+  },
+  {
+   "qid": "q4",
+   "method": "compact8",
+   "chars": 892,
+   "bytes": 1920,
+   "user_bytes": 740,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.22
+  },
+  {
+   "qid": "q4",
+   "method": "compact8_lean",
+   "chars": 835,
+   "bytes": 1779,
+   "user_bytes": 599,
+   "retention": 0.872,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.739
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.21
+  },
+  {
+   "qid": "q5",
+   "method": "json",
+   "chars": 3029,
+   "bytes": 4493,
+   "user_bytes": 3357,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.34
+  },
+  {
+   "qid": "q5",
+   "method": "toon",
+   "chars": 1611,
+   "bytes": 3075,
+   "user_bytes": 1939,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.56
+  },
+  {
+   "qid": "q5",
+   "method": "llmlingua2",
+   "chars": 1609,
+   "bytes": 2957,
+   "user_bytes": 1811,
+   "retention": 0.884,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.5,
+    "price": 1.0,
+    "ingredient": 0.939
+   },
+   "n_candidates": 12,
+   "compress_ms": 856.7
+  },
+  {
+   "qid": "q5",
+   "method": "compact",
+   "chars": 1042,
+   "bytes": 2208,
+   "user_bytes": 1028,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.31
+  },
+  {
+   "qid": "q5",
+   "method": "compact8",
+   "chars": 883,
+   "bytes": 1911,
+   "user_bytes": 731,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.21
+  },
+  {
+   "qid": "q5",
+   "method": "compact8_lean",
+   "chars": 830,
+   "bytes": 1782,
+   "user_bytes": 602,
+   "retention": 0.894,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.783
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.2
+  },
+  {
+   "qid": "q6",
+   "method": "json",
+   "chars": 3103,
+   "bytes": 4691,
+   "user_bytes": 3555,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.41
+  },
+  {
+   "qid": "q6",
+   "method": "toon",
+   "chars": 1683,
+   "bytes": 3271,
+   "user_bytes": 2135,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.62
+  },
+  {
+   "qid": "q6",
+   "method": "llmlingua2",
+   "chars": 1598,
+   "bytes": 3040,
+   "user_bytes": 1894,
+   "retention": 0.904,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.667,
+    "price": 1.0,
+    "ingredient": 0.909,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 868.58
+  },
+  {
+   "qid": "q6",
+   "method": "compact",
+   "chars": 1078,
+   "bytes": 2290,
+   "user_bytes": 1110,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.38
+  },
+  {
+   "qid": "q6",
+   "method": "compact8",
+   "chars": 896,
+   "bytes": 1918,
+   "user_bytes": 738,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.24
+  },
+  {
+   "qid": "q6",
+   "method": "compact8_lean",
+   "chars": 849,
+   "bytes": 1803,
+   "user_bytes": 623,
+   "retention": 0.915,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.81,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.24
+  },
+  {
+   "qid": "q7",
+   "method": "json",
+   "chars": 2926,
+   "bytes": 4296,
+   "user_bytes": 3160,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.32
+  },
+  {
+   "qid": "q7",
+   "method": "toon",
+   "chars": 1506,
+   "bytes": 2876,
+   "user_bytes": 1740,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.53
+  },
+  {
+   "qid": "q7",
+   "method": "llmlingua2",
+   "chars": 1596,
+   "bytes": 2896,
+   "user_bytes": 1750,
+   "retention": 0.957,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.833,
+    "price": 1.0,
+    "ingredient": 0.966,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 950.92
+  },
+  {
+   "qid": "q7",
+   "method": "compact",
+   "chars": 1047,
+   "bytes": 2217,
+   "user_bytes": 1037,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.27
+  },
+  {
+   "qid": "q7",
+   "method": "compact8",
+   "chars": 881,
+   "bytes": 1893,
+   "user_bytes": 713,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.18
+  },
+  {
+   "qid": "q7",
+   "method": "compact8_lean",
+   "chars": 832,
+   "bytes": 1770,
+   "user_bytes": 590,
+   "retention": 0.936,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.842,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.18
+  },
+  {
+   "qid": "q8",
+   "method": "json",
+   "chars": 3059,
+   "bytes": 4569,
+   "user_bytes": 3433,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.38
+  },
+  {
+   "qid": "q8",
+   "method": "toon",
+   "chars": 1643,
+   "bytes": 3153,
+   "user_bytes": 2017,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.55
+  },
+  {
+   "qid": "q8",
+   "method": "llmlingua2",
+   "chars": 1621,
+   "bytes": 3007,
+   "user_bytes": 1861,
+   "retention": 0.943,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.75,
+    "price": 1.0,
+    "ingredient": 0.971
+   },
+   "n_candidates": 12,
+   "compress_ms": 958.05
+  },
+  {
+   "qid": "q8",
+   "method": "compact",
+   "chars": 1050,
+   "bytes": 2218,
+   "user_bytes": 1038,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.34
+  },
+  {
+   "qid": "q8",
+   "method": "compact8",
+   "chars": 886,
+   "bytes": 1886,
+   "user_bytes": 706,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.24
+  },
+  {
+   "qid": "q8",
+   "method": "compact8_lean",
+   "chars": 840,
+   "bytes": 1776,
+   "user_bytes": 596,
+   "retention": 0.913,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.818
+   },
+   "n_candidates": 8,
+   "compress_ms": 0.24
+  }
+ ],
+ "note": "압축 속도만 (LLM 없음)"
+}

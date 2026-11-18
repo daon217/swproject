@@ -52,8 +52,10 @@ export function onItemChange(key: string, cb: () => void): () => void {
   const listener = (e: Event) => {
     if ((e as CustomEvent).detail?.key === key) cb();
   };
+  const crossTab = (e: StorageEvent) => { if (e.key === key || e.key === null) cb(); };
   window.addEventListener('kp-storage', listener);
-  return () => window.removeEventListener('kp-storage', listener);
+  window.addEventListener('storage', crossTab);
+  return () => { window.removeEventListener('kp-storage', listener); window.removeEventListener('storage', crossTab); };
 }
 
 export const KEYS = {

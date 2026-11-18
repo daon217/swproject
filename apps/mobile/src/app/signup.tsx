@@ -1,3 +1,4 @@
+import { loginIdError, passwordError, signupErrors } from '../shared/validation';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -24,7 +25,15 @@ export default function SignupScreen() {
   const [alert, setAlert] = useState<Alert>(null);
   /** 중복확인을 통과한 아이디. 아이디를 바꾸면 다시 확인해야 한다. */
   const [checkedId, setCheckedId] = useState<string | null>(null);
-  const set = (k: keyof typeof form) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const set = (k: keyof typeof form) => (v: string) => {
+    const value = v;
+    const nextForm = { ...form, [k]: value };
+    setForm(nextForm);
+    if (k === 'id') setCheckedId(null);
+    const live = signupErrors(nextForm);
+    setErrors(previous => ({ ...previous, id: nextForm.id ? live.id ?? '' : '',
+      pw: nextForm.pw ? live.pw ?? '' : '', pw2: nextForm.pw2 ? live.pw2 ?? '' : '' }));
+  };
   const idChecked = !!form.id && checkedId === form.id;
 
   const checkId = async () => {
@@ -64,8 +73,8 @@ export default function SignupScreen() {
 
   const submit = async () => {
     const er: Record<string, string> = {};
-    if (!LOGIN_ID_RE.test(form.id)) er.id = '영문·숫자 4~16자로 입력해 주세요.';
-    if (form.pw.length < 8) er.pw = '비밀번호는 8자 이상이어야 해요.';
+    if (loginIdError(form.id)) er.id = loginIdError(form.id)!;
+    if (passwordError(form.pw)) er.pw = passwordError(form.pw)!;
     if (form.pw2 !== form.pw) er.pw2 = '비밀번호가 일치하지 않아요.';
     // 비밀번호 불일치·중복확인 누락은 팝업으로 안내
     if (form.pw && form.pw2 !== form.pw) {

@@ -21,3 +21,5 @@ export function openInBrowser(url: string) {
   else pending = safe;
   router.navigate('/browser');
 }
+
+export function clearPendingBrowserNavigation() { pending = null; }

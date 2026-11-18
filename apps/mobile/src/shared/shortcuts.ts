@@ -1,4 +1,5 @@
-import { getItem, KEYS, setItem } from './storage';
+import { accountKey } from './accountData';
+import { getItem, setItem } from './storage';
 
 // 쇼핑몰 바로가기. 서버에 저장하지 않고 이 기기(AsyncStorage)에만 저장한다.
 
@@ -21,10 +22,12 @@ export const DEFAULT_SHORTCUTS: Shortcut[] = [
   { id: 'kurly', name: '컬리', url: 'https://www.kurly.com' },
 ];
 
-export async function loadShortcuts(): Promise<Shortcut[]> {
-  return getItem<Shortcut[]>(KEYS.shortcuts, DEFAULT_SHORTCUTS);
+export async function loadShortcuts(userId?: string): Promise<Shortcut[]> {
+  if (!userId) return DEFAULT_SHORTCUTS;
+  return getItem<Shortcut[]>(accountKey(userId, 'shortcuts'), DEFAULT_SHORTCUTS);
 }
 
-export async function saveShortcuts(list: Shortcut[]): Promise<void> {
-  await setItem(KEYS.shortcuts, list);
+export async function saveShortcuts(list: Shortcut[], userId?: string): Promise<void> {
+  if (!userId) return;
+  await setItem(accountKey(userId, 'shortcuts'), list);
 }

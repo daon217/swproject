@@ -1,3 +1,4 @@
+import { loginIdError } from '../shared/validation';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -18,10 +19,11 @@ export default function LoginScreen() {
 
   const submit = async () => {
     if (!id || !pw) return setError('아이디와 비밀번호를 입력해 주세요.');
+    if (loginIdError(id)) return setError(loginIdError(id)!);
     setBusy(true);
     setError(null);
     try {
-      await login(id.trim(), pw);
+      await login(id, pw);
       router.back();
     } catch (e) {
       // 로그인 실패 안내 팝업

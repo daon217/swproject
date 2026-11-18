@@ -1,3 +1,4 @@
+import { recordVisit } from '../../shared/accountData';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { BackHandler, KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -66,6 +67,11 @@ function tabTitle(t: BrowserTab): string {
 }
 
 export default function BrowserScreen() {
+  const { me, loading } = useSession();
+  if (loading) return null;
+  return <AccountBrowser key={me?.user_id ?? 'guest'} />;
+}
+function AccountBrowser() {
   const insets = useSafeAreaInsets();
   const { me } = useSession();
   const [tabs, setTabs] = useState<BrowserTab[]>(() => [newTab()]);
@@ -90,6 +96,7 @@ export default function BrowserScreen() {
 
   /** 현재 탭에서 주소 열기(주소창·바로가기) */
   const openHere = (target: string) => {
+    void recordVisit(me?.user_id, target);
     patchTab(active.id, { source: target, url: target, title: null, nav: { back: false, forward: false, loading: true } });
     setInput(target);
   };
@@ -98,6 +105,7 @@ export default function BrowserScreen() {
   const openInNewTab = useCallback((target: string) => {
     const safe = safeHttpUrl(target);
     if (!safe) return;
+    void recordVisit(me?.user_id, safe);
     const tab = newTab(safe);
     setTabs((ts) => {
       const next = [...ts, tab];
@@ -105,7 +113,7 @@ export default function BrowserScreen() {
     });
     setActiveId(tab.id);
     setSwitcher(false);
-  }, []);
+  }, [me?.user_id]);
 
   const closeTab = (id: string) => {
     setTabs((ts) => {
@@ -156,6 +164,7 @@ export default function BrowserScreen() {
   }, [switcher, active, patchTab]);
 
   const onNav = (id: string) => (e: WebNavState) => {
+    if (!e.loading) void recordVisit(me?.user_id, e.url);
     // 로딩 중에는 제목 자리에 주소가 오기도 해서 무시한다.
     // 제목이 아직 없으면 같은 주소일 때만 이전 제목을 유지하고, 다른 주소로 가면 지운다(도메인으로 대신 표시).
     const real = e.title.trim() && !/^(https?:\/\/|about:)/i.test(e.title) ? e.title.trim() : null;

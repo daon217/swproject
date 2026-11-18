@@ -56,3 +56,12 @@ sudo sh infra/nas/nas.sh seed
 - DSM 방화벽을 쓰는 경우 팀 네트워크에서 TCP 8000만 허용합니다. DB 포트는 열지 않습니다.
 - `.env` 파일과 DB 백업은 커밋하지 않습니다. 실제 회원·결제 데이터는 넣지 않습니다.
 - NAS는 상시 서버일 뿐 백업이 아닙니다. 필요하면 Hyper Backup으로 `docker` 폴더와 별도 DB 덤프를 보관하세요.
+
+## 선택: Vision AI(kkulpick_vision) 함께 실행
+CPU에 AVX가 있어야 합니다(`grep -o -w avx /proc/cpuinfo`가 avx를 출력해야 함). DS918+ 순정 CPU(J3455)는 지원하지 않습니다.
+1. `infra/nas/.env`에 `NAS_VISION=1`, `NAS_VISION_PORT=8100`을 추가합니다.
+2. `sudo sh infra/nas/nas.sh up` — 첫 빌드·OCR 모델 다운로드에 10~20분 걸릴 수 있습니다.
+3. `sudo sh infra/nas/nas.sh logs vision-worker`에서 `PaddleOCR 싱글톤 준비 완료` 확인 후 `http://NAS주소:8100/docs`를 엽니다.
+- 구성: `vision-redis`(내부 전용) · `vision-worker`(Celery+PaddleOCR, 동시 1개) · `vision-api`(FastAPI). OCR 모델은 `vision_models` 볼륨에 보관합니다.
+- 이미지는 Python 3.11에 `paddlepaddle 2.6.2`, `paddleocr 2.10.0`을 고정합니다(코드가 PaddleOCR 2.x API 사용).
+- Vision API는 인증이 없으므로 포트포워딩으로 공개하지 않습니다. 워커는 1~2GB 메모리를 사용합니다.

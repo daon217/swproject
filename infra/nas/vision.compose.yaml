@@ -1,0 +1,51 @@
+# kkulpick_vision(PaddleOCR 성분표 추출) NAS 실행 구성. 상대경로는 첫 파일 infra/db/compose.yaml 기준입니다.
+# CPU에 AVX가 필요합니다(확인: grep -o -w avx /proc/cpuinfo). Redis는 비밀번호가 없으므로 내부 네트워크에만 둡니다.
+x-vision: &vision
+  build:
+    context: ../../kkulpick_vision
+    dockerfile: ../infra/nas/vision/Dockerfile
+  image: kkulpick-nas-vision
+  environment:
+    REDIS_HOST: vision-redis
+    REDIS_PORT: "6379"
+  depends_on:
+    vision-redis: {condition: service_healthy}
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "2"}
+
+services:
+  vision-redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --save, "", --appendonly, "no", --maxmemory, 256mb, --maxmemory-policy, allkeys-lru]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+
+  vision-worker:
+    <<: *vision
+    # PaddleOCR 모델은 프로세스마다 메모리에 올라가므로 동시 처리 1개로 제한합니다.
+    command: [celery, -A, app.celery_app.celery_app, worker, --loglevel=INFO, --concurrency=1]
+    volumes:
+      - vision_models:/home/app/.paddleocr
+
+  vision-api:
+    <<: *vision
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8000"]
+    ports:
+      - "${NAS_LAN_IP:?set NAS_LAN_IP in infra/nas/.env}:${NAS_VISION_PORT:-8100}:8000"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json',timeout=3).read()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  vision_models:

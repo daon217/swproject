@@ -1,0 +1,226 @@
+{
+ "time": "20261118-175346",
+ "model": "local:gemma-4-26b",
+ "note": "2차 gemma-4-26b (q7·q8 은 요청 제한 오류, 재집계)",
+ "summary": {
+  "queries": 6,
+  "errors": 2,
+  "avg_bytes": 1774,
+  "avg_user_bytes": 594,
+  "avg_retention": 0.914,
+  "avg_input_tokens": 631.667,
+  "avg_output_tokens": 38.833,
+  "avg_precision@3": 1.0,
+  "avg_recall@3": 0.889,
+  "avg_latency_s": 1.36,
+  "avg_invalid_ids": 0,
+  "avg_gold_in_candidates": 0.889,
+  "bytes_vs_json": 0.382,
+  "tokens_vs_json": 0.346
+ },
+ "rows": [
+  {
+   "qid": "q1",
+   "method": "compact8_lean",
+   "chars": 835,
+   "bytes": 1773,
+   "user_bytes": 593,
+   "retention": 0.933,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.857
+   },
+   "n_candidates": 8,
+   "latency_s": 2.01,
+   "picks": [
+    "bench:f11",
+    "bench:f02",
+    "bench:f12"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 632,
+   "output_tokens": 60
+  },
+  {
+   "qid": "q2",
+   "method": "compact8_lean",
+   "chars": 820,
+   "bytes": 1760,
+   "user_bytes": 580,
+   "retention": 0.955,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.9
+   },
+   "n_candidates": 8,
+   "latency_s": 1.17,
+   "picks": [
+    "bench:f04"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.333,
+   "gold_in_candidates": 0.333,
+   "invalid_ids": 0,
+   "input_tokens": 623,
+   "output_tokens": 32
+  },
+  {
+   "qid": "q3",
+   "method": "compact8_lean",
+   "chars": 818,
+   "bytes": 1748,
+   "user_bytes": 568,
+   "retention": 0.915,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.826
+   },
+   "n_candidates": 8,
+   "latency_s": 1.78,
+   "picks": [
+    "bench:f02",
+    "bench:f13"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 621,
+   "output_tokens": 56
+  },
+  {
+   "qid": "q4",
+   "method": "compact8_lean",
+   "chars": 835,
+   "bytes": 1779,
+   "user_bytes": 599,
+   "retention": 0.872,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.739
+   },
+   "n_candidates": 8,
+   "latency_s": 1.11,
+   "picks": [
+    "bench:f15"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 637,
+   "output_tokens": 27
+  },
+  {
+   "qid": "q5",
+   "method": "compact8_lean",
+   "chars": 830,
+   "bytes": 1782,
+   "user_bytes": 602,
+   "retention": 0.894,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.783
+   },
+   "n_candidates": 8,
+   "latency_s": 0.95,
+   "picks": [
+    "bench:f09"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 627,
+   "output_tokens": 26
+  },
+  {
+   "qid": "q6",
+   "method": "compact8_lean",
+   "chars": 849,
+   "bytes": 1803,
+   "user_bytes": 623,
+   "retention": 0.915,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.81,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "latency_s": 1.14,
+   "picks": [
+    "bench:f20"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 650,
+   "output_tokens": 32
+  },
+  {
+   "qid": "q7",
+   "method": "compact8_lean",
+   "chars": 832,
+   "bytes": 1770,
+   "user_bytes": 590,
+   "retention": 0.936,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.842,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 8,
+   "error": "RuntimeError: LLM 서버 HTTP 429: {\"error\":{\"message\":\"Rate limit exceeded for api_key: ***. Limit type: requests. Current limit: 30, Remaining: 0. Limit re",
+   "latency_s": 0.3,
+   "picks": [],
+   "precision@3": 0.0,
+   "recall@3": 0.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 650,
+   "output_tokens": 32
+  },
+  {
+   "qid": "q8",
+   "method": "compact8_lean",
+   "chars": 840,
+   "bytes": 1776,
+   "user_bytes": 596,
+   "retention": 0.913,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 0.818
+   },
+   "n_candidates": 8,
+   "error": "RuntimeError: LLM 서버 HTTP 429: {\"error\":{\"message\":\"Rate limit exceeded for api_key: ***. Limit type: requests. Current limit: 30, Remaining: 0. Limit re",
+   "latency_s": 0.35,
+   "picks": [],
+   "precision@3": 0.0,
+   "recall@3": 0.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 650,
+   "output_tokens": 32
+  }
+ ]
+}

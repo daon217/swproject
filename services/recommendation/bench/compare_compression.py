@@ -73,7 +73,7 @@ def render(method, prof, q, items, top_k=3):
         from llmlingua import PromptCompressor  # 없으면 ImportError -> 건너뜀
 
         if _lingua is None:
-            _lingua = PromptCompressor(model_name="microsoft/llmlingua-2-xlm-roberta-large-meetingbank",
+            _lingua = PromptCompressor(model_name="microsoft/llmlingua-2-bert-base-multilingual-cased-meetingbank",
                                        use_llmlingua2=True, device_map="cpu")
         system, user, id_map = render_candidates("json", prof, q, items, top_k)
         head, body = user.split("후보:\n", 1)
@@ -204,6 +204,30 @@ def summarize(rows):
     return out
 
 
+def save_per_method(out: dict) -> None:
+    """방식(모델)별로 따로 저장: results/by_method/<방식>/<시각>.json + results/INDEX.md 에 한 줄씩 누적."""
+    root = HERE / "results"
+    for m, summ in out["summary"].items():
+        d = root / "by_method" / m
+        d.mkdir(parents=True, exist_ok=True)
+        rows = [r for r in out["rows"] if r["method"] == m]
+        (d / f"{out['time']}.json").write_text(json.dumps(
+            {"time": out["time"], "model": out["model"], "note": out["note"], "summary": summ, "rows": rows},
+            ensure_ascii=False, indent=1), encoding="utf-8")
+    idx = root / "INDEX.md"
+    if not idx.exists():
+        idx.write_text("| 시각 | LLM | 방식 | 유효 질의 | 오류 | 입력 토큰 | JSON 대비 | P@3 | R@3 | 메모 |\n"
+                       "|---|---|---|---|---|---|---|---|---|---|\n", encoding="utf-8")
+    with idx.open("a", encoding="utf-8") as f:
+        for m, s in out["summary"].items():
+            f.write(f"| {out['time']} | {out['model'] or '-'} | {m} | {s.get('queries', 0)} | {s.get('errors', 0)} | "
+                    f"{s.get('avg_input_tokens', s.get('avg_input_tokens_counted', '-'))} | "
+                    f"{s.get('tokens_vs_json', s.get('bytes_vs_json', '-'))} | {s.get('avg_precision@3', '-')} | "
+                    f"{s.get('avg_recall@3', '-')} | {out['note']} |\n")
+        for m, why in out.get("skipped", {}).items():
+            f.write(f"| {out['time']} | {out['model'] or '-'} | {m} | 0 | - | - | - | - | - | 건너뜀: {why} |\n")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--llm", choices=["local", "claude"], help="정확도 측정에 쓸 LLM (local: LOCAL_LLM_BASE_URL)")
@@ -220,6 +244,7 @@ def main(argv=None):
            "skipped": skipped, "summary": summary, "rows": rows, "note": a.note}
     path = HERE / "results" / f"compression-{stamp}.json"
     path.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+    save_per_method(out)
     print(json.dumps({"summary": summary, "skipped": skipped}, ensure_ascii=False, indent=1))
     print(f"저장: {path}")
 

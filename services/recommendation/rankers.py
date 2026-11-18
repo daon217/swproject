@@ -75,6 +75,7 @@ class ClaudeRanker:
         return self.rank_rendered(*render_candidates(self.fmt, profile, query, items, top_k, **self.render_opts))
 
     def rank_rendered(self, system: str, user: str, id_map: dict[str, str]):
+        self.last_usage = None  # 실패한 호출에 이전 호출의 토큰 수가 남지 않도록
         resp = self.client.messages.parse(
             model=self.model,
             max_tokens=self.max_tokens,
@@ -144,6 +145,7 @@ class LocalLLMRanker:
         raise RuntimeError("LLM 서버 재시도 초과")
 
     def rank_rendered(self, system: str, user: str, id_map: dict[str, str]):
+        self.last_usage = None  # 실패한 호출에 이전 호출의 토큰 수가 남지 않도록
 
         body = {"model": self.model, "temperature": 0, "max_tokens": self.max_tokens,
                 "response_format": {"type": "json_object"},

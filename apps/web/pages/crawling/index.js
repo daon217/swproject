@@ -11,6 +11,58 @@ const crawlingPage = {
   crawlCycleRunning: false,
   lastCrawlCycleAt: '',
 
+  crawlDeletionRunning: false,
+
+  updateCrawlSelection(form) {
+    const choices = form.querySelectorAll('input[name="offer_id"]');
+    const count = form.querySelectorAll('input[name="offer_id"]:checked').length;
+    form.querySelector("[data-selection-count]").textContent = count.toLocaleString() + "건 선택";
+    form.querySelector('button[type="submit"]').disabled = this.crawlDeletionRunning || count === 0;
+    for (const choice of choices) choice.disabled = this.crawlDeletionRunning;
+  },
+
+  async deleteSelectedCrawlOffers(event) {
+    event.preventDefault();
+    const session = this.adminSession;
+    if (session?.role !== "admin" || this.isLocalAuthDemo() || this.crawlDeletionRunning) return;
+    const form = event.currentTarget;
+    const offerIds = [...form.querySelectorAll('input[name="offer_id"]:checked')].map((input) => input.value);
+    if (!offerIds.length || !window.confirm("선택한 상품 " + offerIds.length + "건을 삭제할까요? 제휴에 연결된 상품은 유지됩니다.")) return;
+
+    this.crawlDeletionRunning = true;
+    this.updateCrawlSelection(form);
+    try {
+      const result = await this.requestAdminAuth("/v2/admin/catalog/offers/delete", {
+        method: "POST", token: session.token, body: { offer_ids: offerIds },
+      });
+      const { deleted_offer_ids: deleted, protected_offer_ids: protectedOffers, missing_offer_ids: missing } = result || {};
+      if (![deleted, protectedOffers, missing].every(Array.isArray)) throw new Error("Invalid catalog deletion result");
+      if (this.adminSession !== session) return;
+
+      const removedIds = new Set([...deleted, ...missing]);
+      if (this.liveCatalog) this.liveCatalog.items = this.liveCatalog.items.filter((item) => !removedIds.has(item.offer_id));
+      this.state.offerCatalog = (this.state.offerCatalog || []).filter((item) => !removedIds.has(item.offer_id));
+      const summary = [deleted.length + "건 삭제"];
+      if (protectedOffers.length) summary.push("제휴 연결 " + protectedOffers.length + "건 유지");
+      if (missing.length) summary.push("이미 없는 상품 " + missing.length + "건");
+      this.showToast(summary.join(" · "));
+      if (this.state.currentPage === "crawling") {
+        await Promise.all([this.refreshLiveCatalog(), this.refreshLiveOverview()]);
+      }
+    } catch (error) {
+      if (this.adminSession !== session) return;
+      const messages = {
+        401: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.",
+        403: "카탈로그 상품을 삭제할 권한이 없습니다.",
+        404: "팀 서버에 상품 삭제 기능이 아직 배포되지 않았습니다.",
+      };
+      this.showToast(messages[error.status] || "상품 삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.");
+    } finally {
+      this.crawlDeletionRunning = false;
+      if (form.isConnected) this.updateCrawlSelection(form);
+    }
+  },
+
   async runImmediateCrawlCycle() {
     if (this.crawlCycleRunning) return;
     this.crawlCycleRunning = true;
@@ -421,6 +473,13 @@ const crawlingPage = {
 
         ${view?.phase !== 'ready' ? this.renderAdminDataStatus(view, '<button type="button" class="btn-secondary" onclick="app.refreshLiveCatalog()">다시 시도</button>') : `
           ${groupedByDate.length ? `
+            <form onchange="app.updateCrawlSelection(this)" onsubmit="app.deleteSelectedCrawlOffers(event)">
+              <div class="mb-3 flex items-center justify-end gap-3">
+                <span data-selection-count role="status" class="text-xs text-slate-600">0건 선택</span>
+                <button type="submit" disabled class="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40">
+                  선택 삭제
+                </button>
+              </div>
             <div class="space-y-5">
               ${groupedByDate.map((group) => {
           const dayTotal = totalCountByDate.get(group.date) ?? group.items.length;
@@ -436,12 +495,19 @@ const crawlingPage = {
                     <div class="overflow-x-auto">
                       <table class="w-full min-w-[680px] text-left text-sm">
                         <thead class="border-b border-slate-200 text-xs text-slate-600"><tr>
+                          <th class="p-4"><span class="sr-only">선택</span></th>
                           <th class="p-4">구분</th><th class="p-4">상품명</th><th class="p-4">수집처</th><th class="p-4">가격</th>
                           <th class="p-4">현재 상태</th><th class="p-4">마지막 확인 · KST</th>
                         </tr></thead>
                         <tbody class="divide-y divide-slate-200">
                           ${group.items.map((offer) => `
                             <tr>
+                              <td class="p-4">
+                                <input type="checkbox" name="offer_id" class="h-4 w-4 accent-blue-600"
+                                  value="${this.escapeHtml(offer.offer_id)}"
+                                  aria-label="${this.escapeHtml(offer.name || offer.offer_id)} 선택"
+                                  ${this.crawlDeletionRunning ? "disabled" : ""} />
+                              </td>
                               <td class="p-4 whitespace-nowrap text-xs text-slate-500">${offer.selected_domain === 'food' ? '식품' : '일반'}</td>
                               <td class="p-4 font-semibold">${this.escapeHtml(offer.name || '—')}</td>
                               <td class="p-4">${this.escapeHtml(sourceNames[offer.source] || offer.source || '—')}</td>
@@ -457,6 +523,7 @@ const crawlingPage = {
                 `;
         }).join('')}
             </div>
+            </form>
           ` : `
             <div class="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
               ${selectedDate ? `${this.escapeHtml(selectedDate)} 날짜에 확인된 카탈로그 상품이 없습니다.` : '조건에 일치하는 카탈로그 상품이 없습니다.'}

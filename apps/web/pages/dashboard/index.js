@@ -2,6 +2,10 @@ const dashboardPage = {
   getMainDashboardHtml() {
     const demo = this.isLocalAuthDemo();
     const metrics = this.getLiveSummaryMetrics();
+    const subscriberStatus = !demo && this.liveCustomers?.phase === 'error' ? '조회 실패' :
+      !demo && this.liveCustomers?.phase !== 'ready' ? '조회 중' : '조회 불가';
+    const todaySubscribers = metrics.todaySubscriberCount == null
+      ? subscriberStatus : `${metrics.todaySubscriberCount.toLocaleString()}명`;
     const dailyPeriod = this.getDefaultStatsPeriod('daily');
     const monthStart = `${metrics.todayKst.slice(0, 7)}.01`;
     const affiliateCount = this.getAffiliateItems().length;
@@ -44,9 +48,9 @@ const dashboardPage = {
           <div class="text-xs text-slate-500 mt-2">${metrics.todayKst} 기준 (전체 회원 ${metrics.memberCount.toLocaleString()}명)</div>
         </div>
         <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
-          <div class="text-xs font-bold text-slate-500">당일 가입자수</div>
-          <div class="text-3xl tabular-nums tracking-tight font-bold text-[#0066ff] mt-2">${metrics.todayJoinCount.toLocaleString()}명</div>
-          <div class="text-xs text-slate-500 mt-1.5">${metrics.todayKst} 가입 완료</div>
+          <div class="text-xs font-bold text-slate-500">당일 구독자 수</div>
+          <div class="text-3xl tabular-nums tracking-tight font-bold text-[#0066ff] mt-2">${todaySubscribers}</div>
+          <div class="text-xs text-slate-500 mt-1.5">${metrics.todayKst} 구독 시작</div>
         </div>
         <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
           <div class="text-xs font-bold text-slate-500">당일 해지인원수</div>

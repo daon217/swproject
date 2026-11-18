@@ -82,17 +82,22 @@ const statsPage = {
 
     const memberCount = overview?.members ?? members.length;
     const subscriberCount = overview?.subscribers ?? members.filter((m) => m.subscribed).length;
-    const todayJoinCount = members.filter((m) => {
-      const kst = this.formatKstDateTime(m.subscription_started_at || m.created_at);
-      return kst.slice(0, 10) === todayKst;
-    }).length;
+    let todaySubscriberCount = null;
+    if (overview?.today_subscribers_date === todayKst.replaceAll('.', '-')) {
+      todaySubscriberCount = overview.today_subscribers;
+    } else if (this.liveCustomers?.phase === 'ready' &&
+      (members.length < 100 || members.length === overview?.members)) {
+      todaySubscriberCount = members.filter((member) =>
+        this.formatKstDateTime(member.subscription_started_at).slice(0, 10) === todayKst
+      ).length;
+    }
     const mockRevenue = overview?.mock_revenue_krw != null ? Number(overview.mock_revenue_krw) : 0;
 
     return {
       todayKst,
       memberCount,
       subscriberCount,
-      todayJoinCount,
+      todaySubscriberCount,
       affiliateCount: affiliates.length,
       activeAffiliateCount: activeAffiliates.length,
       catalogCount,

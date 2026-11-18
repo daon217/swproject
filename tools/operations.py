@@ -106,10 +106,12 @@ def verify_backup(directory):
     manifest_path=directory/'manifest.json'
     if manifest_path.is_symlink() or manifest_path.stat().st_size>65536:raise ValueError('INVALID_MANIFEST')
     manifest=json.loads(manifest_path.read_text(encoding='utf-8'))
+    if not isinstance(manifest,dict):raise ValueError('INVALID_MANIFEST')
     entries=manifest.get('databases',[])
-    if len(entries)!=3:raise ValueError('INCOMPLETE_BACKUP')
+    if not isinstance(entries,list) or len(entries)!=3:raise ValueError('INCOMPLETE_BACKUP')
     seen=set()
     for entry in entries:
+        if not isinstance(entry,dict):raise ValueError('INVALID_BACKUP_ENTRY')
         name=entry['database'];filename=entry['file']
         if name not in {'kkulpick_'+d for d in DOMAINS} or name in seen or filename!=name+'.dump':
             raise ValueError('INVALID_BACKUP_ENTRY')
@@ -247,6 +249,9 @@ def main():
         except (OSError,ValueError,KeyError,TypeError,RuntimeError,subprocess.SubprocessError) as exc:
             # Never print subprocess stdout/stderr or configuration values.
             report={'ok':False,'code':type(exc).__name__}
+            known={'INVALID_BACKUP_DIRECTORY','INVALID_MANIFEST','INCOMPLETE_BACKUP','INVALID_BACKUP_ENTRY',
+                   'BACKUP_SIZE_MISMATCH','BACKUP_CHECKSUM_MISMATCH','BACKUP_TIMESTAMP_IN_FUTURE','NO_COMPLETED_BACKUP'}
+            if isinstance(exc,ValueError) and str(exc) in known:report['code']=str(exc)
             if isinstance(exc,RuntimeError) and str(exc).startswith('TEMP_DATABASE_CLEANUP_FAILED:'):
                 report['cleanup_required']=str(exc).split(': ',1)[1]
         print(json.dumps(report,ensure_ascii=False),flush=True)

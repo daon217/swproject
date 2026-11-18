@@ -69,6 +69,12 @@ class OperationsTests(unittest.TestCase):
             (folder/'manifest.json').write_text(json.dumps(manifest|{'databases':entries}))
             with self.assertRaises(ValueError):ops.verify_backup(folder)
 
+    def test_wrong_manifest_shape_is_handled(self):
+        folder,manifest=self.archive()
+        for bad in ([],manifest|{'databases':{}},manifest|{'databases':['bad']*3}):
+            (folder/'manifest.json').write_text(json.dumps(bad))
+            with self.assertRaises(ValueError):ops.verify_backup(folder)
+
     def test_symbolic_link_rejected(self):
         folder,_=self.archive();p=folder/'kkulpick_member.dump';data=p.read_bytes();p.unlink()
         outside=self.root/'outside';outside.write_bytes(data)

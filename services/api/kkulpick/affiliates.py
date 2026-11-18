@@ -3,8 +3,8 @@ import os
 from uuid import UUID
 from fastapi import APIRouter,Depends,Query,Request
 from pydantic import AwareDatetime,Field,HttpUrl,model_validator
-from .access import access
-from .members import Strict,member,row,execute,fail,wrap
+from .access import access, admin_member
+from .members import Strict,row,execute,fail,wrap
 
 router=APIRouter()
 
@@ -26,7 +26,7 @@ class Affiliate(Strict):
 
 
 @router.put('/v2/admin/affiliate-offers/{offer_id}')
-async def save(offer_id:UUID,data:Affiliate,req:Request,uid=Depends(member)):
+async def save(offer_id:UUID,data:Affiliate,req:Request,uid=Depends(admin_member)):
     async with access(req,uid,{'admin'}):
         async with req.app.state.engine.begin() as c:
             offer=await row(c,'SELECT offer_id FROM app.offers WHERE offer_id=:id FOR UPDATE',id=offer_id)
@@ -43,7 +43,7 @@ async def save(offer_id:UUID,data:Affiliate,req:Request,uid=Depends(member)):
 
 
 @router.delete('/v2/admin/affiliate-offers/{offer_id}')
-async def disable(offer_id:UUID,req:Request,expected_version:int=Query(ge=1),uid=Depends(member)):
+async def disable(offer_id:UUID,req:Request,expected_version:int=Query(ge=1),uid=Depends(admin_member)):
     async with access(req,uid,{'admin'}):
         async with req.app.state.engine.begin() as c:
             old=await row(c,'SELECT * FROM app.affiliate_offers WHERE offer_id=:id FOR UPDATE',id=offer_id)
@@ -68,7 +68,7 @@ async def featured(req:Request,limit:int=Query(10,ge=1,le=100),selected_domain:s
 
 
 @router.get('/v2/admin/affiliate-offers')
-async def admin_list(req:Request,limit:int=Query(20,ge=1,le=100),after:UUID|None=None,uid=Depends(member)):
+async def admin_list(req:Request,limit:int=Query(20,ge=1,le=100),after:UUID|None=None,uid=Depends(admin_member)):
     async with access(req,uid,{'admin'}):
         async with req.app.state.engine.connect() as c:
             rows=(await execute(c,'''SELECT a.*,i.name,o.price::text FROM app.affiliate_offers a JOIN app.offers o USING(offer_id) JOIN app.catalog_items i USING(item_id)

@@ -44,7 +44,7 @@ const consoleLayout = {
     if (!this.renderAdminAccess()) return;
     let [page, subView = 'list', id] = window.location.hash.slice(2).split('/');
     if (!window.location.hash.startsWith('#/') ||
-        !['main', 'crawling', 'affiliate', 'customers', 'counseling', 'stats'].includes(page)) {
+        !['main', 'crawling', 'affiliate', 'customers', 'counseling', 'stats', 'admin-requests'].includes(page)) {
       page = 'main';
     }
     if (this.adminSession.role === 'support' && page !== 'counseling') {
@@ -135,6 +135,7 @@ const consoleLayout = {
       ${counselingMenu}
       ${menu('stats', '통계', 'M4 4v16h16M8 16v-4M13 16V8M18 16V5')}
       ${menu('customers', '고객정보', 'M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM5 20v-2a7 7 0 0 1 14 0v2z')}
+      ${menu('admin-requests', '관리자 가입 승인', 'M4 4h16v16H4zM8 12l3 3 5-6')}
     `;
   },
 
@@ -180,6 +181,9 @@ const consoleLayout = {
       if (this.state.affiliateSubView !== 'list') this.loadOfferCatalog();
     } else if (p === 'customers') {
       container.innerHTML = this.getCustomersHtml();
+    } else if (p === 'admin-requests') {
+      container.innerHTML = this.getAdminSignupRequestsHtml();
+      this.loadAdminSignupRequests();
     } else if (p === 'counseling') {
       container.innerHTML = this.getCounselingHtml();
     } else if (p === 'stats') {

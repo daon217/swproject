@@ -1,13 +1,13 @@
 """Read-only administrator aggregates, never client-side demonstration totals."""
 import os
 from fastapi import APIRouter, Depends, Request
-from .access import access
-from .members import member, row, execute, wrap
+from .access import access, admin_member
+from .members import row, execute, wrap
 
 router=APIRouter()
 
 @router.get('/v2/admin/overview')
-async def overview(req:Request,uid=Depends(member)):
+async def overview(req:Request,uid=Depends(admin_member)):
     async with access(req,uid,{'admin'}) as m:
         members=await row(m,'''SELECT count(*) AS members,
             count(*) FILTER (WHERE s.entitlement_end>now() AND s.billing_mode=:mode AND :enabled) AS subscribers

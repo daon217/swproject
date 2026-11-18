@@ -124,6 +124,8 @@ async def perform(apply, policy):
             result['expired_images_deleted']=sweep_images(batch=policy.batch)
             async with member.begin() as c:
                 await run(c, 'DELETE FROM app.sessions WHERE token_hash IN (SELECT token_hash FROM app.sessions WHERE expires_at<now() LIMIT :n)', n=policy.batch)
+                await run(c, '''DELETE FROM app.admin_sessions WHERE token_hash IN
+                    (SELECT token_hash FROM app.admin_sessions WHERE expires_at<now() LIMIT :n)''', n=policy.batch)
                 await run(c, "DELETE FROM app.auth_attempts WHERE bucket IN (SELECT bucket FROM app.auth_attempts WHERE window_start<now()-interval '1 day' LIMIT :n)", n=policy.batch)
         return result
     finally:

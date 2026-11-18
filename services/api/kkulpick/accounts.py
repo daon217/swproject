@@ -4,7 +4,7 @@ import os
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field, SecretStr
 from starlette.concurrency import run_in_threadpool
-from .access import access
+from .access import access, admin_member
 from .members import Strict, member, row, execute, fail, wrap, check_password
 
 router=APIRouter()
@@ -14,14 +14,13 @@ class Withdrawal(Strict):
 
 
 @router.get('/v2/admin/me')
-async def admin_me(req:Request,uid=Depends(member)):
-    async with access(req,uid,{'admin','support'}) as c:
-        r=await row(c,'SELECT role FROM app.admin_accounts WHERE user_id=:u',u=uid)
-        return wrap({'user_id':uid,'role':r['role']},req)
+async def admin_me(req:Request,uid=Depends(admin_member)):
+    async with access(req,uid,{'admin','support'}):
+        return wrap({'user_id':uid,'role':req.state.admin_role},req)
 
 
 @router.get('/v2/admin/members')
-async def member_list(req:Request,limit:int=Query(20,ge=1,le=100),uid=Depends(member)):
+async def member_list(req:Request,limit:int=Query(20,ge=1,le=100),uid=Depends(admin_member)):
     async with access(req,uid,{'admin'}) as c:
         rows=(await execute(c,'''SELECT m.user_id,m.login_id,m.created_at,m.gender,
             (extract(year FROM age(current_date,m.birth_date))::int/10)*10 AS age_decade,

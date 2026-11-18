@@ -7,8 +7,10 @@ import os
 from uuid import uuid4
 import psycopg
 import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine
 from kkulpick.accounts import process_deletions
+from kkulpick.admin_cli import change_access
 from kkulpick.db import url
 from kkulpick.images import image_path
 from test_members_billing import client,account,pay
@@ -80,11 +82,99 @@ def test_support_ownership_idempotency_and_sequence(client):
     assert [m['sequence_no'] for m in client.get(path+'?after_sequence=2',headers=h).json()['data']]==[3,4]
 
 
+def test_admin_signup_requires_approval_and_stays_out_of_members(client):
+    login_id = 'a' + uuid4().hex[:12]
+    password = 'Test-pass-427!'
+    credentials = {'login_id': login_id, 'password': password}
+    application = credentials | {
+        'password_confirmation': password, 'consent_version': 'provisional-v1', 'consent_accepted': True,
+    }
+    path = '/v2/admin/auth'
+    assert client.post(path+'/signup', json=application|{'role':'admin'}).status_code==422
+    response = client.post(path+'/signup', json=application)
+    assert response.status_code == 201, response.text
+    assert response.json()['data']['status'] == 'pending_approval'
+    user_id = response.json()['data']['user_id']
+    requests_path = path+'/requests'
+    approve_path = f'{requests_path}/{user_id}/approve'
+    assert client.post(path+'/signup', json=application).status_code==409
+    with db('member') as conn:
+        assert conn.execute('SELECT count(*) FROM app.members WHERE login_id=%s',(login_id,)).fetchone()[0]==0
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            conn.execute("UPDATE app.admin_identities SET role='admin',enabled=true WHERE login_id=%s",(login_id,))
+    pending=client.post(path+'/login', json=credentials)
+    assert pending.status_code==403 and pending.json()['error']['code']=='ADMIN_APPROVAL_REQUIRED'
+    assert client.post('/v2/auth/login',json=credentials).status_code==401
+
+    reviewer,_,reviewer_id=account(client)
+    ordinary,_,ordinary_id=account(client)
+    assert client.get(requests_path).status_code==401
+    assert client.get(requests_path,headers=reviewer).status_code==403
+    assert client.post(approve_path,headers=ordinary,json={'role':'admin'}).status_code==403
+    grant(ordinary_id,'support')
+    assert client.post(approve_path,headers=ordinary,json={'role':'admin'}).status_code==403
+    grant(reviewer_id)
+    listed=client.get(requests_path,headers=reviewer)
+    assert listed.status_code==200,listed.text
+    request=next(item for item in listed.json()['data'] if item['user_id']==user_id)
+    assert request['login_id']==login_id and set(request)=={'user_id','login_id','created_at'}
+    assert client.post(approve_path,headers=reviewer,json={'role':'owner'}).status_code==422
+    with ThreadPoolExecutor(2) as pool:
+        results=list(pool.map(lambda _:client.post(approve_path,headers=reviewer,json={'role':'support'}), range(2)))
+    assert sorted(result.status_code for result in results)==[200,409], [result.text for result in results]
+    assert all(item['user_id']!=user_id for item in client.get(requests_path,headers=reviewer).json()['data'])
+    with db('member') as conn:
+        audit=conn.execute('SELECT actor_id,action FROM app.admin_audit WHERE target_id=%s',(user_id,)).fetchall()
+        assert [(str(actor),action) for actor,action in audit]==[(reviewer_id,'approve:support')]
+
+    engine=create_engine(url('owner','member'),hide_parameters=True)
+    try:
+        active=client.post(path+'/login',json=credentials)
+        assert active.status_code==200,active.text
+        token=active.json()['data']['token']
+        h={'Authorization':'Bearer '+token}
+        assert client.get('/v2/admin/me',headers=h).json()['data']['role']=='support'
+        customer,_,_=account(client)
+        conversation=client.post('/v2/support/conversations',headers=customer)
+        assert conversation.status_code==201,conversation.text
+        cid=conversation.json()['data']['conversation_id']
+        reply=client.post(f'/v2/admin/support/conversations/{cid}/messages',headers=h,
+                          json={'body':'답변입니다','client_message_id':str(uuid4())})
+        assert reply.status_code==200,reply.text
+        conversations=client.get('/v2/admin/support/conversations?limit=100',headers=h)
+        assert conversations.status_code==200,conversations.text
+        assert any(item['conversation_id']==cid and item['agent_name']==login_id
+                   for item in conversations.json()['data'])
+        assert client.get('/v2/admin/members',headers=h).status_code==403
+        assert client.get('/v2/me',headers=h).status_code==401
+
+        with engine.begin() as conn:
+            change_access(conn,'revoke',login_id,'support')
+            change_access(conn,'grant',login_id,'admin')
+        assert client.get('/v2/admin/me',headers=h).status_code==401
+        approved=client.post(path+'/login',json=credentials)
+        assert approved.status_code==200,approved.text
+        h={'Authorization':'Bearer '+approved.json()['data']['token']}
+        assert client.get('/v2/admin/members',headers=h).status_code==200
+        another=client.post(path+'/signup',json=application|{'login_id':'b'+uuid4().hex[:12]})
+        nested_path=f"{requests_path}/{another.json()['data']['user_id']}/approve"
+        assert client.post(nested_path,headers=h,json={'role':'support'}).status_code==200
+        assert client.post(path+'/logout',headers=h).status_code==204
+        assert client.get('/v2/admin/me',headers=h).status_code==401
+    finally:
+        engine.dispose()
+
+
 def test_support_admin_reply_close_and_revocation(client):
     h,_,_=account(client);admin,profile,uid=account(client)
     other_admin,other_profile,other_uid=account(client)
     grant(uid,'support')
     grant(other_uid)
+    legacy=client.post('/v2/admin/auth/login',json={k:profile[k] for k in ('login_id','password')})
+    assert legacy.status_code==200,legacy.text
+    legacy_headers={'Authorization':'Bearer '+legacy.json()['data']['token']}
+    assert client.get('/v2/admin/me',headers=legacy_headers).json()['data']['role']=='support'
+    assert client.post('/v2/admin/auth/logout',headers=legacy_headers).status_code==204
     cid=client.post('/v2/support/conversations',headers=h).json()['data']['conversation_id']
     path=f'/v2/admin/support/conversations/{cid}'
     assert client.get('/v2/admin/members',headers=admin).status_code==403

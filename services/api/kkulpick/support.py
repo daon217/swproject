@@ -3,7 +3,7 @@ from uuid import UUID
 from typing import Literal
 from fastapi import APIRouter,Depends,Query,Request
 from pydantic import Field
-from .access import access
+from .access import access, admin_member
 from .members import Strict,member,row,execute,fail,wrap,throttle
 
 router=APIRouter()
@@ -46,7 +46,7 @@ async def list_conversations(req:Request,limit:int=Query(20,ge=1,le=100),uid=Dep
 
 
 @router.get('/v2/admin/support/conversations')
-async def admin_conversations(req:Request,limit:int=Query(20,ge=1,le=100),after:UUID|None=None,uid=Depends(member)):
+async def admin_conversations(req:Request,limit:int=Query(20,ge=1,le=100),after:UUID|None=None,uid=Depends(admin_member)):
     async with access(req,uid,{'admin','support'}) as member_conn:
         async with req.app.state.support_engine.connect() as support_conn:
             rows = (await execute(support_conn, '''SELECT c.*, reply.sender_id AS last_agent_id
@@ -63,7 +63,10 @@ async def admin_conversations(req:Request,limit:int=Query(20,ge=1,le=100),after:
         agent_names = {}
         if agent_ids:
             agents = (await execute(member_conn, '''SELECT user_id, login_id FROM app.members
-                WHERE user_id=ANY(CAST(:ids AS uuid[])) AND deleted_at IS NULL''',
+                WHERE user_id=ANY(CAST(:ids AS uuid[])) AND deleted_at IS NULL
+                UNION ALL
+                SELECT user_id, login_id FROM app.admin_identities
+                WHERE user_id=ANY(CAST(:ids AS uuid[]))''',
                 ids=agent_ids)).mappings().all()
             agent_names = {agent['user_id']: agent['login_id'] for agent in agents}
 
@@ -89,7 +92,7 @@ async def messages(conversation_id:UUID,req:Request,limit:int=Query(50,ge=1,le=1
 
 
 @router.get('/v2/admin/support/conversations/{conversation_id}/messages')
-async def admin_messages(conversation_id:UUID,req:Request,limit:int=Query(50,ge=1,le=100),after_sequence:int|None=Query(None,ge=0),uid=Depends(member)):
+async def admin_messages(conversation_id:UUID,req:Request,limit:int=Query(50,ge=1,le=100),after_sequence:int|None=Query(None,ge=0),uid=Depends(admin_member)):
     return await read_messages(conversation_id,req,uid,limit,after_sequence,True)
 
 
@@ -119,12 +122,12 @@ async def send_message(conversation_id:UUID,data:Message,req:Request,uid=Depends
 
 
 @router.post('/v2/admin/support/conversations/{conversation_id}/messages')
-async def reply_message(conversation_id:UUID,data:Message,req:Request,uid=Depends(member)):
+async def reply_message(conversation_id:UUID,data:Message,req:Request,uid=Depends(admin_member)):
     return await send(conversation_id,data,req,uid,True)
 
 
 @router.patch('/v2/admin/support/conversations/{conversation_id}')
-async def state(conversation_id:UUID,data:StateChange,req:Request,uid=Depends(member)):
+async def state(conversation_id:UUID,data:StateChange,req:Request,uid=Depends(admin_member)):
     async with access(req,uid,{'admin','support'}):
         async with req.app.state.support_engine.begin() as c:
             old=await row(c,'SELECT * FROM app.conversations WHERE conversation_id=:id FOR UPDATE',id=conversation_id)
@@ -148,13 +151,13 @@ async def settings_row(c):
         'awayMessage':r['away_message'],'version':r['version']}
 
 @router.get('/v2/admin/support/settings')
-async def get_settings(req:Request,uid=Depends(member)):
+async def get_settings(req:Request,uid=Depends(admin_member)):
     async with access(req,uid,{'admin','support'}):
         async with req.app.state.support_engine.connect() as c:
             return wrap(await settings_row(c),req)
 
 @router.put('/v2/admin/support/settings')
-async def save_settings(data:SupportSettings,req:Request,uid=Depends(member)):
+async def save_settings(data:SupportSettings,req:Request,uid=Depends(admin_member)):
     if data.startTime>=data.endTime:fail(422,'INVALID_HOURS')
     async with access(req,uid,{'admin','support'}):
         async with req.app.state.support_engine.begin() as c:

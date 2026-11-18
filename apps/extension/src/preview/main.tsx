@@ -16,7 +16,7 @@ import { setItem, KEYS } from '../shared/storage';
 function FloatingInShadow() {
   const hostRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<ReturnType<typeof createRoot> | null>(null);
-  const { state } = useActiveTabState();
+  const { state, retry } = useActiveTabState();
 
   useEffect(() => {
     const host = hostRef.current!;
@@ -30,10 +30,10 @@ function FloatingInShadow() {
     }
     rootRef.current.render(
       <div className="kp-root fl-root">
-        <Floating state={state} onOpenPanel={(route) => void setItem(KEYS.pendingRoute, { route, at: Date.now() })} />
+        <Floating state={state} onOpenPanel={(route) => void setItem(KEYS.pendingRoute, { route, at: Date.now() })} onRetry={retry} />
       </div>,
     );
-  }, [state]);
+  }, [state, retry]);
 
   return <div ref={hostRef} />;
 }

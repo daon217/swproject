@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { allergenLabel } from '../shared/allergens';
 import { formatPrice } from '../shared/format';
@@ -10,6 +10,7 @@ import { C } from './theme';
 
 // 플로팅 결과(Figma U16~U25): 축소 카드 → 누르면 하단 시트가 아래에서 올라온다(명세 REQ-UI-009~011).
 // 시트는 배경 터치·닫기 버튼·뒤로가기, 또는 상단을 아래로 끌어서 내린다.
+// 분석 중·실패·추천 없음도 작은 카드로 알려 준다(아무 표시 없이 사라지면 원인을 알 수 없어서).
 // 끌기: 손가락을 따라 움직이고, 빠르게 내리거나 절반 넘게 내리면 닫힘, 그 외에는 제자리로 돌아온다. 축소 카드는 상품 페이지에 있는 동안 계속 보인다.
 
 const native = Platform.OS !== 'web';
@@ -75,13 +76,14 @@ export function Floating({
     }),
   );
 
+  if (page.status === 'none') return null;
   const a = page.status === 'done' ? page.analysis : null;
-  if (!a || a.result_kind !== 'recommendation') return null;
-
-  const warning = a.warnings[0];
+  const rec = a?.result_kind === 'recommendation' ? a : null;
+  const warning = rec?.warnings[0];
   // [임시] 페이지에서 읽은 실제 상품명·가격이 있으면 그것을 보여준다(서버 OCR 연동 전).
-  const first = a.page_product ?? a.sections.find((x) => x.kind !== 'used')?.items[0];
-  if (!warning && !first) return null;
+  const first = rec ? (rec.page_product ?? rec.sections.find((x) => x.kind !== 'used')?.items[0]) : undefined;
+  const kind: 'analyzing' | 'error' | 'empty' | 'result' =
+    page.status === 'analyzing' ? 'analyzing' : page.status === 'error' ? 'error' : warning || first ? 'result' : 'empty';
 
   // 바깥으로 링크를 열 때는 시트를 먼저 내린다.
   const openUrl = (url: string) => {
@@ -96,6 +98,31 @@ export function Floating({
   return (
     <>
       <View style={st.compactWrap}>
+        {kind === 'analyzing' && (
+          <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="꿀픽이 이 상품을 분석하고 있어요">
+            <View style={st.stateRow}>
+              <ActivityIndicator size="small" color={C.primary} />
+              <Text style={[st.label, { marginBottom: 0 }]}>꿀픽 분석 중</Text>
+            </View>
+            <Text style={st.hint}>비슷한 상품과 가격을 찾고 있어요</Text>
+          </Pressable>
+        )}
+        {kind === 'error' && (
+          <Pressable style={st.compact} onPress={onRetry} accessibilityRole="button" accessibilityLabel="분석하지 못했어요. 눌러서 다시 시도">
+            <Text style={[st.label, { color: C.danger }]}>분석하지 못했어요</Text>
+            <Text style={st.stateBody} numberOfLines={2}>
+              {page.error ?? '잠시 후 다시 시도해 주세요.'}
+            </Text>
+            <Text style={[st.hint, { color: C.primary }]}>눌러서 다시 시도</Text>
+          </Pressable>
+        )}
+        {kind === 'empty' && (
+          <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="추천할 상품을 찾지 못했어요">
+            <Text style={st.label}>꿀픽 추천</Text>
+            <Text style={st.stateBody}>{a?.result_kind === 'ingredient_unknown' ? '성분 정보를 확인하지 못했어요' : '추천할 상품을 찾지 못했어요'}</Text>
+          </Pressable>
+        )}
+        {kind === 'result' && (
         <Pressable
           style={[st.compact, warning && st.compactAlert]}
           onPress={() => setOpen(true)}
@@ -122,6 +149,7 @@ export function Floating({
             )
           )}
         </Pressable>
+        )}
       </View>
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => close()} statusBarTranslucent navigationBarTranslucent>
@@ -141,7 +169,7 @@ export function Floating({
               <Pressable style={st.sheetClose} onPress={() => close()} accessibilityLabel="닫기" hitSlop={10}>
                 <IconClose size={22} color={C.sub} />
               </Pressable>
-              <ResultView status={page.status} analysis={a} error={page.error} onOpenUrl={openUrl} onPremium={go(onPremium)} onFilter={go(onFilter)} onRetry={onRetry} />
+              <ResultView status={page.status} analysis={page.analysis} error={page.error} onOpenUrl={openUrl} onPremium={go(onPremium)} onFilter={go(onFilter)} onRetry={onRetry} />
             </View>
           </Animated.View>
         </View>
@@ -162,6 +190,8 @@ const st = StyleSheet.create({
   name: { fontWeight: '800', fontSize: 15, color: C.text },
   price: { color: C.price, fontWeight: '800', fontSize: 18, marginTop: 4 },
   hint: { fontSize: 12, color: C.sub, marginTop: 8 },
+  stateRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stateBody: { fontSize: 13, color: C.text, lineHeight: 18 },
   alertTitle: { color: C.danger, fontWeight: '800', fontSize: 14, marginTop: 6 },
   alertBody: { fontSize: 12, color: C.text, marginTop: 4, lineHeight: 17 },
   dim: { flex: 1, backgroundColor: C.dim, justifyContent: 'flex-end' },

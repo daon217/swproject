@@ -1,5 +1,7 @@
 # 팀원 개발환경 사용 안내
 
+> 최신 실제 API 연결·Docker UI 실행은 [프론트 · 백엔드 통합 실행](FRONTEND_INTEGRATION.md)을 따릅니다. 기본 API는 실제 로컬 백엔드이며 화면 목업은 명시적으로 선택합니다.
+
 현재 기본 방식은 **팀원마다 자기 PC의 Docker에서 독립 서버와 DB를 실행**하는 것입니다.
 소병선 PC, Oracle, VPN, SSH 공개키 등록, Claude API 키가 필요하지 않습니다.
 GitHub는 코드·마이그레이션·가상 샘플을 공유합니다. DB 내용과 비밀번호는 자동 공유되지 않습니다.
@@ -95,7 +97,7 @@ npm run dev
 
 ### 확장
 
-Chrome의 `chrome://extensions` → 개발자 모드 → 압축해제된 확장 프로그램 로드 → `apps/extension`.
+Chrome의 `chrome://extensions` → 개발자 모드 → 압축해제된 확장 프로그램 로드 → `apps/extension/dist` (먼저 해당 폴더에서 `npm ci`, `npm run build`).
 확장 버튼에서 API 포트 **8000** → API 확인. 자기 PC의 API에 연결하며 SSH 터널은 필요 없습니다.
 소스 변경 후 확장 관리 화면에서 새로고침합니다. 현재 기능은 연결 점검이며 캡처·사이드바는 별도 개발입니다.
 
@@ -108,7 +110,7 @@ Chrome의 `chrome://extensions` → 개발자 모드 → 압축해제된 확장 
 
 ### 모바일
 
-`apps/mobile`에서 `npm ci`, `npm start`. Android 에뮬레이터용 기본 API는 `http://10.0.2.2:8000`입니다.
+`apps/mobile`에서 `npm ci`, `npm start`. 웹 기본 API는 `http://127.0.0.1:8000`이며 Android 에뮬레이터에서는 `EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8000`으로 변경합니다.
 실제 휴대폰 접속은 별도 설정이 필요합니다. 현재 API는 PC 내부 주소에만 열리며 다른 기기에서 바로 접속되지 않습니다.
 
 ## 5. 전체 연결 환경이 필요할 때

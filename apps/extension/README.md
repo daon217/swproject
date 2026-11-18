@@ -1,8 +1,10 @@
 # Chrome 확장
 
+> 최신 실제 API 연결·Docker UI 실행은 [프론트 · 백엔드 통합 실행](../../docs/FRONTEND_INTEGRATION.md)을 따릅니다. 기본 API는 실제 로컬 백엔드이며 화면 목업은 명시적으로 선택합니다.
+
 WBS 담당: 서지웅
 
-Chrome MV3 확장 프론트엔드. React 18 + TypeScript + Vite. 백엔드가 준비되기 전까지는 확장 안의 목업 API로 동작한다.
+Chrome MV3 확장 프론트엔드. React 18 + TypeScript + Vite. 실제 로컬 백엔드 API를 기본으로 사용한다.
 
 ## 실행
 ```bash
@@ -19,7 +21,7 @@ npm run preview:sidepanel   # http://localhost:5174/preview.html
 `?url=` 로 분석할 페이지를 바꾼다(프린터 상품 / 땅콩 식품 / 상품 아님 링크가 화면에 있음). 미리보기는 localStorage를 쓴다.
 
 ## 환경변수
-`.env.example` 참고. `VITE_API_BASE_URL`이 비어 있으면 `src/shared/api/mock.ts`(목업)를 쓰고, 값이 있으면 `src/shared/api/http.ts`가 기술 명세서 17장 경로로 호출한다.
+`.env.example` 참고. `VITE_API_BASE_URL`은 실제 API 주소이며 기본값은 `http://127.0.0.1:8000`이다. `VITE_USE_MOCK_API=true`를 명시했을 때만 `src/shared/api/mock.ts`를 사용한다. API 응답을 받지 못해도 목업으로 자동 전환하지 않는다.
 
 ## 구조
 | 경로 | 역할 |
@@ -45,4 +47,4 @@ npm run preview:sidepanel   # http://localhost:5174/preview.html
 
 ## 미검증
 - 실제 Chrome에 설치해 쇼핑몰 페이지에서 캡처·플로팅·사이드 패널 열기까지는 확인하지 않았다(미리보기 화면에서만 확인).
-- 실제 백엔드 API와 연동하지 않았다.
+- 실제 API 연결 검증 범위는 [통합 실행 문서](../../docs/FRONTEND_INTEGRATION.md)의 자동 검증과 GitHub Actions 결과를 확인한다.

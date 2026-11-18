@@ -33,10 +33,20 @@ jobs:
         working-directory: tests/ui
         run: |
           npm ci
-          npx playwright install --with-deps chromium
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "PLAYWRIGHT_CHROMIUM_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+            google-chrome --version
+          else
+            npx playwright install --with-deps chromium
+          fi
       - name: Exercise actual screens against PostgreSQL (no API stubs or paid services)
         working-directory: tests/ui
         run: npm test
+      - name: Verify pending payment retries cannot grant premium or duplicate payment
+        run: |
+          MOCK_PAYMENT_OUTCOME=pending python tools/workspace.py up --scope ui
+          cd tests/ui
+          UI_PAYMENT_OUTCOME=pending UI_TEST_OUTPUT=test-results-pending npm test -- billing.spec.js --reporter=list
       - name: Save screenshots and test traces
         if: always()
         uses: actions/upload-artifact@v4
@@ -44,6 +54,7 @@ jobs:
           name: frontend-integration-evidence
           path: |
             tests/ui/test-results
+            tests/ui/test-results-pending
             tests/ui/playwright-report
           retention-days: 7
       - if: failure()

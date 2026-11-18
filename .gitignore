@@ -67,3 +67,4 @@ data/benchmarks/
 preview-dist/
 test-results/
 playwright-report/
+test-results-pending/

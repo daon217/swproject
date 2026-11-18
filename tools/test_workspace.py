@@ -47,9 +47,9 @@ class LocalWorkspaceTests(unittest.TestCase):
         self.assertNotEqual(first, (self.root / 'infra/db/.env').read_bytes())
         for app in ('web', 'admin'):
             self.assertIn('INTERNAL_API_URL=http://127.0.0.1:8000',
-                          (self.root / f'apps/{app}/.env.local').read_text())
+                          (self.root / f'apps/{app}/.env.local').read_text(encoding='utf-8'))
         self.assertIn('EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000',
-                      (self.root / 'apps/mobile/.env.local').read_text())
+                      (self.root / 'apps/mobile/.env.local').read_text(encoding='utf-8'))
 
     def test_saved_vpn_enrollment_does_not_enable_local_sharing(self):
         self.initialize()

@@ -1,8 +1,10 @@
 # 모바일 앱
 
+> 최신 실제 API 연결·Docker UI 실행은 [프론트 · 백엔드 통합 실행](../../docs/FRONTEND_INTEGRATION.md)을 따릅니다. 기본 API는 실제 로컬 백엔드이며 화면 목업은 명시적으로 선택합니다.
+
 WBS 담당: 배정 필요 (프론트 초기 구현: 서지웅)
 
-Expo SDK 58 + React Native 0.88 + Expo Router + TypeScript. 백엔드가 준비되기 전까지는 앱 안 목업 API로 동작한다.
+Expo SDK 58 + React Native 0.88 + Expo Router + TypeScript. 실제 로컬 백엔드 API를 기본으로 사용한다.
 
 ## 실행
 ```bash
@@ -13,10 +15,10 @@ npx expo start            # 개발 서버
 npm run typecheck
 npm run preview:web       # 웹 미리보기 http://localhost:8081 (화면 확인용)
 ```
-웹 미리보기는 WebView 대신 iframe(`src/ui/WebPage.web.tsx`)을 쓰고 화면 캡처 없이 주소 기준 목업으로 분석한다. 많은 쇼핑몰이 iframe 표시를 막아 빈 화면일 수 있다. 실제 동작 확인은 기기·에뮬레이터에서 한다.
+웹 미리보기는 WebView 대신 iframe(`src/ui/WebPage.web.tsx`)을 쓰고 화면 캡처는 지원하지 않는다. 실제 분석 작업자는 별도로 연결해야 한다. 많은 쇼핑몰이 iframe 표시를 막아 빈 화면일 수 있다. 실제 동작 확인은 기기·에뮬레이터에서 한다.
 
 ## 환경변수
-`.env.example` 참고. `EXPO_PUBLIC_API_BASE_URL`이 비어 있으면 `src/shared/api/mock.ts`(목업), 값이 있으면 `src/shared/api/http.ts`가 기술 명세서 17장 경로로 호출한다.
+`.env.example` 참고. `EXPO_PUBLIC_API_BASE_URL`은 실제 API 주소이며 기본값은 `http://127.0.0.1:8000`이다. `EXPO_PUBLIC_USE_MOCK_API=true`를 명시했을 때만 `src/shared/api/mock.ts`를 사용한다. API 응답을 받지 못해도 목업으로 자동 전환하지 않는다.
 
 ## 구조
 | 경로 | 역할 |

@@ -1,0 +1,10 @@
+{"source":"demo","source_listing_id":"cookie-001","name":"버터 쿠키","category":"과자","brand":"가상제과","price":"3500","currency":"KRW","ingredients_raw":"밀가루(밀), 버터(우유), 설탕, 계란, 정제소금","allergen_notice_raw":"밀, 우유, 알류 함유","collected_at":"2026-11-09T00:00:00Z"}
+{"source":"demo","source_listing_id":"rice-cracker-002","name":"현미 쌀과자","category":"과자","brand":"가상식품","price":"2800","currency":"KRW","ingredients_raw":"현미 80%, 쌀, 해바라기유, 정제소금","cross_contact_raw":"이 제품은 땅콩, 대두를 사용한 제품과 같은 제조시설에서 제조하고 있습니다."}
+{"source":"demo","source_listing_id":"oat-bar-003","name":"귀리 바 오리지널","category":"간식","brand":"가상그래놀라","price":"1900","currency":"KRW","ingredients_raw":"귀리, 쌀시럽, 건포도, 해바라기씨, 코코넛오일","allergen_notice_raw":""}
+{"source":"demo","source_listing_id":"protein-bar-004","name":"단백질 바 초코","category":"간식","brand":"가상프로틴","price":"2500","currency":"KRW","ingredients_raw":"분리유청단백(우유), 대두단백, 코코아분말, 아몬드, 감미료","allergen_notice_raw":"우유, 대두 함유"}
+{"source":"demo","source_listing_id":"peanut-snack-005","name":"땅콩 강정","category":"과자","brand":"가상제과","price":"4200","currency":"KRW","ingredients_raw":"땅콩 60%, 물엿, 설탕","allergen_notice_raw":"땅콩 함유"}
+{"source":"demo","source_listing_id":"seaweed-006","name":"구운 김스낵","category":"과자","brand":"가상수산","price":"1500","currency":"KRW","ingredients_raw":"김, 현미유, 정제소금, 새우분말","allergen_notice_raw":"새우 함유"}
+{"source":"demo","source_listing_id":"juice-007","name":"사과 주스 100%","category":"음료","brand":"가상음료","price":"1200","currency":"KRW","ingredients_raw":"사과과즙 100%"}
+{"source":"demo","source_listing_id":"mystery-008","name":"수입 젤리 (성분 미확인)","category":"과자","price":"2000","currency":"KRW"}
+{"source":"demo","source_listing_id":"soy-milk-009","name":"검은콩 두유","category":"음료","brand":"가상두유","price":"1000","currency":"KRW","ingredients_raw":"두유액(대두), 검은콩, 설탕, 탄산칼슘"}
+{"source":"demo","source_listing_id":"yogurt-010","name":"플레인 요거트","category":"유제품","brand":"가상유업","price":"1800","currency":"KRW","ingredients_raw":"원유 99%, 유산균","allergen_notice_raw":"우유 함유"}

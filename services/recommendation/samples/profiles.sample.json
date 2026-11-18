@@ -1,0 +1,5 @@
+[
+ {"user_id":"u-milk","allergens":["milk"],"preferences":"아이 간식, 달지 않은 것"},
+ {"user_id":"u-peanut-soy","allergens":["peanut","soy"],"preferences":"과자","exclude_cross_contact":true},
+ {"user_id":"u-none","allergens":[],"preferences":"단백질 많은 간식"}
+]

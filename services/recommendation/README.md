@@ -2,17 +2,46 @@
 
 담당: 박정우 · 브랜치: `part/박정우-recommendation`
 
-[팀원 개발환경 사용 안내](../../docs/LOCAL_DEVELOPMENT.md)에 따라 본인 브랜치에 공통 코드를 반영합니다. [전체 개발환경](../../docs/WORKSPACE.md)에서 `devapp.py`의 HTTP 개발 틀과 전용 Celery 큐를 실행합니다.
+## DB 없이 추천 테스트하기 (지금 단계)
 
-```powershell
-# 저장소 루트에서 실행
-py tools/workspace.py init
-py tools/workspace.py up --scope full
-py tools/workspace.py check --scope full
+DB 스키마가 확정되기 전까지 JSON 파일로 저장하는 로컬 구현으로 전체 흐름을 돌립니다.
+추천 흐름은 **벡터 후보 → 알레르기 규칙 제외(코드) → 최종 선별·이유(LLM 또는 유사도 순)** 입니다.
+LLM 은 알레르기 검사를 통과한 후보만 보고, 후보 밖 상품을 고르면 코드에서 버립니다.
+
+저장소 루트에서 (Python 3.12, `pydantic` 필요):
+
+```bash
+python -m services.recommendation.cli validate services/recommendation/samples/products.sample.jsonl
+python -m services.recommendation.cli ingest   services/recommendation/samples/products.sample.jsonl
+python -m services.recommendation.cli profile  services/recommendation/samples/profiles.sample.json
+python -m services.recommendation.cli recommend --user u-milk --query "아이 간식"
 ```
 
-현재는 연결용 시작 코드입니다. `business_ready=false`이고 `/internal/process`는 501을 반환합니다. 실제 담당 기능은 아직 연결하지 않았습니다.
+- 데이터는 `.reco-data/` 에 저장됩니다 (`--data` 로 변경). 폴더째 주고받으면 같은 데이터로 테스트할 수 있습니다.
+- `--embedder hash`(기본): 모델 다운로드 없는 테스트용. `--embedder st` 는 sentence-transformers 다국어 모델.
+- `--ranker auto`(기본): `ANTHROPIC_API_KEY` 가 있으면 Claude, 없으면 유사도 순. 모델은 `RECO_LLM_MODEL` 로 변경.
+- 테스트: `python -m pytest -q services/recommendation/tests`
 
-임베딩 CPU 의존성 설치·import 점검은 전체 환경 안내의 선택 AI 이미지 절차를 따릅니다. 모델명·revision·임베딩 차원·입출력 계약을 확정하고 실제 추천 로직을 연결합니다.
+### 최준서(수집)와 같이 테스트
 
-기존 코드를 이 폴더에 반입하고 의존성 명세·잠금 파일·환경변수 예시·실행 방법·실제 테스트를 함께 갱신합니다. 업무 기능을 붙이면 API 계약과 `business_ready`도 실제 상태에 맞게 변경합니다. [협업 규칙](../../CONTRIBUTING.md)과 [CI 안내](../../.ci/README.md)를 따릅니다.
+1. 수집기 출력을 [수집 상품 계약](../../contracts/collected-product.v1.md) 형식의 `.jsonl` 로 저장
+2. `validate` 로 형식 확인 → 오류 줄 번호가 나오면 수정
+3. `ingest` → `recommend` 로 결과 확인
+
+## 소병선 DB 확정 후 붙이는 방법
+
+| 파일 | 역할 |
+| --- | --- |
+| `contracts.py` | 고정 데이터 형식 (수집 상품, 프로필, 추천 결과) |
+| `ports.py` | 저장소 인터페이스: `CatalogRepository`, `ProfileRepository`, `VectorIndex` |
+| `adapters/local.py` | 지금 쓰는 JSON 구현 |
+| `adapters/postgres.py` | DB 확정 후 채울 자리 (`vectors.candidates()` 감싸기 등) |
+| `tests/contract_suite.py` | 새 어댑터가 통과해야 하는 동작 테스트 |
+
+DB 어댑터를 만들고 `contract_suite` 를 통과하면 `Recommender(catalog, index, embedder, ranker)` 에 넘기는 객체만 바뀌고, 알레르기 규칙·LLM·수집 형식은 그대로입니다.
+
+## 아직 안 된 것
+
+- `devapp.py` 의 HTTP `/internal/process` 연결 (아직 501, `business_ready=false`)
+- 알레르기 판정은 키워드 사전 기반입니다 (`allergens.py`). 애매하면 제외하는 쪽이라 '땅콩버터'가 우유로 잡히는 식의 과잉 제외가 있을 수 있습니다.
+- Claude 랭커는 실제 API 로 호출해 보지 않았습니다 (가짜 클라이언트로 응답 처리만 테스트).

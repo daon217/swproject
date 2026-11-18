@@ -1,0 +1,63 @@
+name: Frontend backend integration
+on:
+  pull_request:
+    paths: ['apps/**', 'services/api/**', 'infra/**', 'tools/**', 'tests/ui/**', '.github/workflows/ui-integration.yml', '.dockerignore']
+  push:
+    branches: [main]
+    paths: ['apps/**', 'services/api/**', 'infra/**', 'tools/**', 'tests/ui/**', '.github/workflows/ui-integration.yml', '.dockerignore']
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Start real DB, API and both frontend previews
+        run: |
+          python tools/workspace.py init
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('services/api/.env')
+          p.write_text(p.read_text() + '\nBILLING_MODE=mock\n')
+          PY
+          python tools/workspace.py up --scope ui
+          python tools/workspace.py seed
+          python tools/workspace.py check --scope ui
+      - name: Install browser test runner
+        working-directory: tests/ui
+        run: |
+          npm ci
+          if command -v google-chrome >/dev/null 2>&1; then
+            echo "PLAYWRIGHT_CHROMIUM_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
+            google-chrome --version
+          else
+            npx playwright install --with-deps chromium
+          fi
+      - name: Exercise actual screens against PostgreSQL (no API stubs or paid services)
+        working-directory: tests/ui
+        run: npm test
+      - name: Verify pending payment retries cannot grant premium or duplicate payment
+        run: |
+          MOCK_PAYMENT_OUTCOME=pending python tools/workspace.py up --scope ui
+          cd tests/ui
+          UI_PAYMENT_OUTCOME=pending UI_TEST_OUTPUT=test-results-pending npm test -- billing.spec.js --reporter=list
+      - name: Save screenshots and test traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-integration-evidence
+          path: |
+            tests/ui/test-results
+            tests/ui/test-results-pending
+            tests/ui/playwright-report
+          retention-days: 7
+      - if: failure()
+        run: python tools/workspace.py logs --scope ui
+      - if: always()
+        run: python tools/workspace.py stop --scope ui

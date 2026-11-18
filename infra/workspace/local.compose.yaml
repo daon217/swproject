@@ -1,0 +1,7 @@
+# All relative paths are resolved against the first file, infra/db/compose.yaml.
+# Local source edits reload the API. Dependency/migration changes still require up/build.
+services:
+  api:
+    volumes:
+      - ../../services/api/kkulpick:/srv/kkulpick:ro
+    command: [uvicorn, "kkulpick.api:app", --host, "0.0.0.0", --port, "8000", --reload, --reload-dir, /srv/kkulpick]

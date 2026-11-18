@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/preview-dist
+**/.expo
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/.env
+**/.env.local
+**/.env.*.local
+.git
+.venv
+data
+test-results
+playwright-report

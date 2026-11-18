@@ -1,0 +1,21 @@
+Port 2222
+HostKey /var/lib/team-ssh/ssh_host_ed25519_key
+PidFile /run/sshd.pid
+AuthorizedKeysFile /run/team_authorized_keys
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+PermitRootLogin no
+AllowUsers tunnel
+AllowTcpForwarding local
+PermitOpen api:8000 web:3000
+AllowStreamLocalForwarding no
+AllowAgentForwarding no
+X11Forwarding no
+PermitTunnel no
+PermitTTY no
+GatewayPorts no
+MaxSessions 0
+LoginGraceTime 30
+LogLevel VERBOSE

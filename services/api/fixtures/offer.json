@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "source": "demo",
+  "source_listing_id": "tea-kettle-demo",
+  "variant_key": "blue-1l",
+  "selected_domain": "product",
+  "condition": "new",
+  "name": "가상 주전자 1L",
+  "description": "연동 테스트용 가상 상품",
+  "currency": "KRW",
+  "price": "12000.0000",
+  "url": "https://store.example.test/p/demo",
+  "availability": "available",
+  "result": "success",
+  "field_presence": ["name","description","price","currency","url","availability"]
+}

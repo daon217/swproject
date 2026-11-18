@@ -59,3 +59,12 @@ tmp/
 Thumbs.db
 
 # Dependency lock files and source assets are intentionally tracked.
+
+# Locally generated benchmark results
+data/benchmarks/
+
+# Frontend preview and browser test output
+preview-dist/
+test-results/
+playwright-report/
+test-results-pending/

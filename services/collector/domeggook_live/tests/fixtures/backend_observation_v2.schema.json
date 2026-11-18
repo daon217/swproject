@@ -1,0 +1,215 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source": {
+      "pattern": "^[a-z][a-z0-9_-]{0,63}$",
+      "title": "Source",
+      "type": "string"
+    },
+    "observation_key": {
+      "maxLength": 180,
+      "minLength": 1,
+      "title": "Observation Key",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "result": {
+      "enum": [
+        "success",
+        "not_found",
+        "blocked",
+        "timeout",
+        "error"
+      ],
+      "title": "Result",
+      "type": "string"
+    },
+    "selected_domain": {
+      "enum": [
+        "product",
+        "food"
+      ],
+      "title": "Selected Domain",
+      "type": "string"
+    },
+    "source_listing_id": {
+      "anyOf": [
+        {
+          "maxLength": 180,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Listing Id"
+    },
+    "variant_key": {
+      "anyOf": [
+        {
+          "maxLength": 180,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Variant Key"
+    },
+    "condition": {
+      "default": "new",
+      "enum": [
+        "new",
+        "used"
+      ],
+      "title": "Condition",
+      "type": "string"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Name"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "price": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,21}0*$)\\d{0,16}\\.\\d{0,4}0*$)",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Price"
+    },
+    "currency": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Z]{3}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Currency"
+    },
+    "shipping_fee": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,16}|(?=[\\d.]{1,21}0*$)\\d{0,16}\\.\\d{0,4}0*$)",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Shipping Fee"
+    },
+    "availability": {
+      "anyOf": [
+        {
+          "enum": [
+            "available",
+            "out_of_stock",
+            "ended"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Availability"
+    },
+    "url": {
+      "anyOf": [
+        {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Url"
+    },
+    "field_presence": {
+      "items": {
+        "enum": [
+          "price",
+          "currency",
+          "shipping_fee",
+          "availability",
+          "url",
+          "name",
+          "description"
+        ],
+        "type": "string"
+      },
+      "title": "Field Presence",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source",
+    "observation_key",
+    "observed_at",
+    "result",
+    "selected_domain",
+    "field_presence"
+  ],
+  "title": "Observation",
+  "type": "object"
+}

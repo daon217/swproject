@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "scope": "Open getItemList discovery and getItemView incremental refresh; shared bounded ledger",
+  "limit": 5,
+  "request_interval_seconds": 10,
+  "cycle_interval_seconds": 3600,
+  "requests_per_cycle": 6,
+  "requests_per_hour": 12,
+  "requests_per_kst_day": 120,
+  "failure_rate_stop": 0.5,
+  "failure_rate_min_requests": 4,
+  "provider_requests_per_minute": 180,
+  "provider_requests_per_day": 15000,
+  "provider_policy_url": "https://docs.channel.io/domeggook_api/ko/articles/표준오류메세지-7a511249",
+  "provider_policy_checked_on": "2026-11-18",
+  "storage_grants": {},
+  "backend_enabled": false,
+  "backend_owner_approved": false,
+  "price_semantics_confirmed": false,
+  "discovery": {
+    "keywords": ["갤럭시", "아이폰", "충전기", "보조배터리", "이어폰", "키보드", "마우스", "모니터", "노트북", "휴대폰케이스", "생활용품", "주방용품", "청소용품"],
+    "categories": [],
+    "page_size": 20,
+    "max_pages_per_query": 1000,
+    "requests_per_cycle": 4,
+    "list_requests_per_cycle": 2,
+    "pending_detail_capacity": 40,
+    "sweep_interval_seconds": 86400,
+    "max_task_attempts": 3,
+    "memory_listing_limit": 200,
+    "memory_offer_limit": 2000
+  },
+  "refresh": {
+    "requests_per_cycle": 2,
+    "interval_seconds": 3600
+  }
+}

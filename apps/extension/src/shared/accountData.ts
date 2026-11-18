@@ -32,7 +32,6 @@ export function recordVisit(userId: string | undefined, raw: string): Promise<vo
   const next = previous.catch(() => undefined).then(async () => {
     const list = await loadVisits(userId);
     await setItem(accountKey(userId, 'visits'), [{ url, at: Date.now() }, ...list.filter(v => v.url !== url)].slice(0, 50));
-    await setItem(accountKey(userId, 'lastPage'), { url, at: Date.now() });
   });
   pending.set(userId, next);
   void next.finally(() => { if (pending.get(userId) === next) pending.delete(userId); });

@@ -33,17 +33,25 @@ const POLL_MS = 700;
 const POLL_TIMEOUT_MS = 30_000;
 
 const tabKey = (tabId: number) => `kp.tab.${tabId}`;
+const owners = new WeakMap<TabState, string | null>();
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
 
 chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
 
 async function readState(tabId: number): Promise<TabState | null> {
   const res = await chrome.storage.session.get(tabKey(tabId));
-  return (res[tabKey(tabId)] as TabState | undefined) ?? null;
+  const cached = res[tabKey(tabId)] as { state?: TabState; owner?: string } | undefined;
+  const token = await getAuthToken();
+  const owner = token ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)))).map(b => b.toString(16).padStart(2, '0')).join('') : '';
+  return cached?.owner === owner ? cached.state ?? null : null;
 }
 
-async function writeState(state: TabState) {
-  await chrome.storage.session.set({ [tabKey(state.tabId)]: state });
+async function writeState(state: TabState, expectedToken?: string | null) {
+  const token = await getAuthToken();
+  if (expectedToken !== undefined && token !== expectedToken) return;
+  const owner = token ? Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)))).map(b => b.toString(16).padStart(2, '0')).join('') : '';
+  await chrome.storage.session.set({ [tabKey(state.tabId)]: { state, owner } });
+  if ((await getAuthToken()) !== token) return;
   const msg: Message = { type: 'tabState', state };
   chrome.tabs.sendMessage(state.tabId, msg).catch(() => undefined);
   chrome.runtime.sendMessage(msg).catch(() => undefined);
@@ -95,13 +103,15 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<Blob | null> {
 async function isStale(tabId: number, state: TabState): Promise<boolean> {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   const latest = await readState(tabId);
-  return !tab || tab.url !== state.url || latest?.page_revision !== state.page_revision;
+  return (owners.has(state) && owners.get(state) !== await getAuthToken()) || !tab || tab.url !== state.url || latest?.page_revision !== state.page_revision;
 }
 
 async function analyze(tabId: number, url: string) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab || tab.url !== url) return;
+  const token = await getAuthToken();
   const state = await resetForUrl(tabId, url);
+  owners.set(state, token);
   const rule = captureRule(url);
   if (!rule) return; // 상품 페이지가 아니면 'none' 상태(E01 빈 화면)
 
@@ -113,8 +123,9 @@ async function analyze(tabId: number, url: string) {
   const image = await captureTab(tab);
   if (await isStale(tabId, state)) return; // 캡처 전후 탭/URL이 바뀌면 폐기
 
-  await writeState({ ...state, status: 'analyzing' });
+  await writeState({ ...state, status: 'analyzing' }, token);
   const page_product = (await readPageScan(tabId))?.product ?? null;
+  if (await isStale(tabId, state)) return;
   try {
     const created = await api.createAnalysis({
       image,
@@ -132,22 +143,24 @@ async function analyze(tabId: number, url: string) {
         return;
       }
       analysis = await api.getAnalysis(created.analysis_id);
+      if (await isStale(tabId, state)) return;
       // 응답이 현재 페이지 세션·버전과 다르면 표시하지 않는다.
       if (analysis.page_session_id !== state.page_session_id || analysis.page_revision !== state.page_revision) return;
       if (analysis.state === 'completed' || analysis.state === 'failed' || analysis.state === 'cancelled') {
         // AI 추천이 먼저 끝나면 바로 보여주고, 중고 구역처럼 남은 구역은 계속 갱신한다.
-        await writeState({ ...state, status: analysis.state === 'completed' ? 'done' : 'error', analysis, error: analysis.error?.message ?? null });
+        await writeState({ ...state, status: analysis.state === 'completed' ? 'done' : 'error', analysis, error: analysis.error?.message ?? null }, token);
         if (!analysis.sections.some((s) => s.state === 'loading')) return;
       }
       await new Promise((r) => setTimeout(r, POLL_MS));
     }
+    if (await isStale(tabId, state)) return;
     if (analysis?.state !== 'completed') {
       await api.cancelAnalysis(created.analysis_id).catch(() => undefined);
-      await writeState({ ...state, status: 'error', analysis: null, error: '분석 시간이 오래 걸리고 있어요.' });
+      await writeState({ ...state, status: 'error', analysis: null, error: '분석 시간이 오래 걸리고 있어요.' }, token);
     }
   } catch (e) {
     if (await isStale(tabId, state)) return;
-    await writeState({ ...state, status: 'error', analysis: null, error: e instanceof Error ? e.message : '분석에 실패했어요.' });
+    await writeState({ ...state, status: 'error', analysis: null, error: e instanceof Error ? e.message : '분석에 실패했어요.' }, token);
   }
 }
 
@@ -181,7 +194,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // 로그인/로그아웃 시 권한·개인화가 바뀌므로 현재 탭을 다시 분석한다.
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && KEYS.auth in changes) void reanalyzeActive();
+  if (area === 'local' && KEYS.auth in changes) {
+    for (const timer of timers.values()) clearTimeout(timer);
+    timers.clear();
+    void chrome.tabs.query({}).then(async tabs => {
+      for (const tab of tabs) if (tab.id !== undefined) await resetForUrl(tab.id, tab.url ?? '');
+      await reanalyzeActive();
+    });
+  }
 });
 
 chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {

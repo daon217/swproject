@@ -94,6 +94,7 @@ function Shell() {
     return onItemChange(KEYS.pendingRoute, () => void consumeRoute());
   }, [consumeRoute]);
 
+  if (loading) return <p>로그인 상태 확인 중…</p>;
   let top = stack[stack.length - 1];
   // 로그아웃 상태에서 회원 화면이 열려 있으면 로그인 화면을 대신 보여준다.
   if (!loading && top && !me && MEMBER_ONLY.includes(top)) top = 'login';
@@ -102,7 +103,7 @@ function Shell() {
 
   return (
     <NavCtx.Provider value={nav}>
-      <div className="kp-root sp-app">
+      <div className="kp-root sp-app" key={me?.user_id ?? 'guest'}>
         {top ? (
           <div className="sp-screen" key={top}>
             <ScreenView screen={top} />

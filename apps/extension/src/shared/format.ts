@@ -60,7 +60,7 @@ export function formatDate(iso: string): string {
 export function safeHttpUrl(url: string): string | null {
   try {
     const u = new URL(url);
-    return u.protocol === 'https:' || u.protocol === 'http:' ? u.href : null;
+    return !u.username && !u.password && (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null;
   } catch {
     return null;
   }

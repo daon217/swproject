@@ -35,7 +35,13 @@ export async function removeItem(key: string): Promise<void> {
 export function onItemChange(key: string, cb: () => void): () => void {
   if (!listeners.has(key)) listeners.set(key, new Set());
   listeners.get(key)!.add(cb);
-  return () => listeners.get(key)?.delete(cb);
+  const crossTab = (event: StorageEvent) => { if (event.key === key || event.key === null) cb(); };
+  const web = typeof window !== 'undefined' && typeof window.addEventListener === 'function';
+  if (web) window.addEventListener('storage', crossTab);
+  return () => {
+    listeners.get(key)?.delete(cb);
+    if (web) window.removeEventListener('storage', crossTab);
+  };
 }
 
 export const KEYS = {

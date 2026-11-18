@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from '../shared/api';
 import { clearAuth, getAuth, saveAuth } from '../shared/auth';
 import { sendMessage } from '../shared/messages';
@@ -20,7 +20,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<Me | null>(null);
 
+  const refreshVersion = useRef(0);
   const refresh = useCallback(async () => {
+    const version = ++refreshVersion.current;
     const auth = await getAuth();
     if (!auth) {
       setMe(null);
@@ -29,22 +31,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
     try {
       const m = await api.getMe();
+      if (version !== refreshVersion.current || (await getAuth())?.token !== auth.token) return null;
       setMe(m);
       return m;
     } catch (e) {
+      if (version !== refreshVersion.current || (await getAuth())?.token !== auth.token) return null;
       if (e instanceof ApiError && e.status === 401) {
         await clearAuth();
         setMe(null);
       }
       return null;
     } finally {
-      setLoading(false);
+      if (version === refreshVersion.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void refresh();
-    return onItemChange(KEYS.auth, () => void refresh());
+    return onItemChange(KEYS.auth, () => { setMe(null); void refresh(); });
   }, [refresh]);
 
   const login = useCallback(

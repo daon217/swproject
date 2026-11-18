@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { clearPendingBrowserNavigation } from './browserBus';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api } from './shared/api';
 import { clearAuth, getAuth, saveAuth } from './shared/auth';
 import { KEYS, onItemChange } from './shared/storage';
@@ -33,30 +34,37 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [me, setMeState] = useState<Me | null>(null);
 
+  const refreshVersion = useRef(0);
   const refresh = useCallback(async () => {
-    if (!(await getAuth())) {
+    const version = ++refreshVersion.current;
+    const auth = await getAuth();
+    if (!auth) {
       setMeState(null);
       setLoading(false);
       return null;
     }
     try {
       const m = await api.getMe();
+      if (version !== refreshVersion.current || (await getAuth())?.token !== auth.token) return null;
       setMeState(m);
       return m;
     } catch (e) {
+      if (version !== refreshVersion.current || (await getAuth())?.token !== auth.token) return null;
       if (e instanceof ApiError && e.status === 401) {
         await clearAuth();
         setMeState(null);
       }
       return null;
     } finally {
-      setLoading(false);
+      if (version === refreshVersion.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void Promise.resolve().then(refresh);
     return onItemChange(KEYS.auth, () => {
+      clearPendingBrowserNavigation();
+      setMeState(null);
       void refresh();
       requestReanalyze();
     });
@@ -71,6 +79,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await api.logout().catch(() => undefined);
     await clearAuth();
+    setMeState(null);
   }, []);
 
   const setMe = useCallback((m: Me) => {

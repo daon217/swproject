@@ -1,3 +1,4 @@
+import { loadVisits, recordVisit, clearVisits, type Visit } from '../../shared/accountData';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../shared/api';
 import { formatPrice, safeHttpUrl } from '../../shared/format';
@@ -116,19 +117,37 @@ function GuestRecent({ onLogin }: { onLogin: () => void }) {
 
 // ---------- 바로가기 (E03~E06) : 이 기기(chrome.storage.local)에만 저장 ----------
 export function ShortcutsTab() {
+  const { me, loading } = useSession();
+  if (loading) return null;
+  return <AccountShortcuts key={me?.user_id ?? 'guest'} userId={me?.user_id} />;
+}
+function AccountShortcuts({ userId }: { userId?: string }) {
   const [list, setList] = useState<Shortcut[]>(DEFAULT_SHORTCUTS);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const dragFrom = useRef<number | null>(null);
 
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    void loadShortcuts().then(setList);
-  }, []);
+    let alive = true;
+    void Promise.all([loadShortcuts(userId), loadVisits(userId)]).then(([saved, history]) => {
+      if (alive) { setList(saved); setVisits(history); setReady(true); }
+    });
+    return () => { alive = false; };
+  }, [userId]);
+  const open = (url: string) => {
+    void recordVisit(userId, url).then(() => loadVisits(userId)).then(setVisits);
+    openUrl(url);
+  };
+  const clearHistory = async () => { await clearVisits(userId); setVisits([]); };
+
 
   const update = (next: Shortcut[]) => {
+    if (!userId || !ready) return;
     setList(next);
-    void saveShortcuts(next);
+    void saveShortcuts(next, userId);
   };
 
   const remove = (id: string) => update(list.filter((s) => s.id !== id));
@@ -144,12 +163,13 @@ export function ShortcutsTab() {
     <div className="sp-scroll sp-pad">
       <div className="sp-title-row">
         <h1 className="sp-title">{editing ? '바로가기 편집' : '쇼핑몰 바로가기'}</h1>
-        <button className={`kp-btn kp-btn-pill ${editing ? 'is-solid' : ''}`} onClick={() => setEditing(!editing)}>
+        <button className={`kp-btn kp-btn-pill ${editing ? 'is-solid' : ''}`} disabled={!userId || !ready} onClick={() => setEditing(!editing)}>
           {editing ? '완료' : '편집'}
         </button>
       </div>
       <p className="sp-desc">{editing ? '−를 눌러 삭제하고, 끌어서 순서를 바꿔요.' : '자주 가는 쇼핑몰을 직접 추가하고 정리할 수 있어요.'}</p>
 
+      {!userId && <Note>로그인하면 나만의 바로가기와 방문 기록을 이 기기에 저장할 수 있어요.</Note>}
       <ul className="sp-shortcuts">
         {list.map((s, i) => (
           <li
@@ -164,11 +184,11 @@ export function ShortcutsTab() {
           >
             <button
               className={`sp-shortcut ${editing ? 'is-editing' : ''}`}
-              onClick={() => !editing && openUrl(s.url)}
+              onClick={() => !editing && open(s.url)}
               aria-label={editing ? `${s.name} (끌어서 이동)` : `${s.name} 새 탭에서 열기`}
             >
               <span className="sp-shortcut-icon">{s.mark ?? s.name.trim().charAt(0)}</span>
-              <span className="sp-shortcut-name">{s.name}</span>
+              <span className="sp-shortcut-name">{s.name}</span><small>{DEFAULT_SHORTCUTS.some(d => d.id === s.id) ? '기본 제공' : '내가 저장'}</small>
             </button>
             {editing && (
               <button className="sp-shortcut-remove" onClick={() => remove(s.id)} aria-label={`${s.name} 삭제`}>
@@ -178,7 +198,7 @@ export function ShortcutsTab() {
           </li>
         ))}
         <li>
-          <button className="sp-shortcut" onClick={() => setAdding(true)} aria-label="바로가기 추가">
+          <button className="sp-shortcut" disabled={!userId || !ready} onClick={() => setAdding(true)} aria-label="바로가기 추가">
             <span className="sp-shortcut-icon is-add">
               <IconPlus size={22} />
             </span>
@@ -187,8 +207,16 @@ export function ShortcutsTab() {
         </li>
       </ul>
 
-      <Note>{editing ? '변경한 바로가기는 이 기기에 저장돼요.' : '바로가기를 누르면 새 탭에서 열리고, 상품 페이지에서 AI 추천이 화면에 표시돼요.'}</Note>
+      <Note>{editing ? '변경한 바로가기는 현재 계정 전용으로 이 기기에 저장돼요.' : '바로가기를 누르면 새 탭에서 열리고, 상품 페이지에서 AI 추천이 화면에 표시돼요.'}</Note>
 
+      <section aria-label="최근 방문 페이지">
+        <h2>최근 방문 페이지</h2>
+        <p className="sp-desc">앱에서 직접 연 페이지를 최대 50개·30일간 이 기기에 보관해요. 바로가기와는 별개예요.</p>
+        {visits[0] && <button className="kp-btn" onClick={() => open(visits[0].url)}>마지막 페이지 다시 열기</button>}
+        {visits.slice(0, 10).map(v => <p key={v.url}><button className="kp-text-btn" onClick={() => open(v.url)}>{v.url}</button></p>)}
+        {!visits.length && <p>방문 기록이 없어요.</p>}
+        {!!visits.length && <button className="kp-btn" onClick={() => void clearHistory()}>방문 기록 삭제</button>}
+      </section>
       {adding && (
         <AddShortcutSheet
           onCancel={() => setAdding(false)}

@@ -1,3 +1,5 @@
+import { clearAccountData } from '../../shared/accountData';
+import { loginIdError, passwordError, signupErrors } from '../../shared/validation';
 import { useEffect, useRef, useState } from 'react';
 import { allergenLabel } from '../../shared/allergens';
 import { api } from '../../shared/api';
@@ -31,10 +33,11 @@ export function LoginScreen() {
 
   const submit = async () => {
     if (!id || !pw) return setError('아이디와 비밀번호를 입력해 주세요.');
+    if (loginIdError(id)) return setError(loginIdError(id)!);
     setBusy(true);
     setError(null);
     try {
-      await login(id.trim(), pw);
+      await login(id, pw);
       // 회원 화면 대신 로그인이 떠 있던 경우에는 그 화면이 그대로 이어서 보인다.
       if (nav.stack[nav.stack.length - 1] === 'login') nav.pop();
     } catch (e) {
@@ -91,7 +94,15 @@ export function SignupScreen() {
   const [alert, setAlert] = useState<Alert>(null);
   /** 중복확인을 통과한 아이디. 아이디를 바꾸면 다시 확인해야 한다. */
   const [checkedId, setCheckedId] = useState<string | null>(null);
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => {
+    const value = e.target.value;
+    const nextForm = { ...form, [k]: value };
+    setForm(nextForm);
+    if (k === 'id') setCheckedId(null);
+    const live = signupErrors(nextForm);
+    setErrors(previous => ({ ...previous, id: nextForm.id ? live.id ?? '' : '',
+      pw: nextForm.pw ? live.pw ?? '' : '', pw2: nextForm.pw2 ? live.pw2 ?? '' : '' }));
+  };
 
   const checkId = async () => {
     if (!LOGIN_ID_RE.test(form.id)) return setAlert({ title: '아이디 확인', body: '아이디는 영문·숫자 4~16자로 입력해 주세요.' });
@@ -112,8 +123,8 @@ export function SignupScreen() {
 
   const validate = () => {
     const er: Record<string, string> = {};
-    if (!LOGIN_ID_RE.test(form.id)) er.id = '영문·숫자 4~16자로 입력해 주세요.';
-    if (form.pw.length < 8) er.pw = '비밀번호는 8자 이상이어야 해요.';
+    if (loginIdError(form.id)) er.id = loginIdError(form.id)!;
+    if (passwordError(form.pw)) er.pw = passwordError(form.pw)!;
     if (form.pw2 !== form.pw) er.pw2 = '비밀번호가 일치하지 않아요.';
     if (form.birth && form.birth > todaySeoul()) er.birth = '미래 날짜는 입력할 수 없어요.';
     if (!consent) er.consent = '개인정보 수집 및 이용에 동의해 주세요.';
@@ -181,7 +192,7 @@ export function SignupScreen() {
       <SubHeader title="회원가입" />
       <Page
         footer={
-          <button className="kp-btn kp-btn-primary kp-btn-block" onClick={() => void submit()} disabled={busy}>
+          <button className="kp-btn kp-btn-primary kp-btn-block" onClick={() => void submit()} disabled={busy || !!loginIdError(form.id) || !!passwordError(form.pw) || form.pw !== form.pw2}>
             동의하고 가입하기
           </button>
         }
@@ -483,7 +494,7 @@ export function PasswordScreen() {
   const [alert, setAlert] = useState<Alert>(null);
 
   const submit = async () => {
-    if (next.length < 8) return setError('새 비밀번호는 8자 이상이어야 해요.');
+    if (passwordError(next)) return setError(passwordError(next)!);
     if (next !== next2) return setAlert({ title: '새 비밀번호 불일치', body: '새 비밀번호와 새 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
     setBusy(true);
     setError(null);
@@ -505,15 +516,15 @@ export function PasswordScreen() {
       <SubHeader title="비밀번호 변경" />
       <Page
         footer={
-          <button className="kp-btn kp-btn-primary kp-btn-block" onClick={() => void submit()} disabled={busy || !cur || !next || !next2}>
+          <button className="kp-btn kp-btn-primary kp-btn-block" onClick={() => void submit()} disabled={busy || !cur || !!passwordError(next) || next !== next2}>
             비밀번호 변경
           </button>
         }
       >
         <h1 className="sp-heading">새 비밀번호를 설정하세요</h1>
         <Field label="현재 비밀번호" type="password" placeholder="현재 비밀번호 입력" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} />
-        <Field label="새 비밀번호" type="password" placeholder="새 비밀번호 입력" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
-        <Field label="새 비밀번호 확인" type="password" placeholder="새 비밀번호 다시 입력" autoComplete="new-password" value={next2} onChange={(e) => setNext2(e.target.value)} />
+        <Field label="새 비밀번호" type="password" placeholder="새 비밀번호 입력" autoComplete="new-password" error={next ? passwordError(next) : undefined} value={next} onChange={(e) => setNext(e.target.value)} />
+        <Field label="새 비밀번호 확인" type="password" placeholder="새 비밀번호 다시 입력" autoComplete="new-password" error={next2 && next !== next2 ? '비밀번호가 일치하지 않아요.' : undefined} value={next2} onChange={(e) => setNext2(e.target.value)} />
         <Note>새 비밀번호와 확인 값이 같아야 변경할 수 있어요.</Note>
         {error && <p className="sp-error">{error}</p>}
       </Page>
@@ -549,6 +560,7 @@ export function WithdrawScreen() {
     setBusy(true);
     try {
       await api.deleteAccount(pw);
+      if (me) await clearAccountData(me.user_id);
       setDone(true);
       setAlert({ title: '탈퇴가 접수됐어요', body: '그동안 꿀픽을 이용해 주셔서 감사해요. 개인 정보는 차례로 삭제돼요.' });
     } catch (e) {

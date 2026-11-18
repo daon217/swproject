@@ -1,3 +1,4 @@
+import { clearAccountData } from '../shared/accountData';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -38,6 +39,7 @@ export default function WithdrawScreen() {
     setBusy(true);
     try {
       await api.deleteAccount(pw);
+      if (me) await clearAccountData(me.user_id);
       setDone(true);
       setAlert({ title: '탈퇴가 접수됐어요', body: '그동안 꿀픽을 이용해 주셔서 감사해요.\n개인 정보는 차례로 삭제돼요.' });
     } catch (e) {

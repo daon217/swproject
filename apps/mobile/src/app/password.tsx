@@ -1,3 +1,4 @@
+import { passwordError } from '../shared/validation';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
@@ -18,7 +19,7 @@ export default function PasswordScreen() {
   const [alert, setAlert] = useState<Alert>(null);
 
   const submit = async () => {
-    if (next.length < 8) return setError('새 비밀번호는 8자 이상이어야 해요.');
+    if (passwordError(next)) return setError(passwordError(next)!);
     if (next !== next2) return setAlert({ title: '새 비밀번호 불일치', body: '새 비밀번호와 새 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
     setBusy(true);
     setError(null);
@@ -37,11 +38,11 @@ export default function PasswordScreen() {
   return (
     <View style={{ flex: 1 }}>
       <SubHeader title="비밀번호 변경" />
-      <Page footer={<Button label="비밀번호 변경" onPress={() => void submit()} loading={busy} disabled={!cur || !next || !next2} />}>
+      <Page footer={<Button label="비밀번호 변경" onPress={() => void submit()} loading={busy} disabled={!cur || !!passwordError(next) || next !== next2} />}>
         <Text style={{ fontSize: 20, fontWeight: '800', color: C.text, marginBottom: 16 }}>새 비밀번호를 설정하세요</Text>
         <Field label="현재 비밀번호" placeholder="현재 비밀번호 입력" secureTextEntry autoComplete="current-password" value={cur} onChangeText={setCur} />
-        <Field label="새 비밀번호" placeholder="새 비밀번호 입력" secureTextEntry autoComplete="new-password" value={next} onChangeText={setNext} />
-        <Field label="새 비밀번호 확인" placeholder="새 비밀번호 다시 입력" secureTextEntry autoComplete="new-password" value={next2} onChangeText={setNext2} />
+        <Field label="새 비밀번호" placeholder="새 비밀번호 입력" secureTextEntry autoComplete="new-password" error={next ? passwordError(next) : undefined} value={next} onChangeText={setNext} />
+        <Field label="새 비밀번호 확인" placeholder="새 비밀번호 다시 입력" secureTextEntry autoComplete="new-password" error={next2 && next !== next2 ? '비밀번호가 일치하지 않아요.' : undefined} value={next2} onChangeText={setNext2} />
         <Note>새 비밀번호와 확인 값이 같아야 변경할 수 있어요.</Note>
         {error && <ErrorText>{error}</ErrorText>}
       </Page>

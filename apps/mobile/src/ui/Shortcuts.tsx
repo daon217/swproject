@@ -1,3 +1,5 @@
+import { useSession } from '../session';
+import { loadVisits, recordVisit, clearVisits, type Visit } from '../shared/accountData';
 import { useEffect, useState } from 'react';
 import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { safeHttpUrl } from '../shared/format';
@@ -12,18 +14,36 @@ import { KEYBOARD_BEHAVIOR } from './useKeyboard';
 // 편집 모드에서 −로 삭제하고, ‹ › 버튼으로 순서를 바꾼다(드래그 대신 접근성 있는 방식).
 
 export function ShortcutsHome({ onOpen }: { onOpen: (url: string) => void }) {
+  const { me, loading } = useSession();
+  if (loading) return null;
+  return <AccountShortcuts key={me?.user_id ?? 'guest'} userId={me?.user_id} onOpen={onOpen} />;
+}
+function AccountShortcuts({ userId, onOpen }: { userId?: string; onOpen: (url: string) => void }) {
   const [list, setList] = useState<Shortcut[]>(DEFAULT_SHORTCUTS);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [visits, setVisits] = useState<Visit[]>([]);
+  const [ready, setReady] = useState(false);
   useEffect(() => {
-    void loadShortcuts().then(setList);
-  }, []);
+    let alive = true;
+    void Promise.all([loadShortcuts(userId), loadVisits(userId)]).then(([saved, history]) => {
+      if (alive) { setList(saved); setVisits(history); setReady(true); }
+    });
+    return () => { alive = false; };
+  }, [userId]);
+  const open = (url: string) => {
+    void recordVisit(userId, url).then(() => loadVisits(userId)).then(setVisits);
+    onOpen(url);
+  };
+  const clearHistory = async () => { await clearVisits(userId); setVisits([]); };
+
 
   const update = (next: Shortcut[]) => {
+    if (!userId || !ready) return;
     setList(next);
-    void saveShortcuts(next);
+    void saveShortcuts(next, userId);
   };
   const move = (i: number, d: -1 | 1) => {
     const j = i + d;
@@ -38,14 +58,15 @@ export function ShortcutsHome({ onOpen }: { onOpen: (url: string) => void }) {
       <ScrollView contentContainerStyle={{ padding: 24 }}>
         <View style={st.titleRow}>
           <Text style={st.title}>{editing ? '바로가기 편집' : '쇼핑몰 바로가기'}</Text>
-          <Button variant={editing ? 'primary' : 'pill'} label={editing ? '완료' : '편집'} onPress={() => setEditing(!editing)} style={editing ? { height: 34, borderRadius: 999 } : undefined} />
+          <Button variant={editing ? 'primary' : 'pill'} disabled={!userId || !ready} label={editing ? '완료' : '편집'} onPress={() => setEditing(!editing)} style={editing ? { height: 34, borderRadius: 999 } : undefined} />
         </View>
         <Desc>{editing ? '−를 눌러 삭제하고, 화살표로 순서를 바꿔요.' : '자주 가는 쇼핑몰을 직접 추가하고 정리할 수 있어요.'}</Desc>
+        {!userId && <Note>로그인하면 나만의 바로가기와 방문 기록을 이 기기에 저장할 수 있어요.</Note>}
         <View style={st.grid}>
           {list.map((sc, i) => (
             <View key={sc.id} style={st.cell}>
               <Pressable
-                onPress={() => !editing && onOpen(sc.url)}
+                onPress={() => !editing && open(sc.url)}
                 style={[st.icon, editing && st.iconEditing]}
                 accessibilityRole="button"
                 accessibilityLabel={editing ? sc.name : `${sc.name} 열기`}
@@ -54,7 +75,7 @@ export function ShortcutsHome({ onOpen }: { onOpen: (url: string) => void }) {
               </Pressable>
               <Text style={st.name} numberOfLines={1}>
                 {sc.name}
-              </Text>
+              </Text><Text style={{ fontSize: 10, color: C.sub }}>{DEFAULT_SHORTCUTS.some(d => d.id === sc.id) ? '기본 제공' : '내가 저장'}</Text>
               {editing && (
                 <>
                   <Pressable style={st.remove} onPress={() => update(list.filter((x) => x.id !== sc.id))} accessibilityLabel={`${sc.name} 삭제`} hitSlop={6}>
@@ -73,13 +94,19 @@ export function ShortcutsHome({ onOpen }: { onOpen: (url: string) => void }) {
             </View>
           ))}
           <View style={st.cell}>
-            <Pressable style={[st.icon, st.iconAdd]} onPress={() => setAdding(true)} accessibilityRole="button" accessibilityLabel="바로가기 추가">
+            <Pressable style={[st.icon, st.iconAdd]} disabled={!userId || !ready} onPress={() => setAdding(true)} accessibilityRole="button" accessibilityLabel="바로가기 추가">
               <IconPlus size={22} color={C.sub} />
             </Pressable>
             <Text style={[st.name, { color: C.sub }]}>추가</Text>
           </View>
         </View>
-        <Note>{editing ? '변경한 바로가기는 이 기기에 저장돼요.' : '바로가기를 누르면 앱 안 브라우저로 열리고, 상품 페이지에서 AI 추천이 화면에 표시돼요.'}</Note>
+        <Note>{editing ? '변경한 바로가기는 현재 계정 전용으로 이 기기에 저장돼요.' : '바로가기를 누르면 앱 안 브라우저로 열리고, 상품 페이지에서 AI 추천이 화면에 표시돼요.'}</Note>
+        <Text style={st.sheetTitle}>최근 방문 페이지</Text>
+        <Desc>앱에서 직접 연 페이지를 최대 50개·30일간 이 기기에 보관해요. 바로가기와는 별개예요.</Desc>
+        {visits[0] && <Button label="마지막 페이지 다시 열기" onPress={() => open(visits[0].url)} />}
+        {visits.slice(0, 10).map(v => <Button key={v.url} variant="outline" label={v.url} onPress={() => open(v.url)} />)}
+        {!visits.length && <Text>방문 기록이 없어요.</Text>}
+        {!!visits.length && <Button label="방문 기록 삭제" onPress={() => void clearHistory()} />}
       </ScrollView>
       {adding && <AddSheet
         visible={adding}

@@ -1,0 +1,229 @@
+{
+ "time": "20261118-180838",
+ "model": "local:gemma-4-26b",
+ "note": "gemma-4-26b 1회차",
+ "summary": {
+  "queries": 8,
+  "errors": 0,
+  "avg_bytes": 3012,
+  "avg_user_bytes": 1866,
+  "avg_retention": 0.912,
+  "avg_input_tokens": 1202.875,
+  "avg_output_tokens": 39.625,
+  "avg_precision@3": 0.958,
+  "avg_recall@3": 0.875,
+  "avg_latency_s": 1.505,
+  "avg_invalid_ids": 0,
+  "avg_gold_in_candidates": 0.917,
+  "bytes_vs_json": 0.656,
+  "tokens_vs_json": 0.666
+ },
+ "rows": [
+  {
+   "qid": "q1",
+   "method": "llmlingua2",
+   "chars": 1576,
+   "bytes": 2998,
+   "user_bytes": 1852,
+   "retention": 0.913,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.667,
+    "price": 1.0,
+    "ingredient": 0.939
+   },
+   "n_candidates": 12,
+   "latency_s": 2.47,
+   "picks": [
+    "bench:f11",
+    "bench:f12",
+    "bench:f20"
+   ],
+   "precision@3": 0.667,
+   "recall@3": 0.667,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1198,
+   "output_tokens": 78
+  },
+  {
+   "qid": "q2",
+   "method": "llmlingua2",
+   "chars": 1639,
+   "bytes": 3123,
+   "user_bytes": 1977,
+   "retention": 0.882,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.583,
+    "price": 1.0,
+    "ingredient": 0.906
+   },
+   "n_candidates": 12,
+   "latency_s": 1.16,
+   "picks": [
+    "bench:f04"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.333,
+   "gold_in_candidates": 0.333,
+   "invalid_ids": 0,
+   "input_tokens": 1214,
+   "output_tokens": 30
+  },
+  {
+   "qid": "q3",
+   "method": "llmlingua2",
+   "chars": 1637,
+   "bytes": 3081,
+   "user_bytes": 1935,
+   "retention": 0.871,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.5,
+    "price": 1.0,
+    "ingredient": 0.912
+   },
+   "n_candidates": 12,
+   "latency_s": 1.62,
+   "picks": [
+    "bench:f02",
+    "bench:f13"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1219,
+   "output_tokens": 48
+  },
+  {
+   "qid": "q4",
+   "method": "llmlingua2",
+   "chars": 1590,
+   "bytes": 2994,
+   "user_bytes": 1848,
+   "retention": 0.944,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.75,
+    "price": 1.0,
+    "ingredient": 0.971
+   },
+   "n_candidates": 12,
+   "latency_s": 1.42,
+   "picks": [
+    "bench:f15"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1208,
+   "output_tokens": 30
+  },
+  {
+   "qid": "q5",
+   "method": "llmlingua2",
+   "chars": 1609,
+   "bytes": 2957,
+   "user_bytes": 1811,
+   "retention": 0.884,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.5,
+    "price": 1.0,
+    "ingredient": 0.939
+   },
+   "n_candidates": 12,
+   "latency_s": 0.95,
+   "picks": [
+    "bench:f09"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1200,
+   "output_tokens": 20
+  },
+  {
+   "qid": "q6",
+   "method": "llmlingua2",
+   "chars": 1598,
+   "bytes": 3040,
+   "user_bytes": 1894,
+   "retention": 0.904,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.667,
+    "price": 1.0,
+    "ingredient": 0.909,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.12,
+   "picks": [
+    "bench:f20"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1213,
+   "output_tokens": 28
+  },
+  {
+   "qid": "q7",
+   "method": "llmlingua2",
+   "chars": 1596,
+   "bytes": 2896,
+   "user_bytes": 1750,
+   "retention": 0.957,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.833,
+    "price": 1.0,
+    "ingredient": 0.966,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.42,
+   "picks": [
+    "bench:f16"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1160,
+   "output_tokens": 25
+  },
+  {
+   "qid": "q8",
+   "method": "llmlingua2",
+   "chars": 1621,
+   "bytes": 3007,
+   "user_bytes": 1861,
+   "retention": 0.943,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.75,
+    "price": 1.0,
+    "ingredient": 0.971
+   },
+   "n_candidates": 12,
+   "latency_s": 1.88,
+   "picks": [
+    "bench:f18",
+    "bench:f19"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1211,
+   "output_tokens": 58
+  }
+ ]
+}

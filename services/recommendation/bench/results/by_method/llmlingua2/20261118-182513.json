@@ -1,0 +1,146 @@
+{
+ "time": "20261118-182513",
+ "model": null,
+ "note": "압축 속도만 (LLM 없음)",
+ "summary": {
+  "queries": 8,
+  "errors": 0,
+  "avg_bytes": 3012,
+  "avg_user_bytes": 1866,
+  "avg_retention": 0.912,
+  "avg_compress_ms": 1011.805,
+  "bytes_vs_json": 0.656
+ },
+ "rows": [
+  {
+   "qid": "q1",
+   "method": "llmlingua2",
+   "chars": 1576,
+   "bytes": 2998,
+   "user_bytes": 1852,
+   "retention": 0.913,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.667,
+    "price": 1.0,
+    "ingredient": 0.939
+   },
+   "n_candidates": 12,
+   "compress_ms": 928.64
+  },
+  {
+   "qid": "q2",
+   "method": "llmlingua2",
+   "chars": 1639,
+   "bytes": 3123,
+   "user_bytes": 1977,
+   "retention": 0.882,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.583,
+    "price": 1.0,
+    "ingredient": 0.906
+   },
+   "n_candidates": 12,
+   "compress_ms": 1254.16
+  },
+  {
+   "qid": "q3",
+   "method": "llmlingua2",
+   "chars": 1637,
+   "bytes": 3081,
+   "user_bytes": 1935,
+   "retention": 0.871,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.5,
+    "price": 1.0,
+    "ingredient": 0.912
+   },
+   "n_candidates": 12,
+   "compress_ms": 1152.66
+  },
+  {
+   "qid": "q4",
+   "method": "llmlingua2",
+   "chars": 1590,
+   "bytes": 2994,
+   "user_bytes": 1848,
+   "retention": 0.944,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.75,
+    "price": 1.0,
+    "ingredient": 0.971
+   },
+   "n_candidates": 12,
+   "compress_ms": 1124.73
+  },
+  {
+   "qid": "q5",
+   "method": "llmlingua2",
+   "chars": 1609,
+   "bytes": 2957,
+   "user_bytes": 1811,
+   "retention": 0.884,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.5,
+    "price": 1.0,
+    "ingredient": 0.939
+   },
+   "n_candidates": 12,
+   "compress_ms": 856.7
+  },
+  {
+   "qid": "q6",
+   "method": "llmlingua2",
+   "chars": 1598,
+   "bytes": 3040,
+   "user_bytes": 1894,
+   "retention": 0.904,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.667,
+    "price": 1.0,
+    "ingredient": 0.909,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 868.58
+  },
+  {
+   "qid": "q7",
+   "method": "llmlingua2",
+   "chars": 1596,
+   "bytes": 2896,
+   "user_bytes": 1750,
+   "retention": 0.957,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.833,
+    "price": 1.0,
+    "ingredient": 0.966,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 950.92
+  },
+  {
+   "qid": "q8",
+   "method": "llmlingua2",
+   "chars": 1621,
+   "bytes": 3007,
+   "user_bytes": 1861,
+   "retention": 0.943,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 0.75,
+    "price": 1.0,
+    "ingredient": 0.971
+   },
+   "n_candidates": 12,
+   "compress_ms": 958.05
+  }
+ ]
+}

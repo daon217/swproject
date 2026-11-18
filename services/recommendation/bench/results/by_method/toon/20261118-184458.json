@@ -1,0 +1,393 @@
+{
+ "time": "20261118-184458",
+ "model": "local:gemma-4-26b",
+ "note": "5차 hard gemma-4-26b",
+ "summary": {
+  "queries": 13,
+  "errors": 0,
+  "avg_bytes": 2696,
+  "avg_user_bytes": 1560,
+  "avg_retention": 1.0,
+  "avg_compress_ms": 0.511,
+  "avg_total_s": 1.698,
+  "avg_input_tokens": 1031.231,
+  "avg_output_tokens": 50.154,
+  "avg_precision@3": 1.0,
+  "avg_recall@3": 0.885,
+  "avg_latency_s": 1.697,
+  "avg_invalid_ids": 0,
+  "avg_gold_in_candidates": 0.885,
+  "bytes_vs_json": 0.655,
+  "tokens_vs_json": 0.635
+ },
+ "rows": [
+  {
+   "qid": "k01",
+   "method": "toon",
+   "chars": 1461,
+   "bytes": 2785,
+   "user_bytes": 1649,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.57,
+   "latency_s": 1.68,
+   "total_s": 1.68,
+   "picks": [
+    "hard:h04",
+    "hard:h02"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1048,
+   "output_tokens": 40
+  },
+  {
+   "qid": "k02",
+   "method": "toon",
+   "chars": 1409,
+   "bytes": 2645,
+   "user_bytes": 1509,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.51,
+   "latency_s": 1.57,
+   "total_s": 1.58,
+   "picks": [
+    "hard:h15",
+    "hard:h13"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1017,
+   "output_tokens": 45
+  },
+  {
+   "qid": "k03",
+   "method": "toon",
+   "chars": 1384,
+   "bytes": 2606,
+   "user_bytes": 1470,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.52,
+   "latency_s": 1.01,
+   "total_s": 1.01,
+   "picks": [
+    "hard:h10"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.5,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 991,
+   "output_tokens": 25
+  },
+  {
+   "qid": "k04",
+   "method": "toon",
+   "chars": 1405,
+   "bytes": 2627,
+   "user_bytes": 1491,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.48,
+   "latency_s": 2.18,
+   "total_s": 2.18,
+   "picks": [
+    "hard:h23",
+    "hard:h22",
+    "hard:h26"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1009,
+   "output_tokens": 72
+  },
+  {
+   "qid": "k05",
+   "method": "toon",
+   "chars": 1460,
+   "bytes": 2760,
+   "user_bytes": 1624,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.51,
+   "latency_s": 2.0,
+   "total_s": 2.0,
+   "picks": [
+    "hard:h28",
+    "hard:h24",
+    "hard:h30"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 0.75,
+   "invalid_ids": 0,
+   "input_tokens": 1054,
+   "output_tokens": 66
+  },
+  {
+   "qid": "k06",
+   "method": "toon",
+   "chars": 1428,
+   "bytes": 2692,
+   "user_bytes": 1556,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.51,
+   "latency_s": 1.7,
+   "total_s": 1.7,
+   "picks": [
+    "hard:h28",
+    "hard:h32"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.667,
+   "gold_in_candidates": 0.667,
+   "invalid_ids": 0,
+   "input_tokens": 1031,
+   "output_tokens": 54
+  },
+  {
+   "qid": "k07",
+   "method": "toon",
+   "chars": 1420,
+   "bytes": 2660,
+   "user_bytes": 1524,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.5,
+   "latency_s": 2.34,
+   "total_s": 2.34,
+   "picks": [
+    "hard:h34",
+    "hard:h35",
+    "hard:h36"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 0.75,
+   "invalid_ids": 0,
+   "input_tokens": 1032,
+   "output_tokens": 77
+  },
+  {
+   "qid": "k08",
+   "method": "toon",
+   "chars": 1375,
+   "bytes": 2563,
+   "user_bytes": 1427,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.49,
+   "latency_s": 1.23,
+   "total_s": 1.23,
+   "picks": [
+    "hard:h39"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.333,
+   "gold_in_candidates": 0.333,
+   "invalid_ids": 0,
+   "input_tokens": 996,
+   "output_tokens": 28
+  },
+  {
+   "qid": "k09",
+   "method": "toon",
+   "chars": 1466,
+   "bytes": 2800,
+   "user_bytes": 1664,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.53,
+   "latency_s": 1.4,
+   "total_s": 1.4,
+   "picks": [
+    "hard:h18"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1052,
+   "output_tokens": 30
+  },
+  {
+   "qid": "k10",
+   "method": "toon",
+   "chars": 1470,
+   "bytes": 2778,
+   "user_bytes": 1642,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.51,
+   "latency_s": 2.12,
+   "total_s": 2.12,
+   "picks": [
+    "hard:h10",
+    "hard:h12",
+    "hard:h08"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1066,
+   "output_tokens": 70
+  },
+  {
+   "qid": "k11",
+   "method": "toon",
+   "chars": 1496,
+   "bytes": 2842,
+   "user_bytes": 1706,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.53,
+   "latency_s": 1.16,
+   "total_s": 1.16,
+   "picks": [
+    "hard:h02"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1073,
+   "output_tokens": 30
+  },
+  {
+   "qid": "k12",
+   "method": "toon",
+   "chars": 1446,
+   "bytes": 2718,
+   "user_bytes": 1582,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.52,
+   "latency_s": 1.1,
+   "total_s": 1.1,
+   "picks": [
+    "hard:h44"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 1046,
+   "output_tokens": 25
+  },
+  {
+   "qid": "k13",
+   "method": "toon",
+   "chars": 1377,
+   "bytes": 2569,
+   "user_bytes": 1433,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.46,
+   "latency_s": 2.57,
+   "total_s": 2.57,
+   "picks": [
+    "hard:h26",
+    "hard:h23",
+    "hard:h22"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 991,
+   "output_tokens": 90
+  }
+ ]
+}

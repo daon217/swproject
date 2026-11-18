@@ -139,6 +139,7 @@ def run(args):
         prof, items = candidates(products, q, emb)
         keywords = {w for w in re.findall(r"[가-힣\w]{2,}", f"{q['query']} {prof.preferences}")}
         for m in args.methods:
+            t_c = time.perf_counter()
             try:
                 system, user, id_map = render(m, prof, q["query"], items)
             except ImportError as e:
@@ -147,10 +148,12 @@ def run(args):
             except Exception as e:  # 모델 다운로드 실패 등
                 skipped[m] = f"{type(e).__name__}: {str(e)[:120]}"
                 continue
+            compress_ms = round((time.perf_counter() - t_c) * 1000, 2)  # 압축(입력 만들기)에 걸린 시간
             per_kind, ret = retention(user, items, id_map, keywords)
             row = {"qid": q["qid"], "method": m, "chars": len(system) + len(user),
                    "bytes": len((system + user).encode()), "user_bytes": len(user.encode()),
-                   "retention": ret, "retention_by_kind": per_kind, "n_candidates": len(id_map)}
+                   "retention": ret, "retention_by_kind": per_kind, "n_candidates": len(id_map),
+                   "compress_ms": compress_ms}
             if client:
                 row["input_tokens_counted"] = count_tokens(client, model, system, user)
             if ranker:
@@ -165,7 +168,9 @@ def run(args):
                 valid = [p for p in picks if not p.startswith("unknown:")]
                 hit = len(set(valid[:3]) & gold)
                 usage = ranker.last_usage or (None, None)
-                row.update({"latency_s": round(time.time() - t0, 2), "picks": picks,
+                llm_s = time.time() - t0
+                row.update({"latency_s": round(llm_s, 2), "total_s": round(llm_s + compress_ms / 1000, 2),
+                            "picks": picks,
                             "precision@3": round(hit / len(valid[:3]), 3) if valid else 0.0,
                             "recall@3": round(hit / min(3, len(gold)), 3),
                             "gold_in_candidates": round(len(gold & set(id_map.values())) / len(gold), 3),
@@ -188,7 +193,8 @@ def summarize(rows):
         s = {"queries": len(r), "errors": len(allr) - len(r), "avg_bytes": round(statistics.mean(x["bytes"] for x in r)),
              "avg_user_bytes": round(statistics.mean(x["user_bytes"] for x in r)),
              "avg_retention": round(statistics.mean(x["retention"] for x in r), 3)}
-        for k in ("input_tokens_counted", "input_tokens", "output_tokens", "precision@3", "recall@3", "latency_s",
+        for k in ("compress_ms", "total_s", "input_tokens_counted", "input_tokens", "output_tokens", "precision@3",
+                  "recall@3", "latency_s",
                   "invalid_ids", "gold_in_candidates"):
             v = [x[k] for x in r if x.get(k) is not None]
             if v:
@@ -216,16 +222,17 @@ def save_per_method(out: dict) -> None:
             ensure_ascii=False, indent=1), encoding="utf-8")
     idx = root / "INDEX.md"
     if not idx.exists():
-        idx.write_text("| 시각 | LLM | 방식 | 유효 질의 | 오류 | 입력 토큰 | JSON 대비 | P@3 | R@3 | 메모 |\n"
-                       "|---|---|---|---|---|---|---|---|---|---|\n", encoding="utf-8")
+        idx.write_text("| 시각 | LLM | 방식 | 유효 질의 | 오류 | 입력 토큰 | JSON 대비 | P@3 | R@3 | 압축 ms | 전체 초 | 메모 |\n"
+                       "|---|---|---|---|---|---|---|---|---|---|---|---|\n", encoding="utf-8")
     with idx.open("a", encoding="utf-8") as f:
         for m, s in out["summary"].items():
             f.write(f"| {out['time']} | {out['model'] or '-'} | {m} | {s.get('queries', 0)} | {s.get('errors', 0)} | "
                     f"{s.get('avg_input_tokens', s.get('avg_input_tokens_counted', '-'))} | "
                     f"{s.get('tokens_vs_json', s.get('bytes_vs_json', '-'))} | {s.get('avg_precision@3', '-')} | "
-                    f"{s.get('avg_recall@3', '-')} | {out['note']} |\n")
+                    f"{s.get('avg_recall@3', '-')} | {s.get('avg_compress_ms', '-')} | {s.get('avg_total_s', '-')} | "
+                    f"{out['note']} |\n")
         for m, why in out.get("skipped", {}).items():
-            f.write(f"| {out['time']} | {out['model'] or '-'} | {m} | 0 | - | - | - | - | - | 건너뜀: {why} |\n")
+            f.write(f"| {out['time']} | {out['model'] or '-'} | {m} | 0 | - | - | - | - | - | - | - | 건너뜀: {why} |\n")
 
 
 def main(argv=None):

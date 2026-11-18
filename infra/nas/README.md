@@ -57,11 +57,22 @@ sudo sh infra/nas/nas.sh seed
 - `.env` 파일과 DB 백업은 커밋하지 않습니다. 실제 회원·결제 데이터는 넣지 않습니다.
 - NAS는 상시 서버일 뿐 백업이 아닙니다. 필요하면 Hyper Backup으로 `docker` 폴더와 별도 DB 덤프를 보관하세요.
 
-## 선택: Vision AI(kkulpick_vision) 함께 실행
-CPU에 AVX가 있어야 합니다(`grep -o -w avx /proc/cpuinfo`가 avx를 출력해야 함). DS918+ 순정 CPU(J3455)는 지원하지 않습니다.
+## 선택: Vision AI + 분석 워커 함께 실행
+확장 프로그램의 화면 분석(`POST /analyses`)을 실제로 처리합니다. CPU에 AVX가 있어야 합니다(`grep -o -w avx /proc/cpuinfo`가 avx를 출력해야 함, DS918+ 순정 J3455는 미지원).
+```
+확장 → api(/analyses 대기열) → analysis-worker → vision-api(OCR) + recommendation(추천) → api(/complete) → 확장
+```
 1. `infra/nas/.env`에 `NAS_VISION=1`, `NAS_VISION_PORT=8100`을 추가합니다.
-2. `sudo sh infra/nas/nas.sh up` — 첫 빌드·OCR 모델 다운로드에 10~20분 걸릴 수 있습니다.
-3. `sudo sh infra/nas/nas.sh logs vision-worker`에서 `PaddleOCR 싱글톤 준비 완료` 확인 후 `http://NAS주소:8100/docs`를 엽니다.
-- 구성: `vision-redis`(내부 전용) · `vision-worker`(Celery+PaddleOCR, 동시 1개) · `vision-api`(FastAPI). OCR 모델은 `vision_models` 볼륨에 보관합니다.
-- 이미지는 Python 3.11에 `paddlepaddle 2.6.2`, `paddleocr 2.10.0`을 고정합니다(코드가 PaddleOCR 2.x API 사용).
-- Vision API는 인증이 없으므로 포트포워딩으로 공개하지 않습니다. 워커는 1~2GB 메모리를 사용합니다.
+2. `sudo sh infra/nas/nas.sh tokens` — 워커·서비스 토큰을 생성합니다(`services/api/.env`의 `ANALYSIS_WORKER_TOKEN`, `infra/nas/.env`의 `WORKSPACE_TOKEN`). 이미 있으면 유지합니다.
+3. `sudo sh infra/nas/nas.sh up` — 첫 빌드·OCR 모델 다운로드에 10~20분 걸릴 수 있습니다.
+4. 확인: `sudo sh infra/nas/nas.sh logs analysis-worker`에 `analyses/claim ... 200`이 반복되면 대기 중, 확장에서 분석하면 `queued → running → completed`로 바뀝니다.
+
+| 컨테이너 | 역할 |
+| --- | --- |
+| `analysis-worker` | 대기열 작업 가져오기 → OCR·추천 호출 → 결과 보고 (`services/dev_runtime/analysis_worker.py`) |
+| `recommendation` | 추천 HTTP 서비스 (`services/recommendation`, 기본 hash 임베더·rule 랭커) |
+| `vision-api` / `vision-worker` / `vision-redis` | OCR API · PaddleOCR 워커(동시 1개, 1~2GB) · 내부 큐 |
+
+- Vision `/api/`는 `WORKSPACE_TOKEN` Bearer 인증을 요구합니다. 그래도 8100 포트포워딩은 필요 없으니 공개하지 마세요.
+- 토큰은 공유·커밋하지 않습니다. 이미지는 Python 3.11에 `paddlepaddle 2.6.2`, `paddleocr 2.10.0`을 고정합니다(코드가 PaddleOCR 2.x API 사용).
+- 현재 워커는 페이지 URL이 카탈로그 상품 URL과 일치할 때만 상품/식품 구분을 확정합니다. 카탈로그에 없는 쇼핑몰 페이지는 `INPUT_INVALID`로 실패합니다(워커 담당자와 협의 필요).

@@ -18,6 +18,7 @@ MESSAGES = {
     'WRONG_PASSWORD': '현재 비밀번호가 일치하지 않습니다.',
     'DATABASE_UNAVAILABLE': '일시적으로 저장소에 연결할 수 없습니다.',
     'INVALID_INPUT': '입력한 정보의 형식과 필수 항목을 확인해 주세요.',
+    'INPUT_REQUIRED': '분석할 화면 캡처가 필요합니다.',
     'AUTH_RATE_LIMITED': '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
 }
 

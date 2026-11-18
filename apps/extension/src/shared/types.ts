@@ -59,6 +59,7 @@ export type Domain = 'product' | 'food';
 export interface CreateAnalysisRequest {
   selected_domain?: Domain;
   image: Blob | null;
+  /** 로컬 전용: 탭 변경 감지·목업 응답 선택에만 쓰고 실제 서버로는 전송하지 않는다. */
   page_url: string;
   page_session_id: string;
   page_revision: number;

@@ -69,10 +69,12 @@ POST `/v2/me/withdrawal`, 입력 `{current_password}`. 현재 비밀번호 검�
 
 회원 전용이다. 비회원 분석은 정책/익명 토큰 범위 미확정으로 401을 반환한다.
 
-- POST `/analyses`: JSON 또는 multipart/form-data. 필드 page_url, page_session_id, page_revision, request_key, selected_domain(선택).
+- POST `/analyses`: JSON 또는 multipart/form-data. 필드 page_session_id, page_revision, request_key, selected_domain(선택), page_url(선택).
+- 기본은 **캡처 전용**: 확장 프로그램은 page_url(열람 기록)을 보내지 않고 image와 selected_domain만 보낸다. image와 page_url이 모두 없으면 422 `INPUT_REQUIRED`.
+- page_url이 없으면 작업자는 카탈로그 URL 매칭 없이 클라이언트 selected_domain과 OCR 상품명으로 추천한다.
 - multipart에서만 image 파일 1개 선택 가능. 파일 최대 2 MiB, 요청 전체 최대 3 MiB, 문자열 필드 최대 5개.
 - PNG/JPEG/WebP 헤더 확인만 수행하며 실제 이미지 디코딩·픽셀 수 검증은 하지 않는다. 작업자는 디코딩 시 형식·픽셀 수·메모리를 다시 제한해야 한다.
-- 파일명은 UUID로 생성, 비공개 디렉터리에 저장. 사용자 파일명은 경로에 사용하지 않는다. page_url은 메타데이터로만 저장하고 서버가 직접 접속하지 않는다.
+- 파일명은 UUID로 생성, 비공개 디렉터리에 저장. 사용자 파일명은 경로에 사용하지 않는다. page_url을 받은 경우 메타데이터로만 저장하고 서버가 직접 접속하지 않는다.
 - 동일 회원/동일 request_key/동일 데이터는 같은 작업을 반환한다. 본문·이미지가 다르면 409.
 - 회원당 진행 중 작업 최대 3개. 생성 시 202 queued, 중복 요청은 200. 작업자 미연결 시 완료 결과를 조작하지 않는다.
 - GET `/analyses/{id}`: 본인 작업 상태·결과. 다른 회원은 404.

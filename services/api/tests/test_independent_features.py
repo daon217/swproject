@@ -222,6 +222,21 @@ def test_upload_private_size_format_and_completion_cleanup(client,worker_headers
     assert not image_path(img).exists()
 
 
+def test_capture_only_analysis_without_page_url(client,worker_headers):
+    h,_,_=account(client)
+    data=dict(page_session_id='cap',page_revision='1',request_key=uuid4().hex,selected_domain='product')
+    # 이미지도 URL도 없으면 분석 근거가 없으므로 거부한다.
+    r=client.post('/analyses',headers=h,data=data|{'request_key':uuid4().hex},files={})
+    assert r.status_code in (415,422),r.text
+    assert client.post('/analyses',headers=h,json=data).json()['error']['code']=='INPUT_REQUIRED'
+    png=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ0kAAAAASUVORK5CYII=')
+    r=client.post('/analyses',headers=h,data=data,files={'image':('c.png',png,'image/png')});assert r.status_code==202,r.text
+    task=claim(client,worker_headers)
+    assert task['page_url'] is None and task['selected_domain']=='product' and task['image_url']
+    with db('catalog') as c:
+        assert c.execute('SELECT page_url FROM app.analyses WHERE analysis_id=%s',(r.json()['data']['analysis_id'],)).fetchone()[0] is None
+
+
 def run_deletions():
     async def work():
         engines=[create_async_engine(url('app',d)) for d in ('member','catalog','support')]

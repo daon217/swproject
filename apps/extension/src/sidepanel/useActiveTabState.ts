@@ -5,6 +5,7 @@ import { shouldCapture } from '../shared/pageFilter';
 import { getAuth } from '../shared/auth';
 import { KEYS, onItemChange } from '../shared/storage';
 import { isRecommendEnabled } from '../shared/recommendSetting';
+import { dlog } from '../shared/debug';
 
 const inExtension = typeof chrome !== 'undefined' && !!chrome.runtime?.id;
 
@@ -15,7 +16,9 @@ export function useActiveTabState(): { state: TabState | null; retry: () => void
 
   const load = useCallback(async () => {
     if (inExtension) {
-      setState((await sendMessage<TabState | null>({ type: 'getActiveTabState' })) ?? null);
+      const s = (await sendMessage<TabState | null>({ type: 'getActiveTabState' })) ?? null;
+      dlog('panel', `활성 탭 상태 불러옴 → ${s?.status ?? '없음'}`, s ? { tabId: s.tabId, url: s.url, page_revision: s.page_revision } : undefined);
+      setState(s);
     } else {
       await runPreview(setState, counter.current);
     }
@@ -38,7 +41,10 @@ export function useActiveTabState(): { state: TabState | null; retry: () => void
     const onMsg = (msg: Message) => {
       if (msg.type !== 'tabState') return;
       chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
-        if (tab?.id === msg.state.tabId && tab.url === msg.state.url) setState(msg.state);
+        if (tab?.id === msg.state.tabId && tab.url === msg.state.url) {
+          dlog('panel', `사이드패널 화면 갱신 → ${msg.state.status}`, { tabId: msg.state.tabId, page_revision: msg.state.page_revision, error: msg.state.error });
+          setState(msg.state);
+        }
       });
     };
     const onActivated = () => void load();

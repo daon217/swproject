@@ -5,13 +5,19 @@ import baseCss from '../shared/ui/styles.css?inline';
 import floatingCss from './floating.css?inline';
 import { Floating } from './Floating';
 import { scanPage } from '../shared/pageProduct';
+import { dlog } from '../shared/debug';
+
+dlog('content', 'content script 주입됨', { url: location.href });
 
 // 백그라운드가 캡처 전후로 이 페이지의 상품 표시 여부와 [임시] 상품명·가격을 물어본다.
 chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
   if (msg.type !== 'extractProduct') return false;
   try {
-    sendResponse(scanPage(document));
-  } catch {
+    const scan = scanPage(document);
+    dlog('content', '백그라운드 요청 extractProduct → 페이지 스캔', { signal: scan?.signal, product: scan?.product });
+    sendResponse(scan);
+  } catch (e) {
+    dlog('content', '페이지 스캔 실패', e);
     sendResponse(null);
   }
   return false;
@@ -32,8 +38,13 @@ function ContentApp() {
     const onMsg = (msg: Message) => {
       if (msg.type === 'panelVisibility') { visibilityChanged = true; setPanelOpen(msg.open); return; }
       // 현재 문서 URL과 다른 결과는 표시하지 않는다(이전 페이지 결과 노출 방지).
-      if (msg.type === 'tabState' && msg.state.url === location.href) setState(msg.state);
-      else if (msg.type === 'tabState') setState(null);
+      if (msg.type === 'tabState' && msg.state.url === location.href) {
+        dlog('content', `플로팅 상태 갱신 → ${msg.state.status}`, { page_revision: msg.state.page_revision, error: msg.state.error });
+        setState(msg.state);
+      } else if (msg.type === 'tabState') {
+        dlog('content', '다른 URL의 결과라 플로팅 숨김', { got: msg.state.url, here: location.href });
+        setState(null);
+      }
     };
     chrome.runtime.onMessage.addListener(onMsg);
     return () => chrome.runtime.onMessage.removeListener(onMsg);

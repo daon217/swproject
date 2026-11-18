@@ -17,7 +17,8 @@ router=APIRouter()
 worker_bearer=HTTPBearer(auto_error=False)
 
 class AnalysisInput(Strict):
-    page_url:HttpUrl
+    # 선택: 클라이언트는 기본적으로 캡처 이미지만 보낸다. 페이지 URL은 사용자 열람 기록이므로 필수로 받지 않는다.
+    page_url:HttpUrl|None=None
     page_session_id:str=Field(min_length=1,max_length=180)
     page_revision:int=Field(ge=0)
     request_key:str=Field(min_length=1,max_length=180)
@@ -26,6 +27,7 @@ class AnalysisInput(Strict):
     @field_validator('page_url')
     @classmethod
     def safe_context(cls,value):
+        if value is None:return value
         if value.username or value.password or len(str(value))>2048:raise ValueError('invalid page URL')
         return value
 
@@ -120,6 +122,8 @@ async def input_data(req):
 async def create_analysis(req:Request,response:Response,uid=Depends(member)):
     await throttle(req,'analysis')
     data,image=await input_data(req)
+    # 분석 근거가 하나도 없으면 접수하지 않는다(캡처 이미지 또는 페이지 URL 중 하나 필요).
+    if image is None and data.page_url is None:fail(422,'INPUT_REQUIRED')
     image_hash=hashlib.sha256(image).hexdigest() if image is not None else None
     digest=hashlib.sha256(json.dumps(data.model_dump(mode='json')|{'image_hash':image_hash},sort_keys=True).encode()).hexdigest()
     image_id=None
@@ -140,7 +144,7 @@ async def create_analysis(req:Request,response:Response,uid=Depends(member)):
                 result=await row(c,'''INSERT INTO app.analyses(owner_id,request_key,request_hash,page_url,page_session_id,page_revision,
                     selected_domain,image_id,image_hash,image_expires_at)
                     VALUES(:u,:k,:h,:url,:session,:revision,:kind,:image,:ih,CASE WHEN CAST(:image AS uuid) IS NOT NULL THEN now()+interval '1 hour' ELSE NULL END)
-                    RETURNING analysis_id,state''',u=uid,k=data.request_key,h=digest,url=str(data.page_url),session=data.page_session_id,
+                    RETURNING analysis_id,state''',u=uid,k=data.request_key,h=digest,url=str(data.page_url) if data.page_url else None,session=data.page_session_id,
                     revision=data.page_revision,kind=data.selected_domain,image=image_id,ih=image_hash)
     except BaseException:
         remove_image(image_id)

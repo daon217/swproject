@@ -163,6 +163,13 @@
           "pytest",
           "-q",
           "domeggook_live/tests"
+        ],
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "elevenst_offline/tests"
         ]
       ],
       "build": [
@@ -226,6 +233,10 @@
         [
           "node",
           "../../tools/test_account_privacy.cjs"
+        ],
+        [
+          "node",
+          "../../tools/test_debug_privacy.cjs"
         ]
       ],
       "build": [

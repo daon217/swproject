@@ -132,7 +132,10 @@ def run(args):
         ranker = LocalLLMRanker()
         model = f"local:{ranker.model}"
     rows, skipped = [], {}
-    for q in queries:
+    import sys
+
+    for qi, q in enumerate(queries, 1):
+        print(f"[{qi}/{len(queries)}] {q['qid']} {q['query']}", file=sys.stderr, flush=True)
         prof, items = candidates(products, q, emb)
         keywords = {w for w in re.findall(r"[가-힣\w]{2,}", f"{q['query']} {prof.preferences}")}
         for m in args.methods:

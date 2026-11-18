@@ -7,6 +7,7 @@
 """
 
 import gc
+import hashlib
 import json
 import logging
 from typing import Any, Dict, List, Optional
@@ -122,16 +123,77 @@ def extract_metadata_fallback_task(session_id: str, first_frame_b64: str) -> Dic
 
     try:
         ocr_engine = get_ocr_engine()
-        detected_title = ocr_engine.extract_largest_text_as_product_name(image)
+        img_hash = hashlib.md5(first_frame_b64[:4096].encode("utf-8", errors="ignore")).hexdigest()
+        tiles = split_into_horizontal_tiles(image)
+        detected_title = None
+        first_tile_items = []
+
+        if tiles:
+            first_tile_items = ocr_engine.run_ocr(tiles[0][1])
+            best_text: Optional[str] = None
+            max_area: float = -1.0
+            for box, text, score in first_tile_items:
+                if score < 0.5 or len(text.strip()) < 2:
+                    continue
+                area = ocr_engine.calculate_bbox_area(box)
+                if area > max_area:
+                    max_area = area
+                    best_text = text.strip()
+            if best_text:
+                import re
+                best_text = re.sub(r"(?<=[가-힣])\s+(?=[가-힣])", "", best_text)
+                best_text = re.sub(r"(\b\d{2,4})9\b", r"\1g", best_text)
+                detected_title = best_text
+
+        # [통합 스캔 캐시] 동일 프레임 안에 앵커 키워드(원재료명 등)까지 함께 있는지 즉시 검사하여
+        # 뒤이어 동일한 이미지로 POST /frame이 호출될 때 중복 OCR을 100% 생략하도록 캐싱합니다.
+        normalized_anchors = [kw.replace(" ", "") for kw in settings.ANCHOR_KEYWORDS]
+        cached_anchor_y: Optional[int] = None
+        cached_ingredients: List[str] = []
+
+        for idx, (y_offset, tile_img) in enumerate(tiles):
+            ocr_items = first_tile_items if idx == 0 else ocr_engine.run_ocr(tile_img)
+            for box, text, _ in ocr_items:
+                if any(anchor in text.replace(" ", "") for anchor in normalized_anchors):
+                    min_y_in_tile = min(pt[1] for pt in box)
+                    cached_anchor_y = int(y_offset + min_y_in_tile)
+                    roi_top = min_y_in_tile - settings.ROI_TOP_PADDING
+                    roi_bottom = min_y_in_tile + settings.ROI_CROP_HEIGHT
+                    roi_items = [
+                        item for item in ocr_items
+                        if item[2] >= 0.45 and roi_top <= min(pt[1] for pt in item[0]) <= roi_bottom
+                    ]
+                    roi_items.sort(key=lambda item: (min(pt[1] for pt in item[0]), min(pt[0] for pt in item[0])))
+                    cached_ingredients = ocr_engine.clean_ingredient_text("\n".join(t for _, t, _ in roi_items))
+                    break
+            if cached_anchor_y is not None:
+                break
+
+        del tiles
+
+        # 만약 1차 타일 스캔에서 앵커는 찾았는데 정밀 성분이 부족하면 ROI CLAHE 보정 수행
+        if cached_anchor_y is not None and not cached_ingredients:
+            roi_image = crop_roi_and_release_memory(
+                full_image=image,
+                anchor_y=cached_anchor_y,
+                crop_height=settings.ROI_CROP_HEIGHT,
+            )
+            try:
+                enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
+                cached_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
+                del enhanced_roi
+            finally:
+                del roi_image
+
+        cache_mapping: Dict[str, str] = {
+            "init_frame_hash": img_hash,
+            "init_cached_ingredients": json.dumps(cached_ingredients, ensure_ascii=False),
+        }
 
         if detected_title:
-            r.hset(
-                key,
-                mapping={
-                    "product_name": detected_title,
-                    "source_of_meta": "vision_fallback",
-                },
-            )
+            cache_mapping["product_name"] = detected_title
+            cache_mapping["source_of_meta"] = "vision_fallback"
+            r.hset(key, mapping=cache_mapping)
             logger.info(
                 f"[Phase 1 Fallback 완료] session={session_id}, 추출된 상품명='{detected_title}'"
             )
@@ -142,7 +204,8 @@ def extract_metadata_fallback_task(session_id: str, first_frame_b64: str) -> Dic
                 "updated": True,
             }
         else:
-            r.hset(key, "source_of_meta", "vision_fallback")
+            cache_mapping["source_of_meta"] = "vision_fallback"
+            r.hset(key, mapping=cache_mapping)
             return {"session_id": session_id, "updated": False}
     finally:
         # 0초 차 프레임 이미지 메모리 즉시 해제
@@ -212,8 +275,20 @@ def process_frame_task(
     # --------------------------------------------------------------------------
     # [Step 3] 이미지 디코딩 및 OpenCV 타일링 + 1차 앵커 탐색
     # --------------------------------------------------------------------------
-    full_image = decode_image(image_b64)
+    frame_hash = hashlib.md5(image_b64[:4096].encode("utf-8", errors="ignore")).hexdigest() if image_b64 else ""
     extracted_ingredients: List[str] = []
+
+    # [초고속 캐시 히트] 만약 Phase 1(init)에서 이미 동일 프레임 이미지를 스캔했다면
+    # 이미지 디코딩 및 중복 OCR을 100% 생략(0ms)하고 캐싱된 성분 결과를 즉시 사용합니다!
+    if frame_hash and session_state.get("init_frame_hash") == frame_hash:
+        try:
+            extracted_ingredients = json.loads(session_state.get("init_cached_ingredients", "[]"))
+        except Exception:
+            extracted_ingredients = []
+        logger.info(f"[Phase 2 Fast Cache Hit] init 프레임과 동일 이미지 감지 -> 중복 OCR 생략 (session={session_id})")
+        full_image = None
+    else:
+        full_image = decode_image(image_b64)
 
     if full_image is not None:
         ocr_engine = get_ocr_engine()
@@ -221,38 +296,44 @@ def process_frame_task(
         # 3-1. 세로로 긴 이미지를 가로 블록 단위로 분할 (Tiling)
         tiles = split_into_horizontal_tiles(full_image)
 
-        # 3-2. 1차 스캔: ["원재료명", "영양정보", "성분명", "원재료 및 함량"] 등 앵커 Y좌표 탐색
-        anchor_y = ocr_engine.find_anchor_y_coordinate(tiles)
+        # 3-2. 1차 스캔: 앵커 Y좌표 탐색 + 1차 스캔 텍스트에서 즉시 성분 추출 시도 (1-Pass Fast Path)
+        anchor_y, fast_ingredients = ocr_engine.find_anchor_and_initial_ingredients(tiles)
 
         # 타일 참조 리스트 정리
         del tiles
 
         if anchor_y is not None:
-            # 3-3. 앵커 Y 좌표 기준 아래쪽 영역(y ~ y + 500px)만 ROI 크롭 & 원본 배열 즉시 메모리 해제
-            roi_image = crop_roi_and_release_memory(
-                full_image=full_image,
-                anchor_y=anchor_y,
-                crop_height=settings.ROI_CROP_HEIGHT,
-            )
-            full_image = None  # 원본 참조 명시적 제거
-
-            try:
-                # 3-4. 크롭된 ROI에 Grayscale -> CLAHE(clipLimit=2.0, tileGridSize=(8,8)) -> 블러 보정 적용
-                enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
-
-                # 3-5. 2차 정밀 OCR 추출 및 정규표현식 기반 성분 리스트 정제
-                extracted_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
-
-                # 만약 기본 샤프닝 전처리에서 성분이 추출되지 않았다면 적응형 이진화로 1회 재시도
-                if not extracted_ingredients:
-                    binarized_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=True)
-                    extracted_ingredients = ocr_engine.extract_and_clean_ingredients(binarized_roi)
-                    del binarized_roi
-
-                del enhanced_roi
-            finally:
-                del roi_image
+            if len(fast_ingredients) >= 2:
+                # 1차 스캔에서 이미 선명하게 성분이 추출된 경우 2차/3차 ROI 재추론을 생략하여 시간 절반 단축
+                extracted_ingredients = fast_ingredients
+                del full_image
                 gc.collect()
+            else:
+                # 3-3. 앵커 Y 좌표 기준 아래쪽 영역(y ~ y + 500px)만 ROI 크롭 & 원본 배열 즉시 메모리 해제
+                roi_image = crop_roi_and_release_memory(
+                    full_image=full_image,
+                    anchor_y=anchor_y,
+                    crop_height=settings.ROI_CROP_HEIGHT,
+                )
+                full_image = None  # 원본 참조 명시적 제거
+
+                try:
+                    # 3-4. 크롭된 ROI에 Grayscale -> CLAHE(clipLimit=2.0, tileGridSize=(8,8)) -> 블러 보정 적용
+                    enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
+
+                    # 3-5. 2차 정밀 OCR 추출 및 정규표현식 기반 성분 리스트 정제
+                    extracted_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
+
+                    # 만약 기본 샤프닝 전처리에서 성분이 추출되지 않았다면 적응형 이진화로 1회 재시도
+                    if not extracted_ingredients:
+                        binarized_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=True)
+                        extracted_ingredients = ocr_engine.extract_and_clean_ingredients(binarized_roi)
+                        del binarized_roi
+
+                    del enhanced_roi
+                finally:
+                    del roi_image
+                    gc.collect()
         else:
             # 앵커가 없는 프레임도 즉시 메모리에서 해제
             del full_image

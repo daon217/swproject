@@ -1,47 +1,229 @@
 const statsPage = {
-  getStatsDatasetByUnit(unit) {
+  liveOverview: null,
+
+  getKstTodayDateStr() {
+    return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10).replaceAll('-', '.');
+  },
+
+  getDefaultStatsPeriod(unit) {
+    const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const year = nowKst.getUTCFullYear();
+    const month = nowKst.getUTCMonth(); // 0-indexed
+
     if (unit === 'monthly') {
-      return {
-        unitLabel: '월별',
-        periodText: '2026.04 ~ 2026.10',
-        labels: ['04월', '05월', '06월', '07월', '08월', '09월', '10월'],
-        subJoin: [48, 56, 62, 74, 79, 88, 94],
-        subLeave: [9, 11, 10, 13, 12, 14, 11],
-        subSales: [50, 58, 65, 72, 80, 89, 95],
-        royaltySales: [11, 13, 14, 15, 17, 19, 21]
-      };
+      const endStr = `${year}.${String(month + 1).padStart(2, '0')}`;
+      const startDate = new Date(Date.UTC(year, month - 6, 1));
+      const startStr = `${startDate.getUTCFullYear()}.${String(startDate.getUTCMonth() + 1).padStart(2, '0')}`;
+      return `${startStr} ~ ${endStr}`;
     }
     if (unit === 'yearly') {
-      return {
-        unitLabel: '연도별',
-        periodText: '2022 ~ 2026',
-        labels: ['2022', '2023', '2024', '2025', '2026'],
-        subJoin: [35, 52, 68, 84, 96],
-        subLeave: [7, 9, 11, 13, 12],
-        subSales: [38, 55, 71, 85, 97],
-        royaltySales: [8, 11, 14, 18, 22]
-      };
+      return `${year - 4} ~ ${year}`;
     }
-    // 기본값: 일별 (PPT 70p 명세 100% 일치)
+    const endStr = nowKst.toISOString().slice(0, 10).replaceAll('-', '.');
+    const startStr = new Date(nowKst.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10).replaceAll('-', '.');
+    return `${startStr} ~ ${endStr}`;
+  },
+
+  async refreshLiveOverview() {
+    const session = this.adminSession;
+    if (!session || this.isLocalAuthDemo()) return;
+    const targetPage = this.state.currentPage;
+    const prev = this.liveOverview || {};
+    const view = { ...prev, phase: 'loading' };
+    this.liveOverview = view;
+    this.renderContent();
+
+    try {
+      const [overviewRes, catalogRes] = await Promise.allSettled([
+        this.requestAdminAuth('/v2/admin/overview', { token: session.token }),
+        this.fetchAllCatalogOffers(),
+      ]);
+
+      const overview = overviewRes.status === 'fulfilled' ? overviewRes.value : null;
+      const catalogOffers = catalogRes.status === 'fulfilled' ? catalogRes.value : [];
+      if (catalogOffers.length) {
+        this.state.offerCatalog = catalogOffers;
+      }
+
+      Object.assign(view, {
+        phase: 'ready',
+        overview,
+        catalogCount: overview?.offers ?? catalogOffers.length,
+        availableCatalogCount: overview?.available ?? catalogOffers.filter((o) => o.availability === 'available').length,
+        crawlDays: overview?.crawl_days || null,
+      });
+    } catch {
+      view.phase = 'error';
+    }
+
+    if (this.liveOverview === view && this.adminSession === session && this.state.currentPage === targetPage) {
+      this.renderContent();
+    }
+  },
+
+  refreshAllLiveStats() {
+    this.refreshLiveAffiliates();
+    this.refreshLiveCounseling();
+    this.refreshLiveCustomers();
+    this.refreshLiveOverview();
+  },
+
+  getLiveSummaryMetrics() {
+    const todayKst = this.getKstTodayDateStr();
+    const overview = this.liveOverview?.overview;
+    const members = this.liveCustomers?.items || [];
+    const affiliates = this.getAffiliateItems();
+    const activeAffiliates = affiliates.filter((item) => this.getAffiliateStatus(item, Date.now()) === '제휴 중');
+    const counseling = this.getCounselingItems();
+    const resolvedCounseling = counseling.filter((c) => c.status === '완료');
+    const catalogCount = this.liveOverview?.catalogCount ?? this.state.offerCatalog?.length ?? 0;
+    const availableCount = this.liveOverview?.availableCatalogCount ??
+      (this.state.offerCatalog || []).filter((o) => o.availability === 'available').length;
+
+    const memberCount = overview?.members ?? members.length;
+    const subscriberCount = overview?.subscribers ?? members.filter((m) => m.subscribed).length;
+    const todayJoinCount = members.filter((m) => {
+      const kst = this.formatKstDateTime(m.subscription_started_at || m.created_at);
+      return kst.slice(0, 10) === todayKst;
+    }).length;
+    const mockRevenue = overview?.mock_revenue_krw != null ? Number(overview.mock_revenue_krw) : 0;
+
     return {
-      unitLabel: '일별',
-      periodText: '2026.10.06 ~ 2026.10.12',
-      labels: ['10.06', '10.07', '10.08', '10.09', '10.10', '10.11', '10.12'],
-      subJoin: [52, 71, 63, 81, 66, 91, 86],
-      subLeave: [10, 12, 8, 15, 11, 10, 12],
-      subSales: [52, 71, 63, 81, 66, 91, 86],
-      royaltySales: [10, 12, 11, 14, 13, 16, 15]
+      todayKst,
+      memberCount,
+      subscriberCount,
+      todayJoinCount,
+      affiliateCount: affiliates.length,
+      activeAffiliateCount: activeAffiliates.length,
+      catalogCount,
+      availableCount,
+      counselingCount: counseling.length,
+      resolvedCounselingCount: resolvedCounseling.length,
+      mockRevenue,
+    };
+  },
+
+  buildBucketsForRange(unit, periodText) {
+    const [startStr, endStr] = (periodText || this.getDefaultStatsPeriod(unit)).split(' ~ ');
+    const buckets = [];
+
+    if (unit === 'yearly') {
+      const startYear = Number(startStr.slice(0, 4));
+      const endYear = Number(endStr.slice(0, 4));
+      for (let y = startYear; y <= endYear && buckets.length < 20; y++) {
+        const key = String(y);
+        buckets.push({ key, label: key });
+      }
+      return buckets;
+    }
+
+    if (unit === 'monthly') {
+      const [sy, sm] = startStr.split('.').map(Number);
+      const [ey, em] = endStr.split('.').map(Number);
+      const cur = new Date(Date.UTC(sy, (sm || 1) - 1, 1));
+      const last = new Date(Date.UTC(ey, (em || 1) - 1, 1));
+      while (cur <= last && buckets.length < 36) {
+        const y = cur.getUTCFullYear();
+        const m = String(cur.getUTCMonth() + 1).padStart(2, '0');
+        buckets.push({ key: `${y}.${m}`, label: `${m}월` });
+        cur.setUTCMonth(cur.getUTCMonth() + 1);
+      }
+      return buckets;
+    }
+
+    const [sy, sm, sd] = startStr.split('.').map(Number);
+    const [ey, em, ed] = endStr.split('.').map(Number);
+    const cur = new Date(Date.UTC(sy, (sm || 1) - 1, sd || 1));
+    const last = new Date(Date.UTC(ey, (em || 1) - 1, ed || 1));
+    while (cur <= last && buckets.length < 60) {
+      const iso = cur.toISOString().slice(0, 10).replaceAll('-', '.');
+      buckets.push({ key: iso, label: iso.slice(5, 10) });
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return buckets;
+  },
+
+  getStatsDatasetByUnit(unit, customPeriod = null) {
+    const unitLabel = unit === 'monthly' ? '월별' : unit === 'yearly' ? '연도별' : '일별';
+    const defaultPeriod = this.getDefaultStatsPeriod(unit);
+    const periodText = customPeriod || defaultPeriod;
+    const buckets = this.buildBucketsForRange(unit, periodText);
+    const keyLength = unit === 'yearly' ? 4 : unit === 'monthly' ? 7 : 10;
+
+    const members = this.liveCustomers?.items || [];
+    const subJoinCounts = new Map(buckets.map((b) => [b.key, 0]));
+    const subLeaveCounts = new Map(buckets.map((b) => [b.key, 0]));
+    for (const m of members) {
+      if (m.subscription_started_at) {
+        const startKst = this.formatKstDateTime(m.subscription_started_at);
+        const startPrefix = startKst.slice(0, keyLength);
+        if (subJoinCounts.has(startPrefix)) {
+          subJoinCounts.set(startPrefix, subJoinCounts.get(startPrefix) + 1);
+        }
+      }
+      if (!m.subscribed && m.subscription_started_at) {
+        const endSource = m.subscription_ended_at || m.subscription_canceled_at || m.subscription_started_at;
+        const endKst = this.formatKstDateTime(endSource);
+        const endPrefix = endKst.slice(0, keyLength);
+        if (subLeaveCounts.has(endPrefix)) {
+          subLeaveCounts.set(endPrefix, subLeaveCounts.get(endPrefix) + 1);
+        }
+      }
+    }
+
+    const todayKey = this.getKstTodayDateStr().slice(0, keyLength);
+    const mockRevenueKrw = Number(this.liveOverview?.overview?.mock_revenue_krw || 0);
+    const revenueManWon = mockRevenueKrw > 0 ? Number((mockRevenueKrw / 10000).toFixed(2)) : 0;
+
+    return {
+      unitLabel,
+      periodText: defaultPeriod,
+      labels: buckets.map((b) => b.label),
+      subJoin: buckets.map((b) => subJoinCounts.get(b.key) || 0),
+      subLeave: buckets.map((b) => subLeaveCounts.get(b.key) || 0),
+      subSales: buckets.map((b) => (b.key === todayKey ? revenueManWon : 0)),
+      royaltySales: buckets.map(() => 0),
     };
   },
 
   getStatsHtml() {
+    const demo = this.isLocalAuthDemo();
     const unit = this.state.statsUnit;
-    const dataConfig = this.getStatsDatasetByUnit(unit);
-
+    const dataConfig = this.getStatsDatasetByUnit(unit, this.state.statsPeriodInput);
     const btnClass = (target) => (unit === target ? 'btn-primary' : 'btn-secondary');
+    const metrics = this.getLiveSummaryMetrics();
 
     return `
-      ${this.renderPageHeader('통계', '가입·해지와 매출 추이를 기간별로 확인하세요. · 예시 데이터')}
+      ${this.renderPageHeader(
+        '통계',
+        '팀 서버 DB 실시간 현황과 기간별 가입·해지 및 매출 추이를 확인합니다.',
+        demo ? '' : '<button type="button" class="btn-secondary" onclick="app.refreshAllLiveStats()">새로고침</button>'
+      )}
+
+      <section aria-label="팀 서버 실시간 연동 지표" class="mb-6">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="text-xs font-bold text-slate-500">전체 회원</div>
+            <div class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">${metrics.memberCount.toLocaleString()}명</div>
+            <div class="text-xs text-slate-500 mt-1">구독 활성 ${metrics.subscriberCount.toLocaleString()}명</div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="text-xs font-bold text-slate-500">등록 제휴상품</div>
+            <div class="text-2xl font-bold text-[#0066ff] mt-1 tabular-nums">${metrics.affiliateCount.toLocaleString()}건</div>
+            <div class="text-xs text-slate-500 mt-1">현재 제휴 중 ${metrics.activeAffiliateCount.toLocaleString()}건</div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="text-xs font-bold text-slate-500">카탈로그 수집 상품</div>
+            <div class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">${metrics.catalogCount.toLocaleString()}건</div>
+            <div class="text-xs text-slate-500 mt-1">판매 가능 ${metrics.availableCount.toLocaleString()}건</div>
+          </div>
+          <div class="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+            <div class="text-xs font-bold text-slate-500">고객상담 처리 현황</div>
+            <div class="text-2xl font-bold text-slate-900 mt-1 tabular-nums">${metrics.counselingCount.toLocaleString()}건</div>
+            <div class="text-xs text-slate-500 mt-1">답변 완료 ${metrics.resolvedCounselingCount.toLocaleString()}건</div>
+          </div>
+        </div>
+      </section>
 
       <!-- 상단 필터 컨트롤 바 -->
       <div class="flex flex-wrap items-end gap-4 mb-6">
@@ -53,22 +235,24 @@ const statsPage = {
 
         <div>
           <label for="stats-period-input" class="block text-xs font-bold text-slate-600 mb-1.5">조회 기간</label>
-          <input
-            id="stats-period-input"
-            type="text"
-            value="${this.escapeHtml(this.state.statsPeriodInput)}"
-            class="form-input max-w-full w-[280px]"
-            onkeydown="if(event.key==='Enter') app.applyStatsPeriod()"
-          />
-          <button type="button" onclick="app.applyStatsPeriod()" class="btn-primary">조회</button>
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              id="stats-period-input"
+              type="text"
+              value="${this.escapeHtml(this.state.statsPeriodInput)}"
+              class="form-input max-w-full w-[280px]"
+              onkeydown="if(event.key==='Enter') app.applyStatsPeriod()"
+            />
+            <button type="button" onclick="app.applyStatsPeriod()" class="btn-primary">조회</button>
+          </div>
         </div>
       </div>
 
       <div class="space-y-6">
-        <!-- 차트 카드 1: 일별 구독 가입 · 해지 추이 (명) -->
+        <!-- 차트 카드 1: 구독 가입 · 해지 추이 (명) -->
         <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
           <h2 class="text-base font-bold text-slate-900">${dataConfig.unitLabel} 구독 가입 · 해지 추이 (명)</h2>
-          <p class="mt-1 text-xs text-slate-500">${this.escapeHtml(this.state.statsPeriodInput)} · KST</p>
+          <p class="mt-1 text-xs text-slate-500">${this.escapeHtml(this.state.statsPeriodInput)} · KST · 실제 DB 구독 기준</p>
           <!-- 커스텀 범례 -->
           <div class="flex items-center gap-5 mt-2 mb-4 text-xs text-slate-600 font-medium">
             <div class="flex items-center gap-2">
@@ -85,10 +269,10 @@ const statsPage = {
           </div>
         </div>
 
-        <!-- 차트 카드 2: 일별 매출 추이 (만원) -->
+        <!-- 차트 카드 2: 매출 추이 (만원) -->
         <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
           <h2 class="text-base font-bold text-slate-900">${dataConfig.unitLabel} 매출 추이 (만원)</h2>
-          <p class="mt-1 text-xs text-slate-500">${this.escapeHtml(this.state.statsPeriodInput)} · KST</p>
+          <p class="mt-1 text-xs text-slate-500">${this.escapeHtml(this.state.statsPeriodInput)} · KST · 실제 DB 기준</p>
           <!-- 커스텀 범례 -->
           <div class="flex items-center gap-5 mt-2 mb-4 text-xs text-slate-600 font-medium">
             <div class="flex items-center gap-2">
@@ -108,22 +292,21 @@ const statsPage = {
 
       <!-- 하단 안내 캡션 -->
       <div class="mt-4 text-sm text-slate-500">
-        기간 집계 기준: KST &nbsp;·&nbsp; 선택한 기간의 가입·해지 및 매출을 표시합니다.
+        기간 집계 기준: KST &nbsp;·&nbsp; 팀 서버 DB에서 조회된 실제 구독 가입·해지 및 매출 데이터를 표시합니다.
       </div>
     `;
   },
 
   changeStatsUnit(unit) {
     this.state.statsUnit = unit;
-    const cfg = this.getStatsDatasetByUnit(unit);
-    this.state.statsPeriodInput = cfg.periodText;
+    this.state.statsPeriodInput = this.getDefaultStatsPeriod(unit);
     this.renderContent();
   },
 
   applyStatsPeriod() {
     const input = document.getElementById('stats-period-input');
     const unit = this.state.statsUnit;
-    const example = this.getStatsDatasetByUnit(unit).periodText;
+    const example = this.getDefaultStatsPeriod(unit);
     const range = this.parseDateRange(input.value, example.split(' ~ ')[0].length);
     if (!range) {
       this.showToast(`조회 기간 형식을 확인해 주세요. 예: ${example}`);
@@ -135,18 +318,7 @@ const statsPage = {
 
   initStatsCharts() {
     const unit = this.state.statsUnit;
-    const cfg = this.getStatsDatasetByUnit(unit);
-    const [start, end] = this.state.statsPeriodInput.split(' ~ ');
-    const [year, month = '01', day = '01'] = cfg.periodText.split(' ~ ')[0].split('.');
-    const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
-    const included = cfg.labels.map(() => {
-      const key = date.toISOString().slice(0, start.length).replaceAll('-', '.');
-      if (unit === 'daily') date.setUTCDate(date.getUTCDate() + 1);
-      if (unit === 'monthly') date.setUTCMonth(date.getUTCMonth() + 1);
-      if (unit === 'yearly') date.setUTCFullYear(date.getUTCFullYear() + 1);
-      return key >= start && key <= end;
-    });
-    const inRange = (values) => values.filter((_, index) => included[index]);
+    const cfg = this.getStatsDatasetByUnit(unit, this.state.statsPeriodInput);
     const subCanvas = document.getElementById('stats-sub-chart');
     const salesCanvas = document.getElementById('stats-sales-chart');
 
@@ -157,26 +329,26 @@ const statsPage = {
       this.charts.statsSubChart = new Chart(subCanvas.getContext('2d'), {
         type: 'line',
         data: {
-          labels: inRange(cfg.labels),
+          labels: cfg.labels,
           datasets: [
             {
               label: '구독 가입',
-              data: inRange(cfg.subJoin),
+              data: cfg.subJoin,
               borderColor: '#0066ff',
               backgroundColor: '#0066ff',
               borderWidth: 2,
               tension: 0,
-              pointRadius: 0,
+              pointRadius: 2,
               pointHoverRadius: 4,
             },
             {
               label: '구독 해지',
-              data: inRange(cfg.subLeave),
+              data: cfg.subLeave,
               borderColor: '#e11d48',
               backgroundColor: '#e11d48',
               borderWidth: 2,
               tension: 0,
-              pointRadius: 0,
+              pointRadius: 2,
               pointHoverRadius: 4,
             },
           ],
@@ -192,26 +364,26 @@ const statsPage = {
       this.charts.statsSalesChart = new Chart(salesCanvas.getContext('2d'), {
         type: 'line',
         data: {
-          labels: inRange(cfg.labels),
+          labels: cfg.labels,
           datasets: [
             {
               label: '구독 매출',
-              data: inRange(cfg.subSales),
+              data: cfg.subSales,
               borderColor: '#0066ff',
               backgroundColor: '#0066ff',
               borderWidth: 2,
               tension: 0,
-              pointRadius: 0,
+              pointRadius: 2,
               pointHoverRadius: 4,
             },
             {
               label: 'URL 로열티 매출',
-              data: inRange(cfg.royaltySales),
+              data: cfg.royaltySales,
               borderColor: '#e11d48',
               backgroundColor: '#e11d48',
               borderWidth: 2,
               tension: 0,
-              pointRadius: 0,
+              pointRadius: 2,
               pointHoverRadius: 4,
             },
           ],

@@ -154,6 +154,8 @@ def run(args):
             if client:
                 row["input_tokens_counted"] = count_tokens(client, model, system, user)
             if ranker:
+                if args.pace:
+                    time.sleep(args.pace)
                 gold = set(q["gold"])
                 t0 = time.time()
                 try:
@@ -176,10 +178,14 @@ def run(args):
 def summarize(rows):
     out = {}
     for m in METHODS:
-        r = [x for x in rows if x["method"] == m]
-        if not r:
+        allr = [x for x in rows if x["method"] == m]
+        if not allr:
             continue
-        s = {"queries": len(r), "avg_bytes": round(statistics.mean(x["bytes"] for x in r)),
+        r = [x for x in allr if not x.get("error")]  # 서버 오류 난 질의는 정확도 평균에서 뺌
+        if not r:
+            out[m] = {"queries": 0, "errors": len(allr)}
+            continue
+        s = {"queries": len(r), "errors": len(allr) - len(r), "avg_bytes": round(statistics.mean(x["bytes"] for x in r)),
              "avg_user_bytes": round(statistics.mean(x["user_bytes"] for x in r)),
              "avg_retention": round(statistics.mean(x["retention"] for x in r), 3)}
         for k in ("input_tokens_counted", "input_tokens", "output_tokens", "precision@3", "recall@3", "latency_s",
@@ -204,6 +210,7 @@ def main(argv=None):
     ap.add_argument("--tokens", action="store_true", help="count_tokens API 로 정확한 입력 토큰만 측정")
     ap.add_argument("--methods", nargs="+", default=METHODS, choices=METHODS)
     ap.add_argument("--note", default="", help="실험 로그에 남길 메모")
+    ap.add_argument("--pace", type=float, default=0.0, help="LLM 호출 사이 대기(초). 학교 서버는 2.5 권장")
     a = ap.parse_args(argv)
     rows, skipped, model = run(a)
     summary = summarize(rows)

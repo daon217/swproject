@@ -118,9 +118,32 @@ class LocalLLMRanker:
     def rank(self, profile, query, items, top_k):
         return self.rank_rendered(*render_candidates(self.fmt, profile, query, items, top_k, **self.render_opts))
 
-    def rank_rendered(self, system: str, user: str, id_map: dict[str, str]):
+    def _post(self, body: dict, headers: dict, retries: int = 3) -> dict:
+        import re
+        import time
         import urllib.error
         import urllib.request
+
+        url = f"{self.base}/chat/completions"
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(url, json.dumps(body).encode(), headers)
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    return json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                if e.code == 400 and "response_format" in body:  # json 모드 미지원 서버
+                    body = {k: v for k, v in body.items() if k != "response_format"}
+                    continue
+                if e.code == 429 and attempt < retries:  # 학교 서버: 키당 요청 수 제한
+                    wait = e.headers.get("Retry-After")
+                    time.sleep(min(float(wait), 120) if wait and wait.replace(".", "").isdigit() else 20 * (attempt + 1))
+                    continue
+                detail = e.read(300).decode("utf-8", "replace").replace("\n", " ")
+                detail = re.sub(r"(api_key:?\s*)\S+", r"\1***", detail)  # 키 식별값은 기록에 남기지 않음
+                raise RuntimeError(f"LLM 서버 HTTP {e.code}: {detail}") from None
+        raise RuntimeError("LLM 서버 재시도 초과")
+
+    def rank_rendered(self, system: str, user: str, id_map: dict[str, str]):
 
         body = {"model": self.model, "temperature": 0, "max_tokens": self.max_tokens,
                 "response_format": {"type": "json_object"},
@@ -131,19 +154,7 @@ class LocalLLMRanker:
                    "User-Agent": "kkulpick-recommendation/0.1"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        req = urllib.request.Request(f"{self.base}/chat/completions", json.dumps(body).encode(), headers)
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                data = json.loads(r.read())
-        except urllib.error.HTTPError as e:
-            if e.code == 400 and "response_format" in body:  # json 모드 미지원 서버
-                body.pop("response_format")
-                req = urllib.request.Request(req.full_url, json.dumps(body).encode(), headers)
-                with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                    data = json.loads(r.read())
-            else:
-                detail = e.read(300).decode("utf-8", "replace").replace("\n", " ")
-                raise RuntimeError(f"LLM 서버 HTTP {e.code}: {detail}") from None
+        data = self._post(body, headers)
         u = data.get("usage") or {}
         self.last_usage = (u.get("prompt_tokens"), u.get("completion_tokens"))
         picks = _parse_picks(data["choices"][0]["message"]["content"] or "")

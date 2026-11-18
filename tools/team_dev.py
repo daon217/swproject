@@ -119,7 +119,7 @@ def db_command(*args):
             'exec', '-T', 'postgres', *args]
 
 
-def backup():
+def backup(quiet=False):
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid4().hex[:8]
     destination = ROOT / 'infra/team/local/backups' / stamp
     destination.mkdir(parents=True, mode=0o700)
@@ -130,19 +130,28 @@ def backup():
         partial = target.with_suffix('.partial')
         fd = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'wb') as output:
-            run(db_command('sh', '-c', 'PGPASSWORD="$POSTGRES_PASSWORD" exec pg_dump -h 127.0.0.1 -U postgres -Fc "$1"', 'backup', name), stdout=output)
+            run(db_command('sh', '-c', 'PGPASSWORD="$POSTGRES_PASSWORD" exec pg_dump -h 127.0.0.1 -U postgres -Fc "$1"', 'backup', name), stdout=output, stderr=subprocess.PIPE, timeout=1800)
+            output.flush()
+            os.fsync(output.fileno())
         with partial.open('rb') as archive:
-            run(db_command('pg_restore', '--list'), stdin=archive, stdout=subprocess.DEVNULL)
+            run(db_command('pg_restore', '--list'), stdin=archive, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=60)
         partial.rename(target)
         digest = hashlib.sha256()
         with target.open('rb') as archive:
             for block in iter(lambda: archive.read(1024 * 1024), b''):
                 digest.update(block)
         manifest['databases'].append({'database': name, 'file': target.name, 'sha256': digest.hexdigest(), 'bytes': target.stat().st_size})
-        print('OK backup archive:', name)
-    (destination / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
-    print('Complete:', destination)
-    print('Separate per-DB snapshots. Copy this directory to another private disk; not a scheduled/offsite backup.')
+        if not quiet:print('OK backup archive:', name)
+    temporary=destination/'manifest.partial'
+    fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+    with os.fdopen(fd,'w',encoding='utf-8') as stream:
+        json.dump(manifest,stream,indent=2)
+        stream.write('\n');stream.flush();os.fsync(stream.fileno())
+    temporary.replace(destination/'manifest.json')
+    if not quiet:
+        print('Complete:', destination)
+        print('Separate per-DB snapshots. Copy this directory to another private disk; this command is one backup only.')
+    return destination
 
 
 def main():

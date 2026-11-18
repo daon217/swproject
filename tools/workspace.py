@@ -95,7 +95,7 @@ def initialize():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share', 'maintenance', 'admin'])
+    parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share', 'maintenance', 'admin', 'validate', 'monitor'])
     parser.add_argument('--login-id', help='Existing member login ID for owner-only admin grant/revoke')
     parser.add_argument('--role', choices=['admin','support'], default='support')
     parser.add_argument('--revoke', action='store_true')
@@ -105,7 +105,7 @@ def main():
     parser.add_argument('--shared', action='store_true', help='Explicitly include an already enrolled VPN gateway')
     args = parser.parse_args()
     if args.scope is None:
-        args.scope = 'core' if args.action in ('up', 'check') else 'full'
+        args.scope = 'core' if args.action in ('up', 'check', 'validate', 'monitor') else 'full'
     options = {'scope': args.scope, 'shared': args.shared or args.action == 'share'}
     if args.action == 'share' and args.scope != 'full':
         parser.error('share requires --scope full')
@@ -113,6 +113,8 @@ def main():
         return doctor()
     elif args.action == 'init':
         initialize()
+    elif args.action in ('validate','monitor'):
+        run([sys.executable,'tools/operations.py',args.action,'--scope',args.scope])
     elif args.action in ('up', 'share'):
         compose('up', '-d', '--build', '--wait', '--wait-timeout', '300', **options)
         if args.action == 'share':

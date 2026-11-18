@@ -21,6 +21,7 @@
 | 고객센터·제휴·관리자·탈퇴·분석 작업 | [백엔드 업무](backend/INDEPENDENT_BACKEND.md) | [업무 API v2](../contracts/independent-backend-v2.md) |
 | DB 단독 초기화·권한·벡터 | [DB 도구](../infra/db/README.md) | [API 모듈](../services/api/README.md) |
 | 파일 정리·효율성 점검 근거 | [2026-11-17 점검](reviews/BACKEND_EFFICIENCY_2026-11-17.md) | — |
+| 자동 백업·복원 검사·설정·장애 진단 | [운영 도구](backend/OPERATIONS.md) | — |
 
 ## 선택적인 공용 서버
 

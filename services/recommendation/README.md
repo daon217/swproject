@@ -45,3 +45,21 @@ DB 어댑터를 만들고 `contract_suite` 를 통과하면 `Recommender(catalog
 - `devapp.py` 의 HTTP `/internal/process` 연결 (아직 501, `business_ready=false`)
 - 알레르기 판정은 키워드 사전 기반입니다 (`allergens.py`). 애매하면 제외하는 쪽이라 '땅콩버터'가 우유로 잡히는 식의 과잉 제외가 있을 수 있습니다.
 - Claude 랭커는 실제 API 로 호출해 보지 않았습니다 (가짜 클라이언트로 응답 처리만 테스트).
+
+## 수집 데이터 연결 (2026-11-18)
+
+수집기 데이터가 준비되면 아래 둘 중 하나로 바로 넣습니다. 둘 다 키가 필요 없습니다 (`COLLECTOR_TOKEN`은 수집기가 백엔드에 올릴 때만 씀).
+
+```powershell
+# 1) 최준서 Observation v2 파일을 바로 넣기 (JSON 배열 또는 JSONL)
+py -m services.recommendation.cli import-observations observations_v2.json --domain food
+
+# 2) 백엔드 DB에 들어간 상품을 읽어오기
+#    로컬 워크스페이스: http://127.0.0.1:3000/backend  /  팀 터널: http://127.0.0.1:18000
+py -m services.recommendation.cli pull-offers --api-base http://127.0.0.1:3000/backend --domain food
+```
+
+- 변환 코드: `adapters/offers_api.py`. variant 가 있으면 `source:listing_id#variant` 를 상품 id 로 씁니다.
+- **성분 필드는 아직 없습니다.** 백엔드 `Observation`(services/api/kkulpick/models.py)은 `extra=forbid` 이고 성분 필드가 없어서,
+  성분이 들어오려면 백엔드에 필드가 추가돼야 합니다. 필드가 생기면 `_INGREDIENT_KEYS` 의 이름만 맞추면 알레르기 판정에 바로 쓰입니다.
+- 성분 정보가 없는 상품은 저장·검색은 되지만 알레르기가 있는 사용자에게는 추천되지 않습니다 (안전 확인 불가).

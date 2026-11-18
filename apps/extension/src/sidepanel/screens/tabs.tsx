@@ -3,13 +3,14 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../shared/api';
 import { formatPrice, safeHttpUrl } from '../../shared/format';
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveShortcuts, type Shortcut } from '../../shared/shortcuts';
-import { IconExternal, IconFood, IconPlus, IconPrinter } from '../../shared/ui/icons';
+import { IconExternal, IconFood, IconPlus, IconPrinter, IconSparkle } from '../../shared/ui/icons';
 import { OfferRow, ResultView } from '../../shared/ui/ResultView';
 import type { AnalysisHistoryItem, OfferCard } from '../../shared/types';
 import { ConfirmDialog, Note, RowButton, Toast, Toggle } from '../components';
 import { useNav } from '../nav';
 import { useSession } from '../session';
 import { useActiveTabState } from '../useActiveTabState';
+import { useRecommendEnabled } from '../useRecommendEnabled';
 
 export function openUrl(url: string) {
   const safe = safeHttpUrl(url);
@@ -23,6 +24,22 @@ export function RecommendTab() {
   const { state, retry } = useActiveTabState();
   const nav = useNav();
   const { me } = useSession();
+  const [enabled, setEnabled] = useRecommendEnabled();
+  if (enabled === null) return null;
+  if (!enabled) {
+    return (
+      <div className="kp-empty">
+        <div className="kp-empty-icon">
+          <IconSparkle size={26} />
+        </div>
+        <div className="kp-empty-title">상품 추천이 꺼져 있어요</div>
+        <p className="kp-empty-body">켜면 지금 보고 있는 상품 페이지를 AI가 분석해 비슷한 상품과 더 좋은 가격을 보여드려요.</p>
+        <button className="kp-btn kp-btn-primary kp-btn-sm" onClick={() => setEnabled(true)}>
+          상품 추천 켜기
+        </button>
+      </div>
+    );
+  }
   return (
     <ResultView
       state={state}

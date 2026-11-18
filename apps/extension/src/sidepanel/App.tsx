@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PanelRoute } from '../shared/messages';
 import { getItem, KEYS, onItemChange, removeItem } from '../shared/storage';
+import { useRecommendEnabled } from './useRecommendEnabled';
+import { Toggle } from './components';
 import { NavCtx, type Nav, type Screen, type Tab } from './nav';
 import { MyPageScreen, LoginScreen, PasswordScreen, ProfileEditScreen, SignupScreen, WithdrawScreen } from './screens/account';
 import { FilterScreen, PaymentDoneScreen, PaymentScreen, PremiumScreen, SupportScreen } from './screens/more';
@@ -110,6 +112,7 @@ function Shell() {
           </div>
         ) : (
           <>
+            <RecommendSwitch />
             <nav className="sp-tabs" role="tablist">
               {TABS.map((t) => (
                 <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'is-active' : ''} onClick={() => nav.setTab(t.id)}>
@@ -124,6 +127,20 @@ function Shell() {
         )}
       </div>
     </NavCtx.Provider>
+  );
+}
+
+/** 사이드 패널 맨 위: 상품 추천 켜기/끄기(기본 꺼짐) */
+function RecommendSwitch() {
+  const [on, setOn] = useRecommendEnabled();
+  return (
+    <div className="sp-recommend-switch">
+      <div>
+        <div className="sp-recommend-switch-title">상품 추천</div>
+        <div className="sp-recommend-switch-desc">{on ? '상품 페이지를 열면 AI가 분석해요' : '꺼져 있어요 · 화면을 분석하지 않아요'}</div>
+      </div>
+      <Toggle checked={!!on} onChange={setOn} label="상품 추천" disabled={on === null} />
+    </div>
   );
 }
 

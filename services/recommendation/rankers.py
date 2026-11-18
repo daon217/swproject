@@ -25,52 +25,126 @@ class RuleRanker:
 
 
 class _Pick(BaseModel):
-    product_id: str
-    reason: str = Field(description="사용자에게 보여줄 한국어 추천 이유 1~2문장")
+    id: str = Field(description="후보 번호. 예: c1")
+    reason: str = Field(description="한국어 한 문장, 40자 이내")
 
 
 class _Picks(BaseModel):
     picks: list[_Pick]
 
 
-SYSTEM_PROMPT = """너는 식품 쇼핑 추천 도우미다.
-후보 상품은 이미 사용자의 알레르기 성분 검사를 통과했다. 너는 그중에서 사용자의 요청과 선호에
-가장 잘 맞는 상품을 고르고, 왜 맞는지 짧게 설명한다.
-- 반드시 후보 목록에 있는 product_id 만 쓴다.
-- 알레르기 안전성을 새로 판단하거나 보장한다고 쓰지 않는다 (그 판단은 별도 시스템이 한다).
-- 이유는 성분·카테고리·선호와 연결해 한국어 1~2문장으로 쓴다.
-- 요청에 맞는 상품이 적으면 적게 골라도 된다."""
+def render_candidates(fmt: str, profile: UserProfile, query: str, items, top_k: int, **opts):
+    """LLM 입력 만들기. (system, user, id_map). fmt: compact(우리 압축) | json(압축 전) | toon.
+    opts 는 compact_candidates 로 (max_items, ing_limit, show_category ...)."""
+    from .compress import SYSTEM_PROMPT, compact_candidates, user_message
+
+    c = compact_candidates(profile, query, items, **opts)
+    if fmt == "compact":
+        return SYSTEM_PROMPT, user_message(profile, query, c, top_k), c.id_map
+    rows = []
+    by_pid = {p.product_id: p for p, _ in items}
+    for cid, pid in c.id_map.items():  # 같은 후보·같은 순서로 형식만 바꿈 (공정 비교)
+        p = by_pid[pid]
+        rows.append({"id": cid, "name": p.name, "category": p.category, "brand": p.brand, "price": p.price,
+                     "currency": p.currency, "ingredients": p.ingredients_raw or ", ".join(p.ingredients or []),
+                     "condition": p.condition or "new"})
+    if fmt == "json":
+        body = json.dumps(rows, ensure_ascii=False, indent=1)
+    elif fmt == "toon":
+        import toon_format  # pip install toon-format
+
+        body = toon_format.encode({"candidates": rows})
+    else:
+        raise ValueError("fmt 는 compact | json | toon")
+    head = user_message(profile, query, c, top_k).split("후보:")[0]
+    return SYSTEM_PROMPT.replace('"번호|이름|분류|가격|주요성분|중고표시"', f"{fmt} 형식"), head + "후보:\n" + body, c.id_map
 
 
 class ClaudeRanker:
     name = "claude"
 
-    def __init__(self, model: str = DEFAULT_MODEL, client=None):
+    def __init__(self, model: str = DEFAULT_MODEL, client=None, fmt: str = "compact", max_tokens: int = 600,
+                 **render_opts):
         import anthropic
 
-        self.model = model
+        self.model, self.fmt, self.max_tokens, self.render_opts = model, fmt, max_tokens, render_opts
         self.client = client or anthropic.Anthropic()
+        self.last_usage = None  # 실험 로그용 (input_tokens, output_tokens)
 
     def rank(self, profile: UserProfile, query: str, items: list[tuple[CollectedProduct, float]], top_k: int):
-        candidates = [{
-            "product_id": p.product_id, "name": p.name, "category": p.category, "brand": p.brand,
-            "price": p.price, "ingredients": p.ingredients_raw or ", ".join(p.ingredients or []),
-            "similarity": round(s, 3),
-        } for p, s in items]
-        user = (f"사용자 요청: {query}\n선호: {profile.preferences or '없음'}\n"
-                f"최대 {top_k}개까지 골라줘.\n\n후보(JSON):\n"
-                + json.dumps(candidates, ensure_ascii=False, indent=1))
+        return self.rank_rendered(*render_candidates(self.fmt, profile, query, items, top_k, **self.render_opts))
+
+    def rank_rendered(self, system: str, user: str, id_map: dict[str, str]):
         resp = self.client.messages.parse(
             model=self.model,
-            max_tokens=4000,
-            system=SYSTEM_PROMPT,
+            max_tokens=self.max_tokens,
+            system=system,
             output_config={"effort": "low"},
             messages=[{"role": "user", "content": user}],
             output_format=_Picks,
         )
+        u = getattr(resp, "usage", None)
+        self.last_usage = (getattr(u, "input_tokens", None), getattr(u, "output_tokens", None)) if u else None
         if resp.stop_reason == "refusal" or resp.parsed_output is None:
             raise RuntimeError(f"LLM 응답 없음 (stop_reason={resp.stop_reason})")
-        return [(x.product_id, x.reason) for x in resp.parsed_output.picks]
+        # 짧은 번호 -> 실제 id. 모르는 번호는 그대로 넘겨서 pipeline 이 "후보 밖" 으로 버리게 함
+        return [(id_map.get(x.id, f"unknown:{x.id}"), x.reason) for x in resp.parsed_output.picks]
+
+
+def _parse_picks(text: str) -> list[_Pick]:
+    """로컬 모델은 JSON 앞뒤로 말을 붙이기도 함 -> 첫 { ... } 만 꺼내서 검증."""
+    a, b = text.find("{"), text.rfind("}")
+    if a < 0 or b <= a:
+        raise ValueError("JSON 없음")
+    return _Picks.model_validate_json(text[a:b + 1]).picks
+
+
+class LocalLLMRanker:
+    """OpenAI 호환 /v1/chat/completions (Ollama, vLLM, LM Studio, llama.cpp server). 추가 패키지 없음.
+
+    환경변수: LOCAL_LLM_BASE_URL, LOCAL_LLM_MODEL, LOCAL_LLM_API_KEY (없으면 SUNMOON_API_KEY)
+    기본값은 학교 지원 서버 (https://llm.deepaibit.com/v1, gemma-4-26b). 키는 코드에 적지 말고 환경변수로만.
+    """
+    name = "local"
+
+    def __init__(self, base_url: str | None = None, model: str | None = None, fmt: str = "compact",
+                 max_tokens: int = 600, timeout: float = 120.0, api_key: str | None = None, **render_opts):
+        self.base = (base_url or os.getenv("LOCAL_LLM_BASE_URL", "https://llm.deepaibit.com/v1")).rstrip("/")
+        self.model = model or os.getenv("LOCAL_LLM_MODEL", "gemma-4-26b")
+        self.api_key = api_key or os.getenv("LOCAL_LLM_API_KEY") or os.getenv("SUNMOON_API_KEY")
+        self.fmt, self.max_tokens, self.timeout, self.render_opts = fmt, max_tokens, timeout, render_opts
+        self.last_usage = None
+
+    def rank(self, profile, query, items, top_k):
+        return self.rank_rendered(*render_candidates(self.fmt, profile, query, items, top_k, **self.render_opts))
+
+    def rank_rendered(self, system: str, user: str, id_map: dict[str, str]):
+        import urllib.error
+        import urllib.request
+
+        body = {"model": self.model, "temperature": 0, "max_tokens": self.max_tokens,
+                "response_format": {"type": "json_object"},
+                "messages": [{"role": "system", "content": system + '\n\n출력: {"picks":[{"id":"c1","reason":"..."}]} JSON 만.'},
+                             {"role": "user", "content": user}]}
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        req = urllib.request.Request(f"{self.base}/chat/completions", json.dumps(body).encode(), headers)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                data = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 400 and "response_format" in body:  # json 모드 미지원 서버
+                body.pop("response_format")
+                req = urllib.request.Request(req.full_url, json.dumps(body).encode(), headers)
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    data = json.loads(r.read())
+            else:
+                raise RuntimeError(f"LLM 서버 HTTP {e.code}") from None
+        u = data.get("usage") or {}
+        self.last_usage = (u.get("prompt_tokens"), u.get("completion_tokens"))
+        picks = _parse_picks(data["choices"][0]["message"]["content"] or "")
+        return [(id_map.get(x.id, f"unknown:{x.id}"), x.reason) for x in picks]
 
 
 def make_ranker(kind: str):
@@ -78,6 +152,8 @@ def make_ranker(kind: str):
         return RuleRanker()
     if kind == "claude":
         return ClaudeRanker()
+    if kind == "local":
+        return LocalLLMRanker()
     if kind == "auto":
         if os.getenv("ANTHROPIC_API_KEY"):
             try:
@@ -85,4 +161,4 @@ def make_ranker(kind: str):
             except ImportError:
                 pass
         return RuleRanker()
-    raise ValueError("ranker 는 auto | rule | claude")
+    raise ValueError("ranker 는 auto | rule | claude | local")

@@ -155,13 +155,18 @@ def test_claude_ranker_parses_structured_output(tmp_path):
     class FakeMessages:
         def parse(self, **kw):
             calls.update(kw)
-            return SimpleNamespace(stop_reason="end_turn", parsed_output=_Picks(picks=[
-                _Pick(product_id="demo:juice-007", reason="달지 않은 100% 과즙"),
-                _Pick(product_id="demo:cookie-001", reason="후보 밖"),
-            ]))
+            content = kw["messages"][0]["content"]
+            juice = next(l.split("|")[0] for l in content.splitlines() if "|" in l and "주스" in l)
+            return SimpleNamespace(stop_reason="end_turn", usage=SimpleNamespace(input_tokens=10, output_tokens=5),
+                                   parsed_output=_Picks(picks=[
+                                       _Pick(id=juice, reason="달지 않은 100% 과즙"),
+                                       _Pick(id="c99", reason="후보 밖 번호"),
+                                   ]))
 
     rec = make_rec(tmp_path, ClaudeRanker(client=SimpleNamespace(messages=FakeMessages())))
     r = rec.recommend(UserProfile("u", allergens=["milk"]), "주스", top_k=3)
     assert [p.product_id for p in r.picks] == ["demo:juice-007"]
     assert r.ranker == "claude" and calls["output_format"] is _Picks
-    assert "demo:cookie-001" not in calls["messages"][0]["content"]  # 알레르기 상품은 LLM 에 안 보냄
+    content = calls["messages"][0]["content"]
+    assert "버터 쿠키" not in content and "demo:" not in content  # 알레르기 상품·긴 id 는 LLM 에 안 보냄
+    assert any("후보 밖" in n for n in r.notes)

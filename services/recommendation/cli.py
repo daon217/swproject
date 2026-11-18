@@ -183,7 +183,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="reco")
     ap.add_argument("--data", default=".reco-data", help="로컬 데이터 폴더")
     ap.add_argument("--embedder", default="hash", help="hash | st | st:<모델명>")
-    ap.add_argument("--ranker", default="auto", help="auto(키 있으면 claude) | rule | claude")
+    ap.add_argument("--ranker", default="auto", help="auto(키 있으면 claude) | rule | claude | local(LOCAL_LLM_BASE_URL)")
     ap.add_argument("--store", default="local", choices=["local", "pg"], help="local(JSON) | pg(catalog DB+pgvector)")
     ap.add_argument("--dsn", default=os.getenv("KKULPICK_CATALOG_DSN"), help="pg 모드 app 계정 접속 문자열")
     ap.add_argument("--model-id", default=os.getenv("KKULPICK_EMBEDDING_MODEL_ID", "food-hash-384-v1"),

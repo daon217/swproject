@@ -11,6 +11,7 @@ import {
   type OfferCard,
   type Profile,
   type ResultSection,
+  type SubscriptionStatus,
   type SupportMessage,
 } from '../types';
 import type { PageProduct } from '../pageProductScript';
@@ -33,6 +34,9 @@ interface MockUser {
   password_hash: string;
   profile: Profile;
   premium_until: string | null;
+  /** 자동 결제 해지 여부(기간 끝에 갱신 안 함) */
+  cancel_at_period_end?: boolean;
+  sub_version?: number;
   history: AnalysisHistoryItem[];
   support: SupportMessage[];
 }
@@ -79,6 +83,10 @@ async function requireUser(db: MockDb): Promise<MockUser> {
 }
 
 const isPremium = (u: MockUser | null) => !!u?.premium_until && new Date(u.premium_until).getTime() > Date.now();
+
+function subStatus(u: MockUser): SubscriptionStatus {
+  return { active: isPremium(u), entitlement_end: u.premium_until, cancel_at_period_end: isPremium(u) && !!u.cancel_at_period_end, version: u.sub_version ?? 0 };
+}
 
 function toMe(u: MockUser): Me {
   return { user_id: u.user_id, login_id: u.login_id, premium: isPremium(u), profile: u.profile };
@@ -334,6 +342,19 @@ function createMockImpl(): KkulpickApi {
       return FEATURED;
     },
 
+    async deleteAccount(current_password) {
+      await wait(600);
+      const db = await load();
+      const u = await requireUser(db);
+      if (u.password_hash !== (await sha256(current_password))) throw new ApiError(422, 'WRONG_PASSWORD', '비밀번호가 맞지 않아요.');
+      // 목업: 계정·기록·상담·세션을 바로 지운다(실서버는 접수 후 비동기 삭제, 결제 기록 일부 보관).
+      delete db.users[u.user_id];
+      for (const [token, id] of Object.entries(db.sessions)) if (id === u.user_id) delete db.sessions[token];
+      for (const [id, job] of Object.entries(db.jobs)) if (job.owner === u.user_id) delete db.jobs[id];
+      await save(db);
+      return { request_id: uuid() };
+    },
+
     async deleteAllHistory() {
       await wait(400);
       const db = await load();
@@ -367,13 +388,29 @@ function createMockImpl(): KkulpickApi {
       const end = new Date();
       end.setMonth(end.getMonth() + 1);
       u.premium_until = end.toISOString();
+      u.cancel_at_period_end = false;
+      u.sub_version = (u.sub_version ?? 0) + 1;
       await save(db);
       return { subscription_id: uuid(), invoice_id: uuid(), payment_id: uuid() };
     },
 
     async getSubscription() {
       const u = await requireUser(await load());
-      return { active: isPremium(u), entitlement_end: u.premium_until, cancel_at_period_end: false };
+      return subStatus(u);
+    },
+
+    async cancelRenewal(expected_version) {
+      await wait(500);
+      const db = await load();
+      const u = await requireUser(db);
+      if (!isPremium(u)) throw new ApiError(409, 'NO_ACTIVE_SUBSCRIPTION', '이용 중인 프리미엄이 없어요.');
+      if (expected_version !== undefined && expected_version !== (u.sub_version ?? 0)) {
+        throw new ApiError(409, 'VERSION_CONFLICT', '구독 정보가 바뀌었어요. 다시 확인해 주세요.', true);
+      }
+      u.cancel_at_period_end = true;
+      u.sub_version = (u.sub_version ?? 0) + 1;
+      await save(db);
+      return subStatus(u);
     },
 
     async getSupportConversation() {

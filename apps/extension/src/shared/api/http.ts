@@ -54,11 +54,13 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
     listHistory: () => request('GET', '/v2/me/analyses?limit=20'),
     listFeatured: () => request('GET', '/v2/recommendations/featured?limit=10'),
     deleteAllHistory: () => request('POST', '/v2/me/data-deletions', { scope: 'history' }),
+    deleteAccount: (current_password) => request('POST', '/v2/me/data-deletions', { scope: 'account', current_password }),
 
     listPlans: () => request('GET', '/v2/subscription-plans'),
     createSubscription: (plan_id, payment_method, key) =>
       request('POST', '/v2/me/subscriptions', { plan_id, payment_method }, { 'Idempotency-Key': key }),
     getSubscription: () => request('GET', '/v2/me/subscription'),
+    cancelRenewal: (expected_version) => request('POST', '/v2/me/subscription/cancel-renewal', { expected_version }),
 
     getSupportConversation: () => request('GET', '/v2/support/conversations?limit=1').then((list: any) => list[0]),
     listSupportMessages: (id) => request('GET', `/v2/support/conversations/${encodeURIComponent(id)}/messages?limit=50`),

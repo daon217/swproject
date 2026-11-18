@@ -28,6 +28,11 @@ export interface KkulpickApi {
   getMe(): Promise<Me>;
   updateProfile(patch: ProfilePatch): Promise<Me>;
   changePassword(current: string, next: string, confirmation: string): Promise<void>;
+  /**
+   * 회원 탈퇴 접수(POST /v2/me/data-deletions scope=account, 명세 14.3). 비밀번호로 본인을 다시 확인한다.
+   * 접수 즉시 로그인이 막히고 실제 삭제는 비동기로 진행된다. 결제 기록 일부는 법정 보관.
+   */
+  deleteAccount(current_password: string): Promise<{ request_id: string }>;
 
   // 분석
   createAnalysis(req: CreateAnalysisRequest): Promise<CreateAnalysisResponse>;
@@ -42,6 +47,8 @@ export interface KkulpickApi {
   listPlans(): Promise<SubscriptionPlan[]>;
   createSubscription(plan_id: string, method: PaymentMethod, idempotency_key: string): Promise<CreateSubscriptionResponse>;
   getSubscription(): Promise<SubscriptionStatus>;
+  /** 자동 결제 해지(POST /v2/me/subscription/cancel-renewal). 남은 이용 기간은 유지된다. */
+  cancelRenewal(expected_version?: number): Promise<SubscriptionStatus>;
 
   // 고객센터
   getSupportConversation(): Promise<SupportConversation>;

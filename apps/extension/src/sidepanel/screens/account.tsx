@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { allergenLabel } from '../../shared/allergens';
 import { api } from '../../shared/api';
-import { ageGroupLabel, GENDER_LABEL, todaySeoul } from '../../shared/format';
+import { ageGroupLabel, formatDate, GENDER_LABEL, todaySeoul } from '../../shared/format';
 import { CONSENT_VERSION, PRIVACY_CONSENT_SECTIONS, PRIVACY_CONSENT_TITLE } from '../../shared/terms';
-import { ApiError, type Gender } from '../../shared/types';
+import { ApiError, type Gender, type SubscriptionStatus } from '../../shared/types';
 import { AllergyPicker, Checkbox, ConfirmDialog, Field, GenderSelect, Note, Page, SubHeader, Toast } from '../components';
 import { useNav } from '../nav';
 import { useSession } from '../session';
@@ -292,13 +292,101 @@ export function MyPageScreen() {
         <button className="kp-btn kp-btn-outline kp-btn-block sp-mt16" onClick={() => nav.push('profileEdit')}>
           개인정보 수정
         </button>
-        {!me.premium && (
+        {me.premium ? (
+          <SubscriptionCard />
+        ) : (
           <button className="kp-btn kp-btn-primary kp-btn-block sp-mt16" onClick={() => nav.push('premium')}>
             프리미엄 알아보기
           </button>
         )}
       </Page>
     </>
+  );
+}
+
+// ---------- 구독 관리 (마이페이지, 프리미엄 회원만) ----------
+// 자동 결제 해지 = 다음 결제만 멈추고 남은 기간은 그대로(명세 11.3). 해지 취소 API는 명세에 없어 넣지 않았다.
+function SubscriptionCard() {
+  const [sub, setSub] = useState<SubscriptionStatus | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [alert, setAlert] = useState<Alert>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const load = () => {
+    setLoadError(false);
+    api.getSubscription().then(setSub, () => setLoadError(true));
+  };
+  useEffect(load, []);
+
+  const end = sub?.entitlement_end ? formatDate(sub.entitlement_end) : null;
+
+  const cancel = async () => {
+    setAsking(false);
+    setBusy(true);
+    try {
+      setSub(await api.cancelRenewal(sub?.version));
+      setToast('자동 결제를 해지했어요');
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'VERSION_CONFLICT') load();
+      setAlert({ title: '해지하지 못했어요', body: errMsg(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="sp-sub-card" aria-label="구독 관리">
+      <h2 className="sp-sub-title">구독 관리</h2>
+      {!sub && !loadError && <p className="sp-desc">불러오는 중…</p>}
+      {loadError && (
+        <>
+          <p className="sp-desc">구독 정보를 불러오지 못했어요.</p>
+          <button className="kp-btn kp-btn-outline kp-btn-block sp-mt16" onClick={load}>
+            다시 시도
+          </button>
+        </>
+      )}
+      {sub && (
+        <>
+          <div className="sp-sub-row">
+            <strong>꿀픽 프리미엄</strong>
+            <span className={`sp-sub-badge ${sub.cancel_at_period_end ? 'is-off' : ''}`}>{sub.cancel_at_period_end ? '자동 결제 해지됨' : '이용 중'}</span>
+          </div>
+          {end && <p className="sp-desc">이용 기간 · {end}까지</p>}
+          {end && <p className="sp-desc">{sub.cancel_at_period_end ? `${end} 이후에는 일반 회원으로 바뀌어요` : `다음 결제일 · ${end}`}</p>}
+          {!sub.cancel_at_period_end && (
+            <button className="kp-btn kp-btn-outline kp-btn-block sp-mt16" onClick={() => setAsking(true)} disabled={busy}>
+              자동 결제 해지
+            </button>
+          )}
+        </>
+      )}
+      {asking && (
+        <ConfirmDialog
+          title="자동 결제를 해지할까요?"
+          body={
+            <>
+              다음 결제부터 청구되지 않아요.
+              {end && (
+                <>
+                  <br />
+                  {end}까지는 프리미엄을 계속 이용할 수 있어요.
+                </>
+              )}
+            </>
+          }
+          confirmLabel="해지하기"
+          cancelLabel="유지하기"
+          danger
+          onConfirm={() => void cancel()}
+          onCancel={() => setAsking(false)}
+        />
+      )}
+      <AlertDialog alert={alert} onClose={() => setAlert(null)} />
+      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+    </section>
   );
 }
 
@@ -363,6 +451,10 @@ export function ProfileEditScreen() {
         <AllergyPicker value={allergies} onChange={setAllergies} />
         <Note>알레르기 선택 항목은 회원가입과 동일해요. 저장한 내용은 다음 추천부터 반영돼요.</Note>
         {error && <p className="sp-error">{error}</p>}
+        {/* 실수로 누르지 않도록 맨 아래에 작게 둔다 */}
+        <button className="sp-withdraw-link" onClick={() => nav.push('withdraw')}>
+          회원 탈퇴
+        </button>
       </Page>
       {leaving && (
         <ConfirmDialog
@@ -426,6 +518,93 @@ export function PasswordScreen() {
         {error && <p className="sp-error">{error}</p>}
       </Page>
       {done && <ConfirmDialog title="비밀번호를 변경했어요" body="다음 로그인부터 새 비밀번호를 사용해 주세요." confirmLabel="확인" cancelLabel={null} onConfirm={nav.pop} />}
+    </>
+  );
+}
+
+// ---------- 회원 탈퇴 (명세 14.3) ----------
+// 비밀번호로 본인을 다시 확인하고 탈퇴를 접수한다. 접수 즉시 로그인이 끊기고 실제 삭제는 서버에서 차례로 진행된다.
+// 남은 프리미엄 기간 환불 여부는 운영 정책 미확정이라 안내하지 않는다.
+const WITHDRAW_DELETED = ['계정(아이디·비밀번호)', '프로필·알레르기·필터 설정', '추천 기록', '고객지원 상담 내역'];
+const WITHDRAW_KEPT = ['결제 기록: 관계 법령에 따라 정해진 기간 동안 분리 보관 후 파기'];
+
+export function WithdrawScreen() {
+  const nav = useNav();
+  const { me, logout } = useSession();
+  const [pw, setPw] = useState('');
+  const [agree, setAgree] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [alert, setAlert] = useState<Alert>(null);
+  const [done, setDone] = useState(false);
+  const [premiumEnd, setPremiumEnd] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!me?.premium) return;
+    api.getSubscription().then((s) => setPremiumEnd(s.active ? s.entitlement_end : null), () => undefined);
+  }, [me?.premium]);
+
+  const submit = async () => {
+    setAsking(false);
+    setBusy(true);
+    try {
+      await api.deleteAccount(pw);
+      setDone(true);
+      setAlert({ title: '탈퇴가 접수됐어요', body: '그동안 꿀픽을 이용해 주셔서 감사해요. 개인 정보는 차례로 삭제돼요.' });
+    } catch (e) {
+      if (e instanceof ApiError && e.code === 'WRONG_PASSWORD') setAlert({ title: '비밀번호 불일치', body: '비밀번호가 맞지 않아요. 다시 입력해 주세요.' });
+      else setAlert({ title: '탈퇴하지 못했어요', body: errMsg(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const closeAlert = async () => {
+    setAlert(null);
+    if (!done) return;
+    await logout();
+    nav.reset('recent');
+  };
+
+  return (
+    <>
+      <AlertDialog alert={alert} onClose={() => void closeAlert()} />
+      <SubHeader title="회원 탈퇴" />
+      <Page
+        footer={
+          <button className="kp-btn kp-btn-primary kp-btn-block sp-btn-danger" onClick={() => setAsking(true)} disabled={busy || done || !agree || !pw}>
+            탈퇴하기
+          </button>
+        }
+      >
+        <h1 className="sp-heading">탈퇴하기 전에 확인해 주세요</h1>
+        {premiumEnd && (
+          <div className="sp-withdraw-warn" role="note">
+            <strong>프리미엄 이용 기간이 남아 있어요</strong>
+            <p>{formatDate(premiumEnd)}까지 남은 기간도 탈퇴와 함께 사라지고, 자동 결제도 멈춰요.</p>
+          </div>
+        )}
+        <h2 className="sp-subtitle">삭제되는 정보</h2>
+        <ul className="sp-withdraw-list">
+          {WITHDRAW_DELETED.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+        <h2 className="sp-subtitle">보관되는 정보</h2>
+        <ul className="sp-withdraw-list">
+          {WITHDRAW_KEPT.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+        <p className="sp-desc">탈퇴 후에는 같은 아이디의 정보를 되살릴 수 없어요.</p>
+        <Field label="비밀번호 확인" type="password" placeholder="현재 비밀번호 입력" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} />
+        <Checkbox checked={agree} onChange={setAgree}>
+          안내 사항을 모두 확인했고 탈퇴에 동의해요
+        </Checkbox>
+      </Page>
+      {asking && (
+        <ConfirmDialog title="정말 탈퇴할까요?" body="탈퇴하면 되돌릴 수 없어요." confirmLabel="탈퇴하기" danger onConfirm={() => void submit()} onCancel={() => setAsking(false)} />
+      )}
     </>
   );
 }

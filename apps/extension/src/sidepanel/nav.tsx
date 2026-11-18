@@ -12,7 +12,8 @@ export type Screen =
   | 'filter'
   | 'premium'
   | 'payment'
-  | 'paymentDone';
+  | 'paymentDone'
+  | 'withdraw';
 
 export interface Nav {
   tab: Tab;

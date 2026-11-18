@@ -153,8 +153,12 @@ export interface CreateSubscriptionResponse {
 
 export interface SubscriptionStatus {
   active: boolean;
+  /** 현재 이용 기간 끝. 자동 결제 중이면 다음 결제일과 같다 */
   entitlement_end: string | null;
+  /** true면 기간 끝에 갱신하지 않는다(자동 결제 해지). 이용 기간은 그대로 남는다(명세 11.3) */
   cancel_at_period_end: boolean;
+  /** 낙관적 잠금용 버전(cancel-renewal의 expected_version) */
+  version?: number;
 }
 
 // ---- 고객센터 ----

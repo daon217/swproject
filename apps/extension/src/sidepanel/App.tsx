@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PanelRoute } from '../shared/messages';
 import { getItem, KEYS, onItemChange, removeItem } from '../shared/storage';
 import { NavCtx, type Nav, type Screen, type Tab } from './nav';
-import { MyPageScreen, LoginScreen, PasswordScreen, ProfileEditScreen, SignupScreen } from './screens/account';
+import { MyPageScreen, LoginScreen, PasswordScreen, ProfileEditScreen, SignupScreen, WithdrawScreen } from './screens/account';
 import { FilterScreen, PaymentDoneScreen, PaymentScreen, PremiumScreen, SupportScreen } from './screens/more';
 import { RecentTab, RecommendTab, SettingsTab, ShortcutsTab } from './screens/tabs';
 import { SessionProvider, useSession } from './session';
@@ -15,7 +15,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 /** 로그인이 필요한 화면 */
-const MEMBER_ONLY: Screen[] = ['mypage', 'profileEdit', 'password', 'support', 'filter', 'premium', 'payment', 'paymentDone'];
+const MEMBER_ONLY: Screen[] = ['mypage', 'profileEdit', 'password', 'support', 'filter', 'premium', 'payment', 'paymentDone', 'withdraw'];
 
 function ScreenView({ screen }: { screen: Screen }) {
   switch (screen) {
@@ -27,6 +27,8 @@ function ScreenView({ screen }: { screen: Screen }) {
       return <MyPageScreen />;
     case 'profileEdit':
       return <ProfileEditScreen />;
+    case 'withdraw':
+      return <WithdrawScreen />;
     case 'password':
       return <PasswordScreen />;
     case 'support':

@@ -1,6 +1,6 @@
 import { Redirect, router, usePreventRemove } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { useSession } from '../session';
 import { api } from '../shared/api';
 import { todaySeoul } from '../shared/format';
@@ -64,6 +64,10 @@ export default function ProfileEditScreen() {
         <AllergyPicker value={allergies} onChange={setAllergies} />
         <Note>알레르기 선택 항목은 회원가입과 동일해요. 저장한 내용은 다음 추천부터 반영돼요.</Note>
         {error && <ErrorText>{error}</ErrorText>}
+        {/* 실수로 누르지 않도록 맨 아래에 작게 둔다 */}
+        <Pressable onPress={() => router.push('/withdraw')} accessibilityRole="link" hitSlop={8} style={{ alignSelf: 'center', marginTop: 32 }}>
+          <Text style={{ color: C.muted, fontSize: 13, textDecorationLine: 'underline' }}>회원 탈퇴</Text>
+        </Pressable>
       </Page>
       <ConfirmDialog
         visible={asking}

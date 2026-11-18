@@ -830,3 +830,67 @@ body {
     animation: none;
   }
 }
+
+/* 구독 관리(마이페이지) */
+.sp-sub-card {
+  margin-top: 20px;
+  border: 1px solid var(--kp-border);
+  border-radius: 12px;
+  padding: 16px;
+}
+.sp-sub-title {
+  font-size: 15px;
+  font-weight: 800;
+  margin: 0 0 10px;
+}
+.sp-sub-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sp-sub-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--kp-primary);
+  background: var(--kp-primary-soft);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+.sp-sub-badge.is-off {
+  color: var(--kp-sub);
+  background: var(--kp-surface-muted);
+}
+.sp-sub-card .sp-desc {
+  margin: 6px 0 0;
+}
+
+/* 회원 탈퇴 */
+.sp-withdraw-link {
+  display: block;
+  margin: 32px auto 8px;
+  color: var(--kp-muted);
+  font-size: 13px;
+  text-decoration: underline;
+  background: none;
+}
+.sp-withdraw-warn {
+  background: #fff1f1;
+  border-radius: 10px;
+  padding: 14px;
+}
+.sp-withdraw-warn strong {
+  color: var(--kp-danger);
+  font-size: 14px;
+}
+.sp-withdraw-warn p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.sp-withdraw-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--kp-sub);
+  font-size: 14px;
+  line-height: 1.6;
+}

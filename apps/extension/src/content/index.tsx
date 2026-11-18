@@ -4,13 +4,13 @@ import { sendMessage, type Message, type TabState } from '../shared/messages';
 import baseCss from '../shared/ui/styles.css?inline';
 import floatingCss from './floating.css?inline';
 import { Floating } from './Floating';
-import { extractPageProduct } from '../shared/pageProduct';
+import { scanPage } from '../shared/pageProduct';
 
-// [임시] 백그라운드가 분석을 접수하기 직전에 이 페이지의 상품명·가격을 물어본다.
+// 백그라운드가 캡처 전후로 이 페이지의 상품 표시 여부와 [임시] 상품명·가격을 물어본다.
 chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
   if (msg.type !== 'extractProduct') return false;
   try {
-    sendResponse(extractPageProduct(document));
+    sendResponse(scanPage(document));
   } catch {
     sendResponse(null);
   }

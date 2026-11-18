@@ -3,9 +3,9 @@ import { Platform, type View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import { onReanalyze } from './session';
 import { api } from './shared/api';
-import { shouldCapture } from './shared/pageFilter';
+import { captureRule } from './shared/pageFilter';
 import { uuid } from './shared/platform';
-import type { PageProduct } from './shared/pageProductScript';
+import type { PageScan } from './shared/pageProductScript';
 import type { Analysis } from './shared/types';
 import type { AnalysisStatus } from './ui/ResultView';
 
@@ -25,13 +25,13 @@ export interface PageAnalysis {
 }
 
 /**
- * getPageProduct: [임시] 페이지에서 읽은 상품명·가격. undefined면 아직 못 받음, null이면 받았지만 없음.
+ * getPageScan: 페이지의 상품 표시 여부 + [임시] 상품명·가격. undefined면 아직 못 받음.
  */
 export function usePageAnalysis(
   url: string | null,
   loading: boolean,
   captureTarget: RefObject<ComponentRef<typeof View> | null>,
-  getPageProduct?: (url: string) => PageProduct | null | undefined,
+  getPageScan?: (url: string) => PageScan | undefined,
 ) {
   const [state, setState] = useState<PageAnalysis>({ status: 'none', analysis: null, error: null, pageSessionId: '' });
   const revision = useRef(0);
@@ -45,9 +45,24 @@ export function usePageAnalysis(
       current.current = { url: target, rev };
       const stale = () => current.current.rev !== rev || current.current.url !== target;
 
-      if (!shouldCapture(target)) {
+      const rule = captureRule(target);
+      if (!rule) {
         setState({ status: 'none', analysis: null, error: null, pageSessionId });
         return;
+      }
+      // 쇼핑몰이 아닌 사이트는 페이지에 상품 표시가 있을 때만 캡처한다(학습포털 등 제외).
+      // 주입 스크립트가 0·1.5·4초에 보내므로 최대 4.5초 기다린다. 웹 미리보기(iframe)는 확인할 수 없어 제외.
+      if (rule === 'needs-signal') {
+        let ok = !!getPageScan?.(target)?.signal;
+        for (let i = 0; i < 15 && !ok && getPageScan && Platform.OS !== 'web'; i++) {
+          await new Promise((r) => setTimeout(r, 300));
+          if (stale()) return;
+          ok = !!getPageScan(target)?.signal;
+        }
+        if (!ok) {
+          setState({ status: 'none', analysis: null, error: null, pageSessionId });
+          return;
+        }
       }
       setState({ status: 'analyzing', analysis: null, error: null, pageSessionId });
 
@@ -65,12 +80,13 @@ export function usePageAnalysis(
 
       try {
         // [임시] 페이지 상품 정보가 도착할 때까지 최대 2초 기다린다(가격이 늦게 그려지는 페이지 대비).
-        let page_product = getPageProduct?.(target);
-        for (let i = 0; i < 10 && page_product === undefined && getPageProduct; i++) {
+        let scan = getPageScan?.(target);
+        for (let i = 0; i < 10 && scan === undefined && getPageScan; i++) {
           await new Promise((r) => setTimeout(r, 200));
           if (stale()) return;
-          page_product = getPageProduct(target);
+          scan = getPageScan(target);
         }
+        const page_product = scan?.product;
         const created = await api.createAnalysis({
           image,
           page_url: target,
@@ -101,7 +117,7 @@ export function usePageAnalysis(
         if (!stale()) setState({ status: 'error', analysis: null, error: e instanceof Error ? e.message : '분석에 실패했어요.', pageSessionId });
       }
     },
-    [captureTarget, getPageProduct],
+    [captureTarget, getPageScan],
   );
 
   // URL이 바뀌면 이전 결과를 즉시 숨기고, 로딩이 끝나면 디바운스 후 분석

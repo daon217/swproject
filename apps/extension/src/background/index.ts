@@ -1,16 +1,25 @@
 import { api } from '../shared/api';
 import type { Message, PanelRoute, TabState } from '../shared/messages';
 import { safeHttpUrl } from '../shared/format';
-import { shouldCapture } from '../shared/pageFilter';
+import { captureRule, shouldCapture } from '../shared/pageFilter';
 import { KEYS } from '../shared/storage';
-import type { PageProduct } from '../shared/pageProduct';
+import type { PageScan } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
 
 /** [임시] content script에 페이지 상품명·가격을 묻는다. 응답이 없으면 null */
-async function readPageProduct(tabId: number): Promise<PageProduct | null> {
+async function readPageScan(tabId: number): Promise<PageScan | null> {
   const timeout = new Promise<null>((r) => setTimeout(() => r(null), 1500));
-  const ask = chrome.tabs.sendMessage(tabId, { type: 'extractProduct' } satisfies Message).catch(() => null) as Promise<PageProduct | null>;
+  const ask = chrome.tabs.sendMessage(tabId, { type: 'extractProduct' } satisfies Message).catch(() => null) as Promise<PageScan | null>;
   return (await Promise.race([ask, timeout])) ?? null;
+}
+
+/** 쇼핑몰이 아닌 사이트: 페이지에 상품 표시가 있는지 확인한다. 늦게 그려지는 페이지를 위해 한 번 더 본다. */
+async function confirmProductSignal(tabId: number): Promise<boolean> {
+  for (let i = 0; i < 2; i++) {
+    if ((await readPageScan(tabId))?.signal) return true;
+    if (i === 0) await new Promise((r) => setTimeout(r, 1500));
+  }
+  return false;
 }
 
 // 백그라운드 서비스 워커
@@ -92,14 +101,18 @@ async function analyze(tabId: number, url: string) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab || tab.url !== url) return;
   const state = await resetForUrl(tabId, url);
-  if (!shouldCapture(url)) return; // 상품 페이지가 아니면 'none' 상태(E01 빈 화면)
+  const rule = captureRule(url);
+  if (!rule) return; // 상품 페이지가 아니면 'none' 상태(E01 빈 화면)
 
   if (!tab.active) return; // 비활성 탭은 활성화될 때 다시 시도
+  // 쇼핑몰이 아닌 사이트는 페이지에 상품 표시가 있을 때만 캡처한다(학습포털 등 제외).
+  if (rule === 'needs-signal' && !(await confirmProductSignal(tabId))) return;
+  if (await isStale(tabId, state)) return;
   const image = await captureTab(tab);
   if (await isStale(tabId, state)) return; // 캡처 전후 탭/URL이 바뀌면 폐기
 
   await writeState({ ...state, status: 'analyzing' });
-  const page_product = await readPageProduct(tabId);
+  const page_product = (await readPageScan(tabId))?.product ?? null;
   try {
     const created = await api.createAnalysis({
       image,

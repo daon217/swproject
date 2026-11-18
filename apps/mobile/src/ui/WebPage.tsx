@@ -1,6 +1,6 @@
 import { useImperativeHandle, useRef, type ComponentType, type Ref } from 'react';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation, type WebViewProps } from 'react-native-webview';
-import { PAGE_PRODUCT_SCRIPT, type PageProduct, type PageProductMessage } from '../shared/pageProductScript';
+import { PAGE_PRODUCT_SCRIPT, type PageProductMessage, type PageScan } from '../shared/pageProductScript';
 
 // 앱 안 브라우저 화면(네이티브). 웹 미리보기는 WebPage.web.tsx(iframe)를 쓴다.
 
@@ -27,8 +27,8 @@ export interface WebPageProps {
   onNavigation: (s: WebNavState) => void;
   /** 사이트가 새 창(target=_blank, window.open)으로 여는 링크 → 앱 안 새 탭 */
   onNewWindow?: (url: string) => void;
-  /** [임시] 페이지에서 읽은 상품명·가격(주입 스크립트가 보냄) */
-  onPageProduct?: (url: string, product: PageProduct | null) => void;
+  /** 페이지의 상품 표시 여부 + [임시] 상품명·가격(주입 스크립트가 보냄) */
+  onPageProduct?: (url: string, scan: PageScan) => void;
   ref?: Ref<WebPageHandle>;
 }
 
@@ -51,7 +51,7 @@ export function WebPage({ uri, onNavigation, onNewWindow, onPageProduct, ref }: 
       onMessage={(e: WebViewMessageEvent) => {
         try {
           const msg = JSON.parse(e.nativeEvent.data) as PageProductMessage;
-          if (msg?.type === 'kp-product') onPageProduct?.(msg.url, msg.product);
+          if (msg?.type === 'kp-product') onPageProduct?.(msg.url, { signal: !!msg.signal, product: msg.product ?? null });
         } catch {
           /* 페이지가 보낸 다른 메시지는 무시 */
         }

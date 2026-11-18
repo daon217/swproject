@@ -22,7 +22,7 @@ export type Message =
   | { type: 'openSidePanel'; route: PanelRoute } // content → bg (사용자 클릭)
   | { type: 'openUrl'; url: string }
   | { type: 'tabState'; state: TabState } // bg → content / sidepanel
-  | { type: 'extractProduct' }; // bg → content: [임시] 페이지 상품명·가격 읽기
+  | { type: 'extractProduct' }; // bg → content: 상품 표시 여부 + [임시] 페이지 상품명·가격 읽기(PageScan)
 
 export function sendMessage<T = unknown>(msg: Message): Promise<T | undefined> {
   if (typeof chrome === 'undefined' || !chrome.runtime?.id) {

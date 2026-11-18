@@ -13,7 +13,7 @@ import { WebPage, type WebNavState, type WebPageHandle } from '../../ui/WebPage'
 import { C } from '../../ui/theme';
 import { KEYBOARD_BEHAVIOR } from '../../ui/useKeyboard';
 import { usePageAnalysis } from '../../usePageAnalysis';
-import type { PageProduct } from '../../shared/pageProductScript';
+import type { PageScan } from '../../shared/pageProductScript';
 
 // 앱 안 브라우저(Figma U16~U25). Android 화면 캡처 보안 정책 때문에 다른 앱 위 오버레이 대신
 // 앱 안에서 쇼핑몰을 열고, 지금 보이는 탭의 WebView 화면만 캡처해 분석한다.
@@ -77,12 +77,12 @@ export default function BrowserScreen() {
   const captureTarget = useRef<ComponentRef<typeof View>>(null);
 
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0];
-  // [임시] 탭마다 페이지에서 읽은 상품명·가격(주소별 최신값)
-  const pageProducts = useRef(new Map<string, PageProduct | null>());
+  // 페이지의 상품 표시 여부 + [임시] 상품명·가격(주소별 최신값)
+  const pageScans = useRef(new Map<string, PageScan>());
   // 주소의 #… 과 끝 / 차이는 같은 페이지로 본다(리다이렉트·해시 이동 대비).
   const pageKey = (u: string) => u.split('#')[0].replace(/\/+$/, '');
-  const getPageProduct = useCallback((u: string) => pageProducts.current.get(pageKey(u)), []);
-  const page = usePageAnalysis(active.url, active.nav.loading, captureTarget, getPageProduct);
+  const getPageScan = useCallback((u: string) => pageScans.current.get(pageKey(u)), []);
+  const page = usePageAnalysis(active.url, active.nav.loading, captureTarget, getPageScan);
 
   const patchTab = useCallback((id: string, patch: Partial<BrowserTab>) => {
     setTabs((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -192,9 +192,9 @@ export default function BrowserScreen() {
                 }}
                 uri={t.source}
                 onNavigation={onNav(t.id)}
-                onPageProduct={(u, p) => {
-                  pageProducts.current.set(pageKey(u), p);
-                  if (pageProducts.current.size > 50) pageProducts.current.delete(pageProducts.current.keys().next().value!);
+                onPageProduct={(u, scan) => {
+                  pageScans.current.set(pageKey(u), scan);
+                  if (pageScans.current.size > 50) pageScans.current.delete(pageScans.current.keys().next().value!);
                 }}
                 onNewWindow={openInNewTab}
               />

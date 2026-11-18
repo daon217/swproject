@@ -67,7 +67,7 @@ async function handleAuth(request, response, route) {
     const body = await readBody(request);
     const { login_id: loginId, password } = body || {};
     if (typeof loginId !== 'string' || !/^[A-Za-z0-9]{4,16}$/.test(loginId) ||
-        typeof password !== 'string' || password.length < 1 || password.length > 128) {
+      typeof password !== 'string' || password.length < 1 || password.length > 128) {
       return respond(response, 422, 'INVALID_INPUT');
     }
     const accounts = readAccounts();
@@ -75,7 +75,7 @@ async function handleAuth(request, response, route) {
     const account = Object.hasOwn(accounts, key) ? accounts[key] : null;
     if (route === '/v2/auth/signup') {
       if (password.length < 8 || password !== body.password_confirmation ||
-          body.consent_accepted !== true || body.consent_version !== consentVersion) {
+        body.consent_accepted !== true || body.consent_version !== consentVersion) {
         return respond(response, 422, 'INVALID_INPUT');
       }
       if (account) return respond(response, 409, 'LOGIN_ID_TAKEN');
@@ -114,16 +114,56 @@ async function handleAuth(request, response, route) {
   return respond(response, 404, 'NOT_FOUND');
 }
 
+async function handleRunCrawlCycle(request, response) {
+  if (request.method !== 'POST') return respond(response, 405, 'METHOD_NOT_ALLOWED');
+  const { execFile } = require('node:child_process');
+  const repoRoot = path.resolve(__dirname, '../..');
+  const collectorDir = path.join(repoRoot, 'services', 'collector', 'domeggook_live');
+  const venvPython = path.join(repoRoot, '.venv', 'Scripts', 'python.exe');
+  const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python';
+
+  if (fs.existsSync(collectorDir)) {
+    const output = await new Promise((resolve) => {
+      execFile(
+        pythonBin,
+        ['-m', 'services.collector.domeggook_live', '--watch', '--cycles', '1'],
+        { cwd: repoRoot, timeout: 45000 },
+        (error, stdout, stderr) => {
+          resolve({
+            ok: !error,
+            stdout: String(stdout || '').trim(),
+            stderr: String(stderr || '').trim(),
+          });
+        }
+      );
+    });
+    return respond(response, 200, {
+      mode: 'collector_cycle',
+      executedAt: new Date().toISOString(),
+      ...output,
+    });
+  }
+
+  return respond(response, 200, {
+    mode: 'api_sync_cycle',
+    executedAt: new Date().toISOString(),
+    ok: true,
+  });
+}
+
 const server = http.createServer(async (request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('X-Content-Type-Options', 'nosniff');
   if (request.headers.host !== host ||
-      (request.headers.origin && request.headers.origin !== `http://${host}`)) {
+    (request.headers.origin && request.headers.origin !== `http://${host}`)) {
     return respond(response, 403, 'LOCAL_ONLY');
   }
 
   try {
     const url = new URL(request.url, `http://${host}`);
+    if (url.pathname === '/__run-crawl-cycle') {
+      return await handleRunCrawlCycle(request, response);
+    }
     const prefix = '/__local-demo';
     if (demo && url.pathname.startsWith(prefix + '/')) {
       return await handleAuth(request, response, url.pathname.slice(prefix.length));

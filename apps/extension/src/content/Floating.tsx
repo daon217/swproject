@@ -6,23 +6,64 @@ import { IconClose, IconWarning } from '../shared/ui/icons';
 
 // 인페이지 플로팅 카드(Figma E15·E18·E23). 평소에는 작은 카드만 보이고,
 // 누르면 사이드 패널(AI 추천 탭)이 열린다. ×로 닫으면 같은 페이지(page_session_id)에서는 다시 띄우지 않는다.
+// 분석 중·실패·추천 없음도 작은 카드로 알려 준다(아무 표시 없이 사라지면 원인을 알 수 없어서).
 
 export interface FloatingProps {
   state: TabState | null;
   onOpenPanel: (route: PanelRoute) => void;
+  onRetry: () => void;
 }
 
-export function Floating({ state, onOpenPanel }: FloatingProps) {
+export function Floating({ state, onOpenPanel, onRetry }: FloatingProps) {
   const [closed, setClosed] = useState(false);
   const session = state?.page_session_id;
 
   // 새 페이지(세션)이면 다시 카드를 보여준다.
   useEffect(() => setClosed(false), [session]);
 
-  const a = state?.status === 'done' ? state.analysis : null;
-  if (closed || !a || a.result_kind !== 'recommendation') return null;
-
+  if (closed || !state || state.status === 'none') return null;
   const open = () => onOpenPanel('recommend');
+
+  if (state.status === 'analyzing') {
+    return (
+      <div className="fl-wrap">
+        <button className="fl-compact" onClick={open} aria-label="꿀픽이 이 상품을 분석하고 있어요 - 눌러서 사이드 패널에서 보기">
+          <span className="fl-state-row">
+            <span className="fl-spinner" aria-hidden="true" />
+            <span className="fl-compact-label">꿀픽 분석 중</span>
+          </span>
+          <span className="fl-compact-hint">비슷한 상품과 가격을 찾고 있어요</span>
+        </button>
+        <CloseButton onClick={() => setClosed(true)} />
+      </div>
+    );
+  }
+  if (state.status === 'error') {
+    return (
+      <div className="fl-wrap">
+        <button className="fl-compact" onClick={onRetry} aria-label="분석하지 못했어요 - 눌러서 다시 시도">
+          <span className="fl-compact-label is-danger">분석하지 못했어요</span>
+          <span className="fl-state-body">{state.error ?? '잠시 후 다시 시도해 주세요.'}</span>
+          <span className="fl-compact-hint is-link">눌러서 다시 시도</span>
+        </button>
+        <CloseButton onClick={() => setClosed(true)} />
+      </div>
+    );
+  }
+
+  const a = state.analysis;
+  if (!a || a.result_kind !== 'recommendation') {
+    return (
+      <div className="fl-wrap">
+        <button className="fl-compact" onClick={open} aria-label="추천할 상품을 찾지 못했어요 - 눌러서 사이드 패널에서 보기">
+          <span className="fl-compact-label">꿀픽 추천</span>
+          <span className="fl-state-body">{a?.result_kind === 'ingredient_unknown' ? '성분 정보를 확인하지 못했어요' : '추천할 상품을 찾지 못했어요'}</span>
+        </button>
+        <CloseButton onClick={() => setClosed(true)} />
+      </div>
+    );
+  }
+
   const warning = a.warnings[0];
 
   if (warning) {

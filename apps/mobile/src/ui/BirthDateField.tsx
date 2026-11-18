@@ -2,7 +2,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { Platform, Pressable, Text, View } from 'react-native';
 import { todaySeoul } from '../shared/format';
-import { s } from './components';
+import { s } from './componentStyles';
 import { C } from './theme';
 
 /** 생년월일(YYYY-MM-DD). 미래 날짜 선택 불가. */

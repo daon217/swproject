@@ -6,6 +6,7 @@ Jobs, image access and completion all use the backend's authenticated lease prot
 import base64
 import logging
 import os
+import re
 import time
 from urllib.parse import urlsplit
 import httpx
@@ -15,6 +16,18 @@ log=logging.getLogger('analysis-worker')
 def context_url(value):
     u=urlsplit(value)
     return (u.hostname or '').lower(),u.path,u.query
+
+def tokens(text):
+    return {w for w in re.findall(r'[0-9A-Za-z가-힣]+',(text or '').lower()) if len(w)>=2}
+
+def infer_domain(title,groups):
+    """분석 종류를 클라이언트가 고르지 않으면 OCR 상품명과 카탈로그 상품명의 단어 겹침으로 상품/식품을 정한다.
+    겹침이 같거나 없으면 product(식품으로 잘못 판정해 성분을 안전하다고 보이게 하지 않기 위해)."""
+    words=tokens(title)
+    def score(kind):
+        hits=[len(words&tokens(o.get('name'))) for o in groups.get(kind,[])]
+        return (sum(1 for h in hits if h),max(hits,default=0))
+    return 'food' if score('food')>score('product') else 'product'
 
 class Worker:
     def __init__(self,client=None):
@@ -46,8 +59,12 @@ class Worker:
         path='/internal/v2/analyses/'+job['analysis_id'];lease={'lease_token':job['lease_token']}
         try:
             groups={kind:self.offers(kind) for kind in ('product','food')}
+            # 캡처 전용 분석은 page_url이 없다. 그때는 클라이언트가 보낸 selected_domain과 OCR 상품명만 사용한다.
+            page=job.get('page_url')
             matches=[(kind,o) for kind,rows in groups.items() for o in rows
-                     if context_url(o['current_url'])==context_url(job['page_url'])]
+                     if page and context_url(o['current_url'])==context_url(page)]
+            log.info('analysis %s: page_url=%s selected_domain=%s catalog_match=%s',
+                     job['analysis_id'],'yes' if page else 'none',job.get('selected_domain'),bool(matches))
             kind=job.get('selected_domain') or (matches[0][0] if matches else None)
             title=matches[0][1]['name'] if matches else None
             ingredients=[]
@@ -78,7 +95,8 @@ class Worker:
                 self.request('POST',path+'/fail',json=lease|{'code':'OCR_FAILED','retryable':False});return True
             # A generic cosmetics ingredient list must not automatically classify a page as food.
             if not kind:
-                self.request('POST',path+'/fail',json=lease|{'code':'INPUT_INVALID','retryable':False});return True
+                kind=infer_domain(title,groups)
+                log.info('analysis %s: selected_domain 미지정 → 자동 판단 %s',job['analysis_id'],kind)
             r=self.http.post(self.reco+'/internal/process',headers=self.service_auth,json={
                 'query':title[:1000],'selected_domain':kind,'offers':groups[kind],
                 'ingredients':[str(i)[:500] for i in ingredients[:100]],

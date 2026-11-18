@@ -74,9 +74,41 @@ def test_worker_unknown_page_fails_without_arbitrary_fetch():
     assert paths[-1].endswith('/fail')
 
 
+def test_worker_capture_only_job_uses_ocr_title_and_client_domain():
+    """page_url 없이 캡처만 접수된 작업: URL 매칭 없이 OCR 상품명 + 클라이언트 selected_domain으로 추천한다."""
+    calls=[]
+    def handle(req):
+        calls.append(req);path=req.url.path
+        if path.endswith('/claim'):payload={'analysis_id':'cap','lease_token':'lease','page_url':None,
+            'selected_domain':'product','image_url':'/internal/image','profile':{'user_id':'u','allergens':[]}}
+        elif path=='/v2/offers':return httpx.Response(200,json={'items':[OFFER] if req.url.params['selected_domain']=='product' else [],'next_cursor':None})
+        elif path=='/internal/image':return httpx.Response(200,content=b'image')
+        elif path.startswith('/api/v1/vision/'):
+            if path.endswith('/init'):assert json.loads(req.content)['product_name'] is None # URL 매칭이 없으니 OCR에 맡긴다
+            return httpx.Response(200,json={'status':'success','product_name':'주전자','ingredients':[]})
+        elif path=='/internal/process':
+            assert json.loads(req.content)['query']=='주전자'
+            return httpx.Response(200,json={'offer_ids':[OFFER['offer_id']],'reasons':{},'ranker':'rule'})
+        elif path.endswith('/complete'):
+            body=json.loads(req.content);assert body['selected_domain']=='product' and body['offer_ids']==[OFFER['offer_id']];payload={'state':'completed'}
+        else:raise AssertionError(str(req.url))
+        return httpx.Response(200,json={'data':payload})
+    assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
+    assert calls[-1].url.path.endswith('/complete')
+
+
 def test_food_avoid_filter_does_not_assume_missing_ingredients_safe():
     c=TestClient(app)
     r=c.post('/internal/process',headers={'Authorization':'Bearer '+TOKEN},json={
         'query':'간식','selected_domain':'food','offers':[OFFER],
         'profile':{'user_id':'u','avoid_ingredients':['설탕']}})
     assert r.status_code==200 and r.json()['offer_ids']==[]
+
+
+def test_infer_domain_without_client_choice():
+    """클라이언트가 분석 종류를 보내지 않으면 OCR 상품명과 카탈로그 이름 겹침으로 판단하고, 애매하면 product."""
+    from services.dev_runtime.analysis_worker import infer_domain
+    groups={'product':[{'name':'전기 주전자 1.7L'}],'food':[{'name':'초코 쿠키 200g'},{'name':'버터 쿠키'}]}
+    assert infer_domain('버터 쿠키 선물세트',groups)=='food'
+    assert infer_domain('스테인리스 주전자',groups)=='product'
+    assert infer_domain('알 수 없는 이름',groups)=='product'

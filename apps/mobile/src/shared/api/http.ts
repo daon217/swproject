@@ -88,7 +88,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
       // React Native FormData 파일 형식
       if (req.image) form.append('image', { uri: req.image.uri, name: 'capture.jpg', type: 'image/jpeg' } as unknown as Blob);
       form.append('page_url', req.page_url);
-      form.append('selected_domain', req.selected_domain ?? 'product');
+      if (req.selected_domain) form.append('selected_domain', req.selected_domain); // 기본은 미전송(서버 자동 판단)
       form.append('page_session_id', req.page_session_id);
       form.append('page_revision', String(req.page_revision));
       form.append('request_key', req.request_key);

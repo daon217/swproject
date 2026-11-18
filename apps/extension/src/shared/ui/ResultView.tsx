@@ -14,7 +14,7 @@ interface Handlers {
   onRetry: () => void;
 }
 
-export function OfferRow({ card, onOpenUrl }: { card: OfferCard; onOpenUrl: (url: string) => void }) {
+export function OfferRow({ card, onOpenUrl, basic = false }: { card: OfferCard; onOpenUrl: (url: string) => void; basic?: boolean }) {
   return (
     <div className="kp-offer">
       <div className="kp-offer-main">
@@ -34,7 +34,7 @@ export function OfferRow({ card, onOpenUrl }: { card: OfferCard; onOpenUrl: (url
         </button>
       </div>
       <p className="kp-reason">
-        AI · {card.reason}
+        {basic ? '' : 'AI · '}{card.reason}
 
       </p>
     </div>

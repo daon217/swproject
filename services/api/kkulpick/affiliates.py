@@ -71,7 +71,26 @@ async def featured(req:Request,limit:int=Query(10,ge=1,le=100),selected_domain:s
 async def admin_list(req:Request,limit:int=Query(20,ge=1,le=100),after:UUID|None=None,uid=Depends(member)):
     async with access(req,uid,{'admin'}):
         async with req.app.state.engine.connect() as c:
-            rows=(await execute(c,'''SELECT * FROM app.affiliate_offers
-                WHERE CAST(:a AS uuid) IS NULL OR offer_id>CAST(:a AS uuid)
-                ORDER BY offer_id LIMIT :n''',a=after,n=limit)).mappings().all()
+            rows=(await execute(c,'''SELECT a.*,i.name,o.price::text FROM app.affiliate_offers a JOIN app.offers o USING(offer_id) JOIN app.catalog_items i USING(item_id)
+                WHERE CAST(:a AS uuid) IS NULL OR a.offer_id>CAST(:a AS uuid)
+                ORDER BY a.offer_id LIMIT :n''',a=after,n=limit)).mappings().all()
     return wrap([dict(r) for r in rows],req)
+
+
+@router.get('/v2/recommendations/basic')
+async def basic(req:Request,limit:int=Query(10,ge=1,le=30),
+                selected_domain:str=Query('product',pattern='^(product|food)$')):
+    """Public catalog browsing, not personalized AI or an analysis/history write."""
+    async with req.app.state.engine.connect() as c:
+        rows=(await execute(c,'''SELECT o.offer_id,i.name,o.price::text,o.currency,
+            o.price_observed_at AS observed_at,o.availability,
+            COALESCE(a.affiliate_url,o.current_url) AS url,
+            COALESCE(a.partner_name,o.source) AS subtitle,o.kind AS image_kind,
+            (a.offer_id IS NOT NULL) AS affiliate
+            FROM app.offers o JOIN app.catalog_items i USING(item_id)
+            LEFT JOIN app.affiliate_offers a ON a.offer_id=o.offer_id
+              AND a.enabled AND a.starts_at<=now() AND (a.ends_at IS NULL OR a.ends_at>now())
+            WHERE o.availability='available' AND o.condition='new' AND o.kind=:k
+            ORDER BY o.price_observed_at DESC,o.offer_id LIMIT :n''',
+            k=selected_domain,n=limit)).mappings().all()
+    return wrap([dict(r)|{'reason':'최근 가격이 확인된 상품 · 개인 맞춤 분석 아님'} for r in rows],req)

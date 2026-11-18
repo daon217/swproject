@@ -1,0 +1,56 @@
+name: Team connected runtime
+on:
+  pull_request:
+    paths: ['services/**', 'apps/**', 'kkulpick_vision/**', 'infra/**', 'tools/**', 'tests/ui/**', '.github/workflows/team-integration.yml']
+  push:
+    branches: [main]
+    paths: ['services/**', 'apps/**', 'kkulpick_vision/**', 'infra/**', 'tools/**', 'tests/ui/**', '.github/workflows/team-integration.yml']
+permissions:
+  contents: read
+jobs:
+  connected:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Start team services including real Vision 8100
+        run: |
+          python tools/workspace.py init
+          python tools/workspace.py up --scope integrated
+          python tools/workspace.py seed
+          python tools/workspace.py check --scope integrated
+      - name: Create non-personal Korean OCR fixture
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-noto-cjk
+          pip install Pillow==12.0.0
+          python - <<'PY'
+          from PIL import Image,ImageDraw,ImageFont
+          image=Image.new('RGB',(1100,600),'white')
+          draw=ImageDraw.Draw(image)
+          font=ImageFont.truetype('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',42)
+          draw.text((60,80),'원재료명 및 함량',font=font,fill='black')
+          draw.text((60,180),'우유, 밀가루, 설탕, 소금',font=font,fill='black')
+          image.save('/tmp/ingredients.png')
+          PY
+      - name: Real API job and real OCR without paid AI calls
+        run: python tools/integration_smoke.py --image /tmp/ingredients.png
+      - name: Browser admin CRUD against real DB
+        working-directory: tests/ui
+        run: |
+          npm ci
+          if command -v google-chrome >/dev/null; then
+            export PLAYWRIGHT_CHROMIUM_PATH=$(command -v google-chrome)
+          else
+            npx playwright install --with-deps chromium
+          fi
+          TEAM_CONSOLE_TEST=1 npm test -- console.spec.js
+      - if: failure()
+        run: python tools/workspace.py logs --scope integrated
+      - if: always()
+        run: python tools/workspace.py stop --scope integrated

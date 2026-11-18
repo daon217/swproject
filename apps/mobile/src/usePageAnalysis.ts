@@ -16,7 +16,7 @@ import type { AnalysisStatus } from './ui/ResultView';
 
 const DEBOUNCE_MS = 800;
 const POLL_MS = 700;
-const TIMEOUT_MS = 30_000;
+const TIMEOUT_MS = 120_000;
 
 export interface PageAnalysis {
   status: AnalysisStatus;
@@ -33,6 +33,7 @@ export function usePageAnalysis(
   loading: boolean,
   captureTarget: RefObject<ComponentRef<typeof View> | null>,
   getPageScan?: (url: string) => PageScan | undefined,
+  domain: 'product' | 'food' = 'product',
 ) {
   const [state, setState] = useState<PageAnalysis>({ status: 'none', analysis: null, error: null, pageSessionId: '' });
   const revision = useRef(0);
@@ -90,6 +91,7 @@ export function usePageAnalysis(
         const page_product = scan?.product;
         const created = await api.createAnalysis({
           image,
+          selected_domain: domain,
           page_url: target,
           page_session_id: pageSessionId,
           page_revision: rev,
@@ -119,7 +121,7 @@ export function usePageAnalysis(
         if (!stale()) setState({ status: 'error', analysis: null, error: e instanceof Error ? e.message : '분석에 실패했어요.', pageSessionId });
       }
     },
-    [captureTarget, getPageScan],
+    [captureTarget, getPageScan, domain],
   );
 
   // URL이 바뀌면 이전 결과를 즉시 숨기고, 로딩이 끝나면 디바운스 후 분석

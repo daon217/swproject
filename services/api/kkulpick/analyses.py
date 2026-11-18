@@ -11,7 +11,7 @@ from pydantic import Field,HttpUrl,ValidationError,field_validator
 from starlette.datastructures import UploadFile
 from .access import access
 from .images import MAX_IMAGE,image_path,save_image,remove_image
-from .members import Strict,member,row,execute,fail,wrap,subscription_status,throttle
+from .members import Strict,member,row,execute,fail,wrap,subscription_status,throttle,me
 
 router=APIRouter()
 worker_bearer=HTTPBearer(auto_error=False)
@@ -35,9 +35,32 @@ class Claim(Strict):
 class Lease(Strict):
     lease_token:UUID
 
+class AllergyWarning(Strict):
+    type:Literal['allergy']='allergy'
+    allergen:str=Field(max_length=100)
+    evidence:Literal['contains','may_contain','unknown']
+    message:str=Field(max_length=1000)
+
+class ResultMetadata(Strict):
+    warnings:list[AllergyWarning]=Field(default_factory=list,max_length=100)
+    ingredients:list[str]=Field(default_factory=list,max_length=100)
+    reasons:dict[str,str]=Field(default_factory=dict,max_length=50)
+    ranker:str=Field(default='',max_length=80)
+    @field_validator('ingredients')
+    @classmethod
+    def bounded_ingredients(cls,values):
+        if any(len(v)>500 for v in values):raise ValueError('ingredient too long')
+        return values
+    @field_validator('reasons')
+    @classmethod
+    def bounded_reasons(cls,values):
+        if any(len(k)>36 or len(v)>1000 for k,v in values.items()):raise ValueError('reason too long')
+        return values
+
 class Completion(Lease):
     selected_domain:Literal['product','food']
     offer_ids:list[UUID]=Field(default_factory=list,max_length=50)
+    metadata:ResultMetadata=Field(default_factory=ResultMetadata)
 
 class Failure(Lease):
     code:Literal['OCR_FAILED','RECOMMENDATION_FAILED','INPUT_INVALID','DEPENDENCY_UNAVAILABLE']
@@ -137,21 +160,23 @@ async def offer_cards(c,ids):
 
 
 async def public_result(c,r,premium,by_id=None):
+    metadata=r.get('result_metadata') or {}
+    ingredients=metadata.get('ingredients',[])
     cards=[]
     if r['state']=='completed' and r['offer_ids']:
         if by_id is None:
             by_id=await offer_cards(c,r['offer_ids'])
-        cards=[dict(by_id[ident])|{'subtitle':'','reason':'분석 작업자가 선택한 상품','affiliate':False}
+        cards=[dict(by_id[ident])|{'subtitle':'','reason':metadata.get('reasons',{}).get(str(ident),'분석 작업자가 선택한 상품'),'affiliate':False}
                for ident in r['offer_ids'] if ident in by_id and by_id[ident]['image_kind']==r['selected_domain']][:3]
     cap=3 if premium else 1
     result_kind=('recommendation' if cards else 'empty') if r['state']=='completed' else None
     return {'analysis_id':r['analysis_id'],'state':r['state'],'result_kind':result_kind,
-        'ingredient_status':'not_found' if r['selected_domain']=='food' else 'not_applicable',
+        'ingredient_status':('partial' if ingredients else 'not_found') if r['selected_domain']=='food' else 'not_applicable',
         'page_session_id':r['page_session_id'],'page_revision':r['page_revision'],'selected_domain':r['selected_domain'],
-        'source_summary':{},'warnings':[], 'premium':premium,'applied_filter':None,
+        'source_summary':{'vision':'success' if ingredients else 'empty'},'warnings':metadata.get('warnings',[]), 'premium':premium,'applied_filter':None,
         'sections':[{'kind':'ai','state':'ready' if r['state']=='completed' else 'loading' if r['state'] in {'queued','running'} else 'failed',
                      'items':cards[:cap],'locked_count':max(0,len(cards)-cap),
-                     'lock_reason':'premium_required' if len(cards)>cap else None,'footnote':'성분 분석 미연결' if r['selected_domain']=='food' else None}],
+                     'lock_reason':'premium_required' if len(cards)>cap else None,'footnote':('OCR 추출 성분은 상품 표시와 대조해 주세요. 안전을 보증하지 않습니다.' if ingredients else '성분을 확인하지 못했습니다. 상품 표시를 직접 확인해 주세요.') if r['selected_domain']=='food' else None}],
         'error':{'code':r['error_code'],'message':'분석을 완료하지 못했습니다.','retryable':r['error_code']!='INPUT_INVALID'} if r['error_code'] else None}
 
 
@@ -221,12 +246,17 @@ async def claim(data:Claim,req:Request):
     # routes use member -> catalog order, so nesting here could exhaust both pools.
     async with req.app.state.member_engine.connect() as m:
         owner=await row(m,'SELECT user_id FROM app.members WHERE user_id=:u AND deleted_at IS NULL',u=result['owner_id'])
+        profile=(await me(m,result['owner_id'])) if owner else None
     if not owner:
         async with req.app.state.engine.begin() as c:
             await execute(c,"UPDATE app.analyses SET state='cancelled',lease_token=NULL,updated_at=now() WHERE analysis_id=:id AND lease_token=:lease",id=result['analysis_id'],lease=lease)
         return wrap(None,req)
     return wrap({k:v for k,v in result.items() if k not in {'image_id','owner_id'}}|
-                {'image_url':'/internal/v2/analyses/'+str(result['analysis_id'])+'/image' if result['image_id'] else None},req)
+                {'profile':{'user_id':str(result['owner_id']),'allergens':profile['profile']['allergies'],
+                    'include_used':profile['profile']['include_used'],
+                    'avoid_ingredients':profile['profile']['ingredient_filter']['avoid'] if profile['premium'] else [],
+                    'preferences':' '.join(profile['profile']['ingredient_filter']['prefer']) if profile['premium'] else ''},
+                 'image_url':'/internal/v2/analyses/'+str(result['analysis_id'])+'/image' if result['image_id'] else None},req)
 
 
 async def leased(c,ident,token):
@@ -264,14 +294,14 @@ async def complete(analysis_id:UUID,data:Completion,req:Request):
         old=await row(c,'SELECT * FROM app.analyses WHERE analysis_id=:id FOR UPDATE',id=analysis_id)
         if not old:fail(404,'ANALYSIS_NOT_FOUND')
         if old['state']=='completed' and old['lease_token']==data.lease_token:
-            if old['selected_domain']!=data.selected_domain or list(old['offer_ids'])!=data.offer_ids:fail(409,'RESULT_CONFLICT')
+            if old['selected_domain']!=data.selected_domain or list(old['offer_ids'])!=data.offer_ids or (old.get('result_metadata') or {})!=data.metadata.model_dump():fail(409,'RESULT_CONFLICT')
             return wrap({'analysis_id':analysis_id,'state':'completed'},req)
         r=await leased(c,analysis_id,data.lease_token)
         if r['selected_domain'] and r['selected_domain']!=data.selected_domain:fail(409,'DOMAIN_CONFLICT')
         count=await row(c,"SELECT count(*) AS n FROM app.offers WHERE offer_id=ANY(CAST(:ids AS uuid[])) AND kind=:k AND availability='available'",ids=data.offer_ids,k=data.selected_domain)
         if count['n']!=len(data.offer_ids):fail(422,'INVALID_RESULT_OFFERS')
         await execute(c,"""UPDATE app.analyses SET state='completed',selected_domain=:k,offer_ids=CAST(:ids AS uuid[]),
-            error_code=NULL,updated_at=now() WHERE analysis_id=:id""",id=analysis_id,k=data.selected_domain,ids=data.offer_ids)
+            result_metadata=CAST(:metadata AS jsonb),error_code=NULL,updated_at=now() WHERE analysis_id=:id""",id=analysis_id,k=data.selected_domain,ids=data.offer_ids,metadata=data.metadata.model_dump_json())
     remove_image(r['image_id'])
     return wrap({'analysis_id':analysis_id,'state':'completed'},req)
 

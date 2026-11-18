@@ -23,7 +23,7 @@ export function headerLabel(a: Analysis | null): string {
   return '꿀픽 · AI 추천';
 }
 
-export function OfferRow({ card, onOpenUrl }: { card: OfferCard; onOpenUrl: (u: string) => void }) {
+export function OfferRow({ card, onOpenUrl, basic = false }: { card: OfferCard; onOpenUrl: (u: string) => void; basic?: boolean }) {
   return (
     <View style={st.offer}>
       <View style={st.offerMain}>
@@ -47,7 +47,7 @@ export function OfferRow({ card, onOpenUrl }: { card: OfferCard; onOpenUrl: (u: 
         </Pressable>
       </View>
       <Text style={st.reason}>
-        AI · {card.reason}
+        {basic ? '' : 'AI · '}{card.reason}
       </Text>
     </View>
   );

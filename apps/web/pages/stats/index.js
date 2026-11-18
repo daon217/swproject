@@ -52,20 +52,23 @@ const statsPage = {
         </div>
 
         <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1.5">조회 기간</label>
+          <label for="stats-period-input" class="block text-xs font-bold text-slate-600 mb-1.5">조회 기간</label>
           <input
+            id="stats-period-input"
             type="text"
             value="${this.escapeHtml(this.state.statsPeriodInput)}"
-            class="form-input w-[280px]"
-            onchange="app.state.statsPeriodInput = this.value"
+            class="form-input max-w-full w-[280px]"
+            onkeydown="if(event.key==='Enter') app.applyStatsPeriod()"
           />
+          <button type="button" onclick="app.applyStatsPeriod()" class="btn-primary">조회</button>
         </div>
       </div>
 
       <div class="space-y-6">
         <!-- 차트 카드 1: 일별 구독 가입 · 해지 추이 (명) -->
-        <div class="bg-white border border-slate-200 rounded-xl p-6">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
           <h2 class="text-base font-bold text-slate-900">${dataConfig.unitLabel} 구독 가입 · 해지 추이 (명)</h2>
+          <p class="mt-1 text-xs text-slate-500">${this.escapeHtml(this.state.statsPeriodInput)} · KST</p>
           <!-- 커스텀 범례 -->
           <div class="flex items-center gap-5 mt-2 mb-4 text-xs text-slate-600 font-medium">
             <div class="flex items-center gap-2">
@@ -83,8 +86,9 @@ const statsPage = {
         </div>
 
         <!-- 차트 카드 2: 일별 매출 추이 (만원) -->
-        <div class="bg-white border border-slate-200 rounded-xl p-6">
+        <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
           <h2 class="text-base font-bold text-slate-900">${dataConfig.unitLabel} 매출 추이 (만원)</h2>
+          <p class="mt-1 text-xs text-slate-500">${this.escapeHtml(this.state.statsPeriodInput)} · KST</p>
           <!-- 커스텀 범례 -->
           <div class="flex items-center gap-5 mt-2 mb-4 text-xs text-slate-600 font-medium">
             <div class="flex items-center gap-2">
@@ -104,7 +108,7 @@ const statsPage = {
 
       <!-- 하단 안내 캡션 -->
       <div class="mt-4 text-sm text-slate-500">
-        기간 집계 기준: KST &nbsp;·&nbsp; 선택한 기간의 가입·해지 및 매출을 합산합니다.
+        기간 집계 기준: KST &nbsp;·&nbsp; 선택한 기간의 가입·해지 및 매출을 표시합니다.
       </div>
     `;
   },
@@ -116,8 +120,33 @@ const statsPage = {
     this.renderContent();
   },
 
+  applyStatsPeriod() {
+    const input = document.getElementById('stats-period-input');
+    const unit = this.state.statsUnit;
+    const example = this.getStatsDatasetByUnit(unit).periodText;
+    const range = this.parseDateRange(input.value, example.split(' ~ ')[0].length);
+    if (!range) {
+      this.showToast(`조회 기간 형식을 확인해 주세요. 예: ${example}`);
+      return;
+    }
+    this.state.statsPeriodInput = range.join(' ~ ');
+    this.renderContent();
+  },
+
   initStatsCharts() {
-    const cfg = this.getStatsDatasetByUnit(this.state.statsUnit);
+    const unit = this.state.statsUnit;
+    const cfg = this.getStatsDatasetByUnit(unit);
+    const [start, end] = this.state.statsPeriodInput.split(' ~ ');
+    const [year, month = '01', day = '01'] = cfg.periodText.split(' ~ ')[0].split('.');
+    const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+    const included = cfg.labels.map(() => {
+      const key = date.toISOString().slice(0, start.length).replaceAll('-', '.');
+      if (unit === 'daily') date.setUTCDate(date.getUTCDate() + 1);
+      if (unit === 'monthly') date.setUTCMonth(date.getUTCMonth() + 1);
+      if (unit === 'yearly') date.setUTCFullYear(date.getUTCFullYear() + 1);
+      return key >= start && key <= end;
+    });
+    const inRange = (values) => values.filter((_, index) => included[index]);
     const subCanvas = document.getElementById('stats-sub-chart');
     const salesCanvas = document.getElementById('stats-sales-chart');
 
@@ -128,11 +157,11 @@ const statsPage = {
       this.charts.statsSubChart = new Chart(subCanvas.getContext('2d'), {
         type: 'line',
         data: {
-          labels: cfg.labels,
+          labels: inRange(cfg.labels),
           datasets: [
             {
               label: '구독 가입',
-              data: cfg.subJoin,
+              data: inRange(cfg.subJoin),
               borderColor: '#0066ff',
               backgroundColor: '#0066ff',
               borderWidth: 2,
@@ -142,7 +171,7 @@ const statsPage = {
             },
             {
               label: '구독 해지',
-              data: cfg.subLeave,
+              data: inRange(cfg.subLeave),
               borderColor: '#e11d48',
               backgroundColor: '#e11d48',
               borderWidth: 2,
@@ -163,11 +192,11 @@ const statsPage = {
       this.charts.statsSalesChart = new Chart(salesCanvas.getContext('2d'), {
         type: 'line',
         data: {
-          labels: cfg.labels,
+          labels: inRange(cfg.labels),
           datasets: [
             {
               label: '구독 매출',
-              data: cfg.subSales,
+              data: inRange(cfg.subSales),
               borderColor: '#0066ff',
               backgroundColor: '#0066ff',
               borderWidth: 2,
@@ -177,7 +206,7 @@ const statsPage = {
             },
             {
               label: 'URL 로열티 매출',
-              data: cfg.royaltySales,
+              data: inRange(cfg.royaltySales),
               borderColor: '#e11d48',
               backgroundColor: '#e11d48',
               borderWidth: 2,

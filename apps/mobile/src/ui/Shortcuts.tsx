@@ -1,5 +1,5 @@
 import { useSession } from '../session';
-import { loadVisits, recordVisit, clearVisits, type Visit } from '../shared/accountData';
+import { recordVisit } from '../shared/accountData';
 import { useEffect, useState } from 'react';
 import { Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { safeHttpUrl } from '../shared/format';
@@ -24,20 +24,18 @@ function AccountShortcuts({ userId, onOpen }: { userId?: string; onOpen: (url: s
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const [visits, setVisits] = useState<Visit[]>([]);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let alive = true;
-    void Promise.all([loadShortcuts(userId), loadVisits(userId)]).then(([saved, history]) => {
-      if (alive) { setList(saved); setVisits(history); setReady(true); }
+    void loadShortcuts(userId).then(saved => {
+      if (alive) { setList(saved); setReady(true); }
     });
     return () => { alive = false; };
   }, [userId]);
   const open = (url: string) => {
-    void recordVisit(userId, url).then(() => loadVisits(userId)).then(setVisits);
+    void recordVisit(userId, url);
     onOpen(url);
   };
-  const clearHistory = async () => { await clearVisits(userId); setVisits([]); };
 
 
   const update = (next: Shortcut[]) => {
@@ -61,7 +59,7 @@ function AccountShortcuts({ userId, onOpen }: { userId?: string; onOpen: (url: s
           <Button variant={editing ? 'primary' : 'pill'} disabled={!userId || !ready} label={editing ? '완료' : '편집'} onPress={() => setEditing(!editing)} style={editing ? { height: 34, borderRadius: 999 } : undefined} />
         </View>
         <Desc>{editing ? '−를 눌러 삭제하고, 화살표로 순서를 바꿔요.' : '자주 가는 쇼핑몰을 직접 추가하고 정리할 수 있어요.'}</Desc>
-        {!userId && <Note>로그인하면 나만의 바로가기와 방문 기록을 이 기기에 저장할 수 있어요.</Note>}
+        {!userId && <Note>로그인하면 나만의 바로가기를 이 기기에 저장할 수 있어요.</Note>}
         <View style={st.grid}>
           {list.map((sc, i) => (
             <View key={sc.id} style={st.cell}>
@@ -101,12 +99,6 @@ function AccountShortcuts({ userId, onOpen }: { userId?: string; onOpen: (url: s
           </View>
         </View>
         <Note>{editing ? '변경한 바로가기는 현재 계정 전용으로 이 기기에 저장돼요.' : '바로가기를 누르면 앱 안 브라우저로 열리고, 상품 페이지에서 AI 추천이 화면에 표시돼요.'}</Note>
-        <Text style={st.sheetTitle}>최근 방문 페이지</Text>
-        <Desc>앱에서 직접 연 페이지를 최대 50개·30일간 이 기기에 보관해요. 바로가기와는 별개예요.</Desc>
-        {visits[0] && <Button label="마지막 페이지 다시 열기" onPress={() => open(visits[0].url)} />}
-        {visits.slice(0, 10).map(v => <Button key={v.url} variant="outline" label={v.url} onPress={() => open(v.url)} />)}
-        {!visits.length && <Text>방문 기록이 없어요.</Text>}
-        {!!visits.length && <Button label="방문 기록 삭제" onPress={() => void clearHistory()} />}
       </ScrollView>
       {adding && <AddSheet
         visible={adding}

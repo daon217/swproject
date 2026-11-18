@@ -75,7 +75,7 @@ class LocalWorkspaceTests(unittest.TestCase):
             self.assertEqual(call.call_args.kwargs['scope'], 'core')
         with patch('sys.argv', ['workspace.py', 'stop']), patch.object(workspace, 'compose') as call:
             self.assertEqual(workspace.main(), 0)
-            self.assertEqual(call.call_args.kwargs['scope'], 'full')
+            self.assertEqual(call.call_args.kwargs['scope'], 'integrated')
         with patch('sys.argv', ['workspace.py', 'up', '--scope', 'full']), patch.object(workspace, 'compose') as call:
             self.assertEqual(workspace.main(), 0)
             self.assertEqual(call.call_args.kwargs['scope'], 'full')

@@ -11,20 +11,8 @@ const affiliatePage = {
   },
 
   getAffiliateListHtml() {
-    const search = this.state.affiliateSearch.trim().toLowerCase();
     const statusFilter = this.state.affiliateStatusFilter;
-
-    const filtered = this.state.affiliateForceEmpty
-      ? []
-      : this.state.affiliateProducts.filter((item) => {
-          const matchesSearch =
-            !search ||
-            item.name.toLowerCase().includes(search) ||
-            item.partner.toLowerCase().includes(search) ||
-            item.id.toLowerCase().includes(search);
-          const matchesStatus = statusFilter === '전체' || item.status === statusFilter;
-          return matchesSearch && matchesStatus;
-        });
+    const filtered = this.getFilteredAffiliateProducts();
 
     const toggleBtnHtml = `
       <button
@@ -43,7 +31,7 @@ const affiliatePage = {
     return `
       ${this.renderPageHeader(
         '제휴상품 관리',
-        '제휴사별 상품명, 금액 및 URL을 관리하세요. · 예시 데이터',
+        '제휴사별 상품명, 금액 및 URL을 관리하세요. · DB 조회 (회원 최대 100명, 제휴/상담 최대 1,000건)',
         toggleBtnHtml
       )}
 
@@ -57,18 +45,19 @@ const affiliatePage = {
               type="text"
               value="${this.escapeHtml(this.state.affiliateSearch)}"
               placeholder="상품명 또는 제휴사 검색"
-              class="form-input w-[340px]"
+              class="form-input max-w-full w-[340px]"
               oninput="app.handleAffiliateFilterChange(this.value, null)"
             />
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1.5">상태</label>
             <select
-              class="form-input w-[140px] cursor-pointer"
+              class="form-input max-w-full w-[140px] cursor-pointer"
               onchange="app.handleAffiliateFilterChange(null, this.value)"
             >
               <option value="전체" ${statusFilter === '전체' ? 'selected' : ''}>전체</option>
               <option value="제휴 중" ${statusFilter === '제휴 중' ? 'selected' : ''}>제휴 중</option>
+              <option value="종료 예정" ${statusFilter === '종료 예정' ? 'selected' : ''}>7일 이내 종료 예정</option>
               <option value="종료" ${statusFilter === '종료' ? 'selected' : ''}>종료</option>
             </select>
           </div>
@@ -89,9 +78,9 @@ const affiliatePage = {
       </div>
 
       <!-- 테이블 영역 -->
-      <div class="w-full">
+      <div class="w-full overflow-x-auto">
         <!-- 테이블 컬럼 헤더 -->
-        <div class="grid grid-cols-12 items-center px-5 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
+        <div class="grid min-w-[880px] grid-cols-12 items-center px-5 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
           <div class="col-span-1">제휴상품 ID</div>
           <div class="col-span-1">제휴사</div>
           <div class="col-span-2">상품명</div>
@@ -120,18 +109,20 @@ const affiliatePage = {
       `;
     }
 
+    const now = Date.now();
     return `
       <div class="space-y-2">
         ${filtered
           .map((item) => {
             const isSelected = item.id === this.state.selectedAffiliateId;
             const rowBorder = isSelected
-              ? 'border-[#0066ff] ring-1 ring-[#0066ff]/20 bg-white'
+              ? 'border-[#0066ff] ring-1 ring-[#0066ff]/20 bg-[#ebf3ff]'
               : 'border-slate-200 bg-white hover:border-slate-300';
+            const status = this.isAffiliateEndingSoon(item, now) ? '종료 예정' : item.status;
             return `
               <div
                 onclick="app.selectAffiliateItem('${item.id}')"
-                class="grid grid-cols-12 items-center px-5 py-4 rounded-lg border ${rowBorder} text-sm cursor-pointer transition-all"
+                class="grid min-w-[880px] grid-cols-12 items-center px-5 py-4 rounded-lg border ${rowBorder} text-sm cursor-pointer transition-all"
               >
                 <div class="col-span-1 font-semibold text-slate-900">${item.id}</div>
                 <div class="col-span-1 text-slate-700">${this.escapeHtml(item.partner)}</div>
@@ -139,9 +130,7 @@ const affiliatePage = {
                 <div class="col-span-1 text-slate-800">${this.escapeHtml(item.price)}</div>
                 <div class="col-span-3 text-slate-500 pr-3 truncate text-xs">${this.escapeHtml(item.url)}</div>
                 <div class="col-span-1">
-                  <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-[#ebf3ff] text-[#0066ff]">
-                    ${this.escapeHtml(item.status)}
-                  </span>
+                  ${this.renderStatusBadge(status)}
                 </div>
                 <div class="col-span-2 text-slate-600 text-xs">${this.escapeHtml(item.period)}</div>
                 <div class="col-span-1 text-right">
@@ -172,19 +161,10 @@ const affiliatePage = {
       this.state.affiliateStatusFilter = statusVal;
     }
 
-    const search = this.state.affiliateSearch.trim().toLowerCase();
-    const statusFilter = this.state.affiliateStatusFilter;
-    const filtered = this.state.affiliateForceEmpty
-      ? []
-      : this.state.affiliateProducts.filter((item) => {
-          const matchesSearch =
-            !search ||
-            item.name.toLowerCase().includes(search) ||
-            item.partner.toLowerCase().includes(search) ||
-            item.id.toLowerCase().includes(search);
-          const matchesStatus = statusFilter === '전체' || item.status === statusFilter;
-          return matchesSearch && matchesStatus;
-        });
+    const filtered = this.getFilteredAffiliateProducts();
+    if (!filtered.some((item) => item.id === this.state.selectedAffiliateId)) {
+      this.state.selectedAffiliateId = null;
+    }
 
     const tbody = document.getElementById('affiliate-table-body');
     if (tbody) {
@@ -193,6 +173,7 @@ const affiliatePage = {
   },
 
   selectAffiliateItem(id) {
+    if (this.state.showDeleteModal) return;
     this.state.selectedAffiliateId = id;
     this.handleAffiliateFilterChange(null, null);
   },
@@ -201,28 +182,49 @@ const affiliatePage = {
     this.navigate('affiliate', 'create');
   },
 
+  getFilteredAffiliateProducts() {
+    const search = this.state.affiliateSearch.trim().toLowerCase();
+    const statusFilter = this.state.affiliateStatusFilter;
+    const now = Date.now();
+
+    return this.state.affiliateForceEmpty
+      ? []
+      : this.state.affiliateProducts.filter((item) => {
+          const matchesSearch =
+            !search ||
+            item.name.toLowerCase().includes(search) ||
+            item.partner.toLowerCase().includes(search) ||
+            item.id.toLowerCase().includes(search);
+          const matchesStatus = statusFilter === '종료 예정'
+            ? this.isAffiliateEndingSoon(item, now)
+            : statusFilter === '전체' || item.status === statusFilter;
+          return matchesSearch && matchesStatus;
+        });
+  },
+
+  isAffiliateEndingSoon(item, now) {
+    if (item.status !== '제휴 중' || !item.endDateTime) return false;
+    const end = Date.parse(item.endDateTime.replaceAll('.', '-').replace(' ', 'T') + ':00+09:00');
+    return end >= now && end <= now + 7 * 24 * 60 * 60 * 1000;
+  },
+
+  getVisibleAffiliateSelection() {
+    return this.getFilteredAffiliateProducts().find((item) => item.id === this.state.selectedAffiliateId);
+  },
+
   openAffiliateEdit() {
-    if (this.state.affiliateForceEmpty || this.state.affiliateProducts.length === 0) {
-      this.showToast('편집할 제휴 상품이 없습니다.');
-      return;
-    }
-    let current = this.state.affiliateProducts.find((p) => p.id === this.state.selectedAffiliateId);
+    const current = this.getVisibleAffiliateSelection();
     if (!current) {
-      current = this.state.affiliateProducts[0];
-      this.state.selectedAffiliateId = current.id;
+      this.showToast('목록에서 편집할 제휴 상품을 선택해 주세요.');
+      return;
     }
     this.navigate('affiliate', 'edit', current.id);
   },
 
   openAffiliateDeleteModal() {
-    if (this.state.affiliateForceEmpty || this.state.affiliateProducts.length === 0) {
-      this.showToast('삭제할 제휴 상품이 없습니다.');
+    if (!this.getVisibleAffiliateSelection()) {
+      this.showToast('목록에서 삭제할 제휴 상품을 선택해 주세요.');
       return;
-    }
-    let current = this.state.affiliateProducts.find((p) => p.id === this.state.selectedAffiliateId);
-    if (!current) {
-      current = this.state.affiliateProducts[0];
-      this.state.selectedAffiliateId = current.id;
     }
     this.state.showDeleteModal = true;
     this.renderModal();
@@ -234,7 +236,11 @@ const affiliatePage = {
   },
 
   confirmDeleteAffiliate() {
-    const targetId = this.state.selectedAffiliateId;
+    const targetId = this.getVisibleAffiliateSelection()?.id;
+    if (!this.state.showDeleteModal || !targetId) {
+      this.closeDeleteModal();
+      return;
+    }
     this.state.affiliateProducts = this.state.affiliateProducts.filter((p) => p.id !== targetId);
     this.state.showDeleteModal = false;
     if (this.state.affiliateProducts.length > 0) {
@@ -260,7 +266,7 @@ const affiliatePage = {
 
     const partnerVal = isEdit ? item.partner : '';
     const priceVal = isEdit ? item.price : '';
-    const offerVal = isEdit ? item.offerCode : '';
+    const offerVal = isEdit ? item.offerId || item.offerCode : '';
     const urlVal = isEdit ? item.url : '';
     const startVal = isEdit ? item.startDateTime : '';
     const endVal = isEdit ? item.endDateTime : '';
@@ -296,7 +302,7 @@ const affiliatePage = {
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1.5">금액 <span class="text-[#0066ff]">*</span></label>
               <input
-                id="aff-form-price"
+                id="aff-form-price" readonly title="가격은 수집 API에서 갱신됩니다"
                 type="text"
                 value="${this.escapeHtml(priceVal)}"
                 placeholder="금액 입력 (원)"
@@ -306,23 +312,27 @@ const affiliatePage = {
 
             <!-- 좌하단: 판매정보 * 셀렉트 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">판매정보 <span class="text-[#0066ff]">*</span></label>
+              <label for="aff-form-offer" class="block text-xs font-bold text-slate-700 mb-1.5">판매정보 <span class="text-[#0066ff]">*</span></label>
+              <input
+                id="aff-offer-search"
+                type="search"
+                aria-label="판매정보 검색"
+                aria-controls="aff-form-offer"
+                placeholder="상품명, 판매처 또는 ID 검색"
+                class="form-input w-full mb-2"
+                oninput="app.filterOfferCatalog(this.value)"
+                disabled
+              />
               <select
-                id="aff-form-offer"
+                id="aff-form-offer" ${isEdit ? 'disabled' : ''}
                 class="form-input w-full cursor-pointer"
                 onchange="app.handleOfferSelectChange(this.value)"
               >
-                <option value="" ${!isEdit ? 'selected' : ''}>판매정보 ID 또는 상품명 검색</option>
-                ${this.state.offerCatalog
-                  .map(
-                    (cat) => `
-                  <option value="${this.escapeHtml(cat.code)}" ${offerVal === cat.code ? 'selected' : ''}>
-                    ${this.escapeHtml(cat.code)}
-                  </option>
-                `
-                  )
-                  .join('')}
+                <option value="">판매정보 선택</option>
+                ${isEdit ? `<option value="${this.escapeHtml(offerVal)}" selected>${this.escapeHtml(item.offerCode)}</option>` : ''}
               </select>
+              <p id="aff-offer-status" class="text-xs text-slate-500 mt-1" role="status"></p>
+              <button id="aff-offer-retry" type="button" hidden class="text-xs text-[#0066ff] mt-1" onclick="app.loadOfferCatalog()">다시 시도</button>
             </div>
 
             <!-- 우하단: 회색 안내 박스 -->
@@ -334,6 +344,7 @@ const affiliatePage = {
                 <div id="aff-offer-info-sub" class="text-xs text-slate-500 mt-0.5">
                   ${this.escapeHtml(infoBoxSub)}
                 </div>
+                <div id="aff-offer-info-id" class="text-xs text-slate-500 mt-0.5 break-all">${isEdit && item.offerId ? `판매정보 ID ${this.escapeHtml(item.offerId)}` : ''}</div>
               </div>
             </div>
           </div>
@@ -399,24 +410,102 @@ const affiliatePage = {
     `;
   },
 
-  handleOfferSelectChange(code) {
-    const found = this.state.offerCatalog.find((c) => c.code === code);
+  async loadOfferCatalog() {
+    const select = document.getElementById('aff-form-offer');
+    const search = document.getElementById('aff-offer-search');
+    const status = document.getElementById('aff-offer-status');
+    const retry = document.getElementById('aff-offer-retry');
+    select.disabled = true;
+    search.disabled = true;
+    retry.hidden = true;
+    status.textContent = '판매정보를 불러오는 중입니다.';
+    try {
+      const url = new URL(this.getApiBase() + '/v2/offers');
+      url.search = new URLSearchParams({ selected_domain: 'product', currency: 'KRW', limit: '100' });
+      const offers = new Map();
+      const cursors = new Set();
+      do {
+        const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        if (!select.isConnected) return;
+        if (!response.ok) throw new Error('Catalog request failed');
+        const { items, next_cursor: cursor } = await response.json();
+        if (!select.isConnected) return;
+        for (const offer of items) offers.set(offer.offer_id, offer);
+        if (!cursor) break;
+        if (cursors.has(cursor)) throw new Error('Repeated catalog cursor');
+        cursors.add(cursor);
+        url.searchParams.set('after', cursor);
+      } while (true);
+
+      this.state.offerCatalog = [...offers.values()];
+      this.filterOfferCatalog(search.value);
+      search.disabled = !offers.size;
+    } catch {
+      if (!select.isConnected) return;
+      status.textContent = window.location.protocol === 'file:'
+        ? '판매정보를 불러오려면 로컬 웹 서버에서 이 화면을 열고 카탈로그 API를 실행해 주세요.'
+        : '판매정보를 불러오지 못했습니다. API 연결을 확인해 주세요.';
+      retry.hidden = false;
+    } finally {
+      select.disabled = false;
+    }
+  },
+
+  filterOfferCatalog(query) {
+    const select = document.getElementById('aff-form-offer');
+    const status = document.getElementById('aff-offer-status');
+    const selectedId = select.value;
+    const selectedLabel = select.selectedOptions[0]?.text;
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const matches = this.state.offerCatalog.filter((offer) => {
+      const searchable = `${offer.name} ${offer.source} ${offer.offer_id}`.toLowerCase();
+      return terms.every((term) => searchable.includes(term));
+    });
+
+    select.options.length = 1;
+    for (const offer of matches) {
+      const label = `${offer.name} · ${offer.source} · ${offer.price}원`;
+      select.add(new Option(label, offer.offer_id));
+    }
+    if (selectedId && !matches.some((offer) => offer.offer_id === selectedId)) {
+      select.add(new Option(selectedLabel, selectedId));
+    }
+    select.value = selectedId;
+
+    if (matches.length) {
+      status.textContent = `판매정보 ${matches.length}건`;
+    } else {
+      status.textContent = terms.length ? '검색 결과가 없습니다.' : '선택할 수 있는 판매정보가 없습니다.';
+    }
+  },
+
+  handleOfferSelectChange(id) {
+    const found = this.state.offerCatalog.find((offer) => offer.offer_id === id);
     const titleEl = document.getElementById('aff-offer-info-title');
     const subEl = document.getElementById('aff-offer-info-sub');
-    const partnerEl = document.getElementById('aff-form-partner');
+    const idEl = document.getElementById('aff-offer-info-id');
     const priceEl = document.getElementById('aff-form-price');
     const urlEl = document.getElementById('aff-form-url');
 
+    if (idEl) idEl.textContent = found ? `판매정보 ID ${found.offer_id}` : '';
     if (found) {
       if (titleEl) {
-        titleEl.textContent = found.infoTitle;
+        titleEl.textContent = `${found.name} · ${found.source}`;
         titleEl.className = 'text-xs font-bold text-slate-800';
       }
-      if (subEl) subEl.textContent = found.infoSub;
-      if (partnerEl && !partnerEl.value.trim()) partnerEl.value = found.partner;
-      if (priceEl && !priceEl.value.trim()) priceEl.value = found.price;
-      if (urlEl && !urlEl.value.trim()) urlEl.value = found.url;
+      if (subEl) subEl.textContent = this.formatCatalogOfferPrice(found);
+      if (priceEl) {
+        priceEl.value = `${found.price}원`;
+        priceEl.dataset.catalogValue = priceEl.value;
+      }
+      if (urlEl) {
+        urlEl.value = found.current_url;
+        urlEl.dataset.catalogValue = urlEl.value;
+      }
     } else {
+      for (const input of [priceEl, urlEl]) {
+        if (input && input.value === input.dataset.catalogValue) input.value = '';
+      }
       if (titleEl) {
         titleEl.textContent = '상품명 · 브랜드 · 구분';
         titleEl.className = 'text-xs font-bold text-slate-600';
@@ -425,31 +514,48 @@ const affiliatePage = {
     }
   },
 
+  formatCatalogOfferPrice(offer) {
+    const shipping = offer.shipping_fee == null ? '미확인' : `${offer.shipping_fee}원`;
+    return `${offer.price}원 · 배송비 ${shipping}`;
+  },
+
   submitAffiliateForm(mode) {
-    const partner = (document.getElementById('aff-form-partner')?.value || '').trim() || '신규제휴사';
-    let price = (document.getElementById('aff-form-price')?.value || '').trim() || '19,000원';
-    if (!price.endsWith('원')) price += '원';
+    const selection = document.getElementById('aff-form-offer')?.value;
+    const matchedCatalog = this.state.offerCatalog.find((offer) => offer.offer_id === selection);
+    const existing = mode === 'edit'
+      ? this.state.affiliateProducts.find((item) => item.id === this.state.selectedAffiliateId)
+      : null;
+    if (!matchedCatalog && (!existing || selection !== (existing.offerId || existing.offerCode))) {
+      this.showToast('판매정보를 선택해 주세요.');
+      return;
+    }
 
-    const offerCode = document.getElementById('aff-form-offer')?.value || 'OF-001 · 엡손 M1120';
-    const url = (document.getElementById('aff-form-url')?.value || '').trim() || 'https://shop.example/products/OF-NEW';
-    const start = (document.getElementById('aff-form-start')?.value || '').trim() || '2026.10.01 00:00';
+    const partner = (document.getElementById('aff-form-partner')?.value || '').trim();
+    const amount = (document.getElementById('aff-form-price')?.value || '').trim().replace(/\s*원$/, '');
+    const url = (document.getElementById('aff-form-url')?.value || '').trim();
+    const start = (document.getElementById('aff-form-start')?.value || '').trim();
     const end = (document.getElementById('aff-form-end')?.value || '').trim();
+    if (!partner || !/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(amount) ||
+        !/^https?:\/\//i.test(url) || !URL.canParse(url)) {
+      this.showToast('제휴사, 금액, 판매 URL을 확인해 주세요.');
+      return;
+    }
+    const dateTime = /^\d{4}\.\d{2}\.\d{2} (?:[01]\d|2[0-3]):[0-5]\d$/;
+    if (!dateTime.test(start) || (end && (!dateTime.test(end) || start > end)) ||
+        !this.parseDateRange(`${start.slice(0, 10)} ~ ${(end || start).slice(0, 10)}`)) {
+      this.showToast('유효 일시를 YYYY.MM.DD HH:mm 형식으로 입력하고 시작·종료 순서를 확인해 주세요.');
+      return;
+    }
+    const price = `${amount}원`;
 
-    const matchedCatalog = this.state.offerCatalog.find((c) => c.code === offerCode);
-    const productName = matchedCatalog ? matchedCatalog.name : offerCode.split('·')[1]?.trim() || '제휴 상품';
+    const productName = matchedCatalog ? matchedCatalog.name : existing.name;
+    const offerId = matchedCatalog ? matchedCatalog.offer_id : existing.offerId;
+    const offerCode = matchedCatalog ? `${offerId} · ${productName}` : existing.offerCode;
+    const offerTitle = matchedCatalog ? `${productName} · ${matchedCatalog.source}` : existing.offerTitle;
+    const offerSub = matchedCatalog ? this.formatCatalogOfferPrice(matchedCatalog) : existing.offerSub;
 
     // 기간 포맷 (예: 10.01 ~ 12.31 또는 10.01 ~ 종료 없음)
-    const formatShortDate = (dtStr) => {
-      const m = dtStr.match(/(\d{2})\.(\d{2})/);
-      if (dtStr.length >= 10 && dtStr.includes('.')) {
-        const parts = dtStr.split(' ')[0].split('.');
-        if (parts.length >= 3) return `${parts[1]}.${parts[2]}`;
-      }
-      return m ? m[0] : '10.01';
-    };
-
-    const startShort = formatShortDate(start);
-    const periodStr = end ? `${startShort} ~ ${formatShortDate(end)}` : `${startShort} ~ 종료 없음`;
+    const periodStr = `${start.slice(5, 10)} ~ ${end ? end.slice(5, 10) : '종료 없음'}`;
 
     if (mode === 'edit') {
       const idx = this.state.affiliateProducts.findIndex((p) => p.id === this.state.selectedAffiliateId);
@@ -461,17 +567,17 @@ const affiliatePage = {
           price,
           url,
           period: periodStr,
+          offerId,
           offerCode,
-          offerTitle: matchedCatalog ? matchedCatalog.infoTitle : `일반 상품 · ${partner} ${productName}`,
-          offerSub: matchedCatalog ? matchedCatalog.infoSub : `${price.replace('원', '')} KRW · 배송비 0 KRW`,
+          offerTitle,
+          offerSub,
           startDateTime: start,
           endDateTime: end,
         };
       }
-      this.showToast('제휴 상품 변경사항이 저장되었습니다.');
+      this.showToast('현재 세션에 제휴 상품 변경사항을 반영했습니다.');
     } else {
-      const nextNum = this.state.affiliateProducts.length + 1;
-      const newId = `AF-00${nextNum}`;
+      const newId = `AF-${String(this.state.nextAffiliateNumber++).padStart(3, '0')}`;
       const newItem = {
         id: newId,
         partner,
@@ -480,9 +586,10 @@ const affiliatePage = {
         url,
         status: '제휴 중',
         period: periodStr,
+        offerId,
         offerCode,
-        offerTitle: matchedCatalog ? matchedCatalog.infoTitle : `일반 상품 · ${partner} ${productName}`,
-        offerSub: matchedCatalog ? matchedCatalog.infoSub : `${price.replace('원', '')} KRW · 배송비 0 KRW`,
+        offerTitle,
+        offerSub,
         startDateTime: start,
         endDateTime: end,
         lastVerified: '2026.10.12 09:00',
@@ -491,7 +598,7 @@ const affiliatePage = {
       this.state.affiliateProducts.unshift(newItem);
       this.state.selectedAffiliateId = newId;
       this.state.affiliateForceEmpty = false;
-      this.showToast(`새 제휴 상품(${newId})이 등록되었습니다.`);
+      this.showToast(`현재 세션에 새 제휴 상품(${newId})을 등록했습니다.`);
     }
 
     this.navigate('affiliate', 'list', undefined, { replace: true });
@@ -507,9 +614,7 @@ const affiliatePage = {
       return;
     }
 
-    const item =
-      this.state.affiliateProducts.find((p) => p.id === this.state.selectedAffiliateId) ||
-      this.state.affiliateProducts[0];
+    const item = this.getVisibleAffiliateSelection();
 
     if (!item) {
       modalRoot.innerHTML = '';

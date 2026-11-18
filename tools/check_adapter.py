@@ -14,8 +14,8 @@ os.environ['WORKSPACE_TOKEN'] = 'test-only-' + 'a' * 64
 app = importlib.import_module(f'services.{role}.devapp').app
 with TestClient(app) as client:
     health = client.get('/health').json()
-    assert health['service'] == role and health['business_ready'] is False
+    assert health['service'] == role and health['business_ready'] is (role == 'recommendation')
     response = client.post('/internal/dev/probe', json={'correlation_id': str(uuid4())})
     assert response.status_code == 401
-    assert client.post('/internal/process').status_code == 501
+    assert client.post('/internal/process').status_code == (422 if role == 'recommendation' else 501)
 print(role, 'development adapter and authorization checks passed')

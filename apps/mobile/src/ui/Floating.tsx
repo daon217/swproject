@@ -7,6 +7,8 @@ import type { PageAnalysis } from '../usePageAnalysis';
 import { IconClose, IconWarning } from './icons';
 import { ResultView } from './ResultView';
 import { C } from './theme';
+import { useSession } from '../session';
+import { BasicRecommendations } from './BasicRecommendations';
 
 // 플로팅 결과(Figma U16~U25): 축소 카드 → 누르면 하단 시트가 아래에서 올라온다(명세 REQ-UI-009~011).
 // 시트는 배경 터치·닫기 버튼·뒤로가기, 또는 상단을 아래로 끌어서 내린다.
@@ -33,6 +35,7 @@ export function Floating({
   onRetry: () => void;
 }) {
   const insets = useSafeAreaInsets();
+  const { me } = useSession();
   const [open, setOpen] = useState(false);
   /** 시트가 원래 위치에서 아래로 내려간 거리(px). 0이면 완전히 열림 */
   const [offset] = useState(() => new Animated.Value(SHEET_FALLBACK));
@@ -76,14 +79,13 @@ export function Floating({
     }),
   );
 
-  if (page.status === 'none') return null;
   const a = page.status === 'done' ? page.analysis : null;
   const rec = a?.result_kind === 'recommendation' ? a : null;
   const warning = rec?.warnings[0];
   // [임시] 페이지에서 읽은 실제 상품명·가격이 있으면 그것을 보여준다(서버 OCR 연동 전).
   const first = rec ? (rec.page_product ?? rec.sections.find((x) => x.kind !== 'used')?.items[0]) : undefined;
-  const kind: 'analyzing' | 'error' | 'empty' | 'result' =
-    page.status === 'analyzing' ? 'analyzing' : page.status === 'error' ? 'error' : warning || first ? 'result' : 'empty';
+  const kind: 'launcher' | 'analyzing' | 'error' | 'empty' | 'result' =
+    !me || page.status === 'none' ? 'launcher' : page.status === 'analyzing' ? 'analyzing' : page.status === 'error' ? 'error' : warning || first ? 'result' : 'empty';
 
   // 바깥으로 링크를 열 때는 시트를 먼저 내린다.
   const openUrl = (url: string) => {
@@ -97,7 +99,8 @@ export function Floating({
 
   return (
     <>
-      <View style={st.compactWrap}>
+      {!open && <View style={st.compactWrap}>
+        {kind === 'launcher' && <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="꿀픽 추천 열기"><Text style={st.label}>꿀픽</Text><Text style={st.hint}>추천 상품 보기</Text></Pressable>}
         {kind === 'analyzing' && (
           <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="꿀픽이 이 상품을 분석하고 있어요">
             <View style={st.stateRow}>
@@ -108,12 +111,12 @@ export function Floating({
           </Pressable>
         )}
         {kind === 'error' && (
-          <Pressable style={st.compact} onPress={onRetry} accessibilityRole="button" accessibilityLabel="분석하지 못했어요. 눌러서 다시 시도">
+          <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="분석하지 못했어요. 추천 창에서 다시 시도">
             <Text style={[st.label, { color: C.danger }]}>분석하지 못했어요</Text>
             <Text style={st.stateBody} numberOfLines={2}>
               {page.error ?? '잠시 후 다시 시도해 주세요.'}
             </Text>
-            <Text style={[st.hint, { color: C.primary }]}>눌러서 다시 시도</Text>
+            <Text style={[st.hint, { color: C.primary }]}>추천 창에서 다시 시도</Text>
           </Pressable>
         )}
         {kind === 'empty' && (
@@ -150,7 +153,7 @@ export function Floating({
           )}
         </Pressable>
         )}
-      </View>
+      </View>}
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => close()} statusBarTranslucent navigationBarTranslucent>
         {/* 배경과 시트를 형제로 둔다. 시트를 터치 영역(Pressable) 안에 넣으면 그 영역이 터치를 먼저 가져가
@@ -169,7 +172,7 @@ export function Floating({
               <Pressable style={st.sheetClose} onPress={() => close()} accessibilityLabel="닫기" hitSlop={10}>
                 <IconClose size={22} color={C.sub} />
               </Pressable>
-              <ResultView status={page.status} analysis={page.analysis} error={page.error} onOpenUrl={openUrl} onPremium={go(onPremium)} onFilter={go(onFilter)} onRetry={onRetry} />
+              {!me ? <BasicRecommendations onOpenUrl={openUrl} onLogin={go(onPremium)} /> : <ResultView status={page.status} analysis={page.analysis} error={page.error} onOpenUrl={openUrl} onPremium={go(onPremium)} onFilter={go(onFilter)} onRetry={onRetry} />}
             </View>
           </Animated.View>
         </View>

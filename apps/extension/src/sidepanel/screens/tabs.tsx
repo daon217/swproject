@@ -1,4 +1,4 @@
-import { loadVisits, recordVisit, clearVisits, type Visit } from '../../shared/accountData';
+import { recordVisit } from '../../shared/accountData';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../shared/api';
 import { formatPrice, safeHttpUrl } from '../../shared/format';
@@ -25,6 +25,7 @@ export function RecommendTab() {
   const nav = useNav();
   const { me } = useSession();
   const [enabled, setEnabled] = useRecommendEnabled();
+  if (!me) return <GuestRecent onLogin={() => nav.push('login')} />;
   if (enabled === null) return null;
   if (!enabled) {
     return (
@@ -101,13 +102,15 @@ export function RecentTab() {
 function GuestRecent({ onLogin }: { onLogin: () => void }) {
   const [items, setItems] = useState<OfferCard[] | null>(null);
   const [error, setError] = useState(false);
-
+  const [domain, setDomain] = useState<'product' | 'food'>('product');
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    api
-      .listFeatured()
-      .then(setItems)
-      .catch(() => setError(true));
-  }, []);
+    let alive = true;
+    setItems(null); setError(false);
+    api.listBasic(domain).then(rows => { if (alive) setItems(rows); })
+      .catch(() => { if (alive) setError(true); });
+    return () => { alive = false; };
+  }, [domain, attempt]);
 
   return (
     <div className="sp-scroll sp-pad">
@@ -119,12 +122,18 @@ function GuestRecent({ onLogin }: { onLogin: () => void }) {
         <span className="sp-login-banner-cta">로그인</span>
       </button>
       <h1 className="sp-title">추천 상품</h1>
-      <p className="sp-desc">꿀픽이 고른 인기 상품이에요.</p>
-      {error && <p className="sp-error">추천 상품을 불러오지 못했어요.</p>}
+      <p className="sp-desc">로그인 없이 상품을 둘러보세요. 개인 맞춤 AI 분석 결과는 아니에요.</p>
+      <div role="group" aria-label="상품 종류">
+        <button className="kp-btn" aria-pressed={domain === 'product'} onClick={() => setDomain('product')}>상품</button>
+        <button className="kp-btn" aria-pressed={domain === 'food'} onClick={() => setDomain('food')}>식품</button>
+      </div>
+      {!items && !error && <p role="status">상품을 불러오는 중이에요.</p>}
+      {error && <p className="sp-error">추천 상품을 불러오지 못했어요. <button className="kp-btn" onClick={() => setAttempt(v => v + 1)}>다시 시도</button></p>}
+      {items?.length === 0 && <p>현재 표시할 상품이 없어요. 다른 종류를 선택하거나 나중에 다시 확인해 주세요.</p>}
       {items?.map((c, i) => (
         <div key={c.offer_id}>
           {i > 0 && <hr className="kp-divider" />}
-          <OfferRow card={c} onOpenUrl={openUrl} />
+          <OfferRow card={c} onOpenUrl={openUrl} basic />
         </div>
       ))}
       {items?.some((c) => c.affiliate) && <p className="kp-footnote">제휴 링크가 포함된 상품이에요. 구매 시 꿀픽이 판매처로부터 수수료를 받을 수 있어요.</p>}
@@ -145,20 +154,18 @@ function AccountShortcuts({ userId }: { userId?: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const dragFrom = useRef<number | null>(null);
 
-  const [visits, setVisits] = useState<Visit[]>([]);
   const [ready, setReady] = useState(false);
   useEffect(() => {
     let alive = true;
-    void Promise.all([loadShortcuts(userId), loadVisits(userId)]).then(([saved, history]) => {
-      if (alive) { setList(saved); setVisits(history); setReady(true); }
+    void loadShortcuts(userId).then(saved => {
+      if (alive) { setList(saved); setReady(true); }
     });
     return () => { alive = false; };
   }, [userId]);
   const open = (url: string) => {
-    void recordVisit(userId, url).then(() => loadVisits(userId)).then(setVisits);
+    void recordVisit(userId, url);
     openUrl(url);
   };
-  const clearHistory = async () => { await clearVisits(userId); setVisits([]); };
 
 
   const update = (next: Shortcut[]) => {
@@ -186,7 +193,7 @@ function AccountShortcuts({ userId }: { userId?: string }) {
       </div>
       <p className="sp-desc">{editing ? '−를 눌러 삭제하고, 끌어서 순서를 바꿔요.' : '자주 가는 쇼핑몰을 직접 추가하고 정리할 수 있어요.'}</p>
 
-      {!userId && <Note>로그인하면 나만의 바로가기와 방문 기록을 이 기기에 저장할 수 있어요.</Note>}
+      {!userId && <Note>로그인하면 나만의 바로가기를 이 기기에 저장할 수 있어요.</Note>}
       <ul className="sp-shortcuts">
         {list.map((s, i) => (
           <li
@@ -226,14 +233,7 @@ function AccountShortcuts({ userId }: { userId?: string }) {
 
       <Note>{editing ? '변경한 바로가기는 현재 계정 전용으로 이 기기에 저장돼요.' : '바로가기를 누르면 새 탭에서 열리고, 상품 페이지에서 AI 추천이 화면에 표시돼요.'}</Note>
 
-      <section aria-label="최근 방문 페이지">
-        <h2>최근 방문 페이지</h2>
-        <p className="sp-desc">앱에서 직접 연 페이지를 최대 50개·30일간 이 기기에 보관해요. 바로가기와는 별개예요.</p>
-        {visits[0] && <button className="kp-btn" onClick={() => open(visits[0].url)}>마지막 페이지 다시 열기</button>}
-        {visits.slice(0, 10).map(v => <p key={v.url}><button className="kp-text-btn" onClick={() => open(v.url)}>{v.url}</button></p>)}
-        {!visits.length && <p>방문 기록이 없어요.</p>}
-        {!!visits.length && <button className="kp-btn" onClick={() => void clearHistory()}>방문 기록 삭제</button>}
-      </section>
+
       {adding && (
         <AddShortcutSheet
           onCancel={() => setAdding(false)}

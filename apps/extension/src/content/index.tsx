@@ -22,9 +22,15 @@ chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse) => {
 function ContentApp() {
   const [state, setState] = useState<TabState | null>(null);
 
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [openError, setOpenError] = useState(false);
+
   useEffect(() => {
     void sendMessage<TabState | null>({ type: 'getTabState' }).then((s) => setState(s ?? null));
+    let visibilityChanged = false;
+    void sendMessage<boolean>({ type: 'getPanelVisibility' }).then(open => { if (!visibilityChanged) setPanelOpen(!!open); });
     const onMsg = (msg: Message) => {
+      if (msg.type === 'panelVisibility') { visibilityChanged = true; setPanelOpen(msg.open); return; }
       // 현재 문서 URL과 다른 결과는 표시하지 않는다(이전 페이지 결과 노출 방지).
       if (msg.type === 'tabState' && msg.state.url === location.href) setState(msg.state);
       else if (msg.type === 'tabState') setState(null);
@@ -38,9 +44,17 @@ function ContentApp() {
       {/* 사이드 패널은 사용자 클릭 직후에만 열 수 있어 클릭 핸들러에서 바로 메시지를 보낸다 */}
       <Floating
         state={state}
-        onOpenPanel={(route) => void sendMessage({ type: 'openSidePanel', route })}
+        panelOpen={panelOpen}
+        onOpenPanel={(route) => {
+          setOpenError(false);
+          void sendMessage<{ ok: boolean }>({ type: 'openSidePanel', route }).then(result => {
+            if (result?.ok) setPanelOpen(true);
+            else setOpenError(true);
+          });
+        }}
         onRetry={() => void sendMessage({ type: 'retry' })}
       />
+      {openError && !panelOpen && <p role="alert">사이드바를 열지 못했어요. 확장 아이콘을 눌러 주세요.</p>}
     </div>
   );
 }

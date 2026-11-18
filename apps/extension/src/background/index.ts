@@ -1,10 +1,11 @@
+import { panelIsOpen, panelOpened } from './panelPresence';
 import { api, isMockApi } from '../shared/api';
 import { getAuthToken } from '../shared/auth';
 import type { Message, PanelRoute, TabState } from '../shared/messages';
 import { safeHttpUrl } from '../shared/format';
 import { captureRule, shouldCapture } from '../shared/pageFilter';
 import { isRecommendEnabled } from '../shared/recommendSetting';
-import { KEYS } from '../shared/storage';
+import { KEYS, getItem } from '../shared/storage';
 import type { PageScan } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
 
@@ -31,7 +32,7 @@ async function confirmProductSignal(tabId: number): Promise<boolean> {
 
 const DEBOUNCE_MS = 800;
 const POLL_MS = 700;
-const POLL_TIMEOUT_MS = 30_000;
+const POLL_TIMEOUT_MS = 120_000;
 
 const tabKey = (tabId: number) => `kp.tab.${tabId}`;
 const owners = new WeakMap<TabState, string | null>();
@@ -104,7 +105,7 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<Blob | null> {
 async function isStale(tabId: number, state: TabState): Promise<boolean> {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   const latest = await readState(tabId);
-  return (owners.has(state) && owners.get(state) !== await getAuthToken()) || !tab || tab.url !== state.url || latest?.page_revision !== state.page_revision;
+  return !(await isRecommendEnabled()) || (owners.has(state) && owners.get(state) !== await getAuthToken()) || !tab || tab.url !== state.url || latest?.page_revision !== state.page_revision;
 }
 
 async function analyze(tabId: number, url: string) {
@@ -131,6 +132,7 @@ async function analyze(tabId: number, url: string) {
   try {
     const created = await api.createAnalysis({
       image,
+      selected_domain: await getItem<'product' | 'food'>('kp.selectedDomain','product'),
       page_product,
       page_url: url,
       page_session_id: state.page_session_id,
@@ -197,7 +199,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // 로그인/로그아웃 시 권한·개인화가 바뀌므로 현재 탭을 다시 분석한다.
 chrome.storage.onChanged.addListener((changes, area) => {
   // 로그인 계정이 바뀌거나 상품 추천을 켜고 끄면 모든 탭 결과를 지우고 현재 탭을 다시 판단한다.
-  if (area === 'local' && (KEYS.auth in changes || KEYS.recommendEnabled in changes)) {
+  if (area === 'local' && (KEYS.auth in changes || KEYS.recommendEnabled in changes || 'kp.selectedDomain' in changes)) {
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
     void chrome.tabs.query({}).then(async tabs => {
@@ -209,6 +211,9 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {
   switch (raw.type) {
+    case 'getPanelVisibility':
+      sendResponse(sender.tab ? panelIsOpen(sender.tab.windowId) : false);
+      return false;
     case 'getTabState': {
       const tabId = sender.tab?.id;
       if (tabId === undefined) return false;
@@ -237,8 +242,12 @@ chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {
       // sidePanel.open은 사용자 동작 직후에만 허용되므로 await 없이 바로 호출한다.
       const tabId = sender.tab?.id;
       if (tabId !== undefined) {
-        chrome.sidePanel.open({ tabId }).catch(() => undefined);
+        chrome.sidePanel.open({ tabId }).then(() => {
+          panelOpened(sender.tab!.windowId);
+          sendResponse({ ok: true });
+        }).catch(() => sendResponse({ ok: false }));
         void chrome.storage.local.set({ [KEYS.pendingRoute]: { route: raw.route satisfies PanelRoute, at: Date.now() } });
+        return true;
       }
       return false;
     }

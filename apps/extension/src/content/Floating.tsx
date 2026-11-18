@@ -12,17 +12,24 @@ export interface FloatingProps {
   state: TabState | null;
   onOpenPanel: (route: PanelRoute) => void;
   onRetry: () => void;
+  panelOpen?: boolean;
 }
 
-export function Floating({ state, onOpenPanel, onRetry }: FloatingProps) {
+export function Floating({ state, onOpenPanel, onRetry: _onRetry, panelOpen = false }: FloatingProps) {
   const [closed, setClosed] = useState(false);
   const session = state?.page_session_id;
 
   // 새 페이지(세션)이면 다시 카드를 보여준다.
-  useEffect(() => setClosed(false), [session]);
+  useEffect(() => setClosed(false), [session, panelOpen]);
 
-  if (closed || !state || state.status === 'none') return null;
+  if (closed || panelOpen) return null;
   const open = () => onOpenPanel('recommend');
+
+  if (!state || state.status === 'none') return (
+    <div className="fl-wrap"><button className="fl-compact" onClick={open} aria-label="꿀픽 사이드바 열기">
+      <span className="fl-compact-label">꿀픽</span><span className="fl-compact-hint">추천 상품 보기</span>
+    </button><CloseButton onClick={() => setClosed(true)} /></div>
+  );
 
   if (state.status === 'analyzing') {
     return (
@@ -41,10 +48,10 @@ export function Floating({ state, onOpenPanel, onRetry }: FloatingProps) {
   if (state.status === 'error') {
     return (
       <div className="fl-wrap">
-        <button className="fl-compact" onClick={onRetry} aria-label="분석하지 못했어요 - 눌러서 다시 시도">
+        <button className="fl-compact" onClick={open} aria-label="분석하지 못했어요 - 사이드바에서 다시 시도">
           <span className="fl-compact-label is-danger">분석하지 못했어요</span>
           <span className="fl-state-body">{state.error ?? '잠시 후 다시 시도해 주세요.'}</span>
-          <span className="fl-compact-hint is-link">눌러서 다시 시도</span>
+          <span className="fl-compact-hint is-link">사이드바에서 다시 시도</span>
         </button>
         <CloseButton onClick={() => setClosed(true)} />
       </div>
@@ -87,7 +94,7 @@ export function Floating({ state, onOpenPanel, onRetry }: FloatingProps) {
 
   // [임시] 페이지에서 읽은 실제 상품명·가격이 있으면 그것을 보여준다(서버 OCR 연동 전).
   const first = a.page_product ?? a.sections.find((s) => s.kind !== 'used')?.items[0];
-  if (!first) return null;
+  if (!first) return <div className="fl-wrap"><button className="fl-compact" onClick={open}>추천 상품 보기</button></div>;
   return (
     <div className="fl-wrap">
       <button className="fl-compact" onClick={open} aria-label="꿀픽 추천 - 눌러서 사이드 패널에서 보기">

@@ -23,10 +23,12 @@ def compose_command(scope='full', shared=False):
             raise ValueError('Run python tools/workspace.py init first')
         command += ['--env-file', str(path)]
     files = ['infra/db/compose.yaml', 'infra/db/api.compose.yaml']
-    if scope == 'full':
+    if scope in ('full','integrated'):
         files.append('infra/workspace/compose.yaml')
-    if scope in ('ui', 'full'):
+    if scope in ('ui', 'full','integrated'):
         files.append('infra/ui/compose.yaml')
+    if scope == 'integrated':
+        files.append('infra/integration/compose.yaml')
     files.append('infra/workspace/local.compose.yaml')
     for relative in files:
         command += ['-f', str(ROOT / relative)]
@@ -76,6 +78,12 @@ def api_port():
 
 def initialize():
     run([sys.executable, 'services/api/dev.py', 'init'])
+    api_env=ROOT / 'services/api/.env'
+    api_settings=dict(line.split('=',1) for line in api_env.read_text().splitlines() if '=' in line and not line.startswith('#'))
+    if not api_settings.get('ANALYSIS_WORKER_TOKEN'):
+        with api_env.open('a',encoding='utf-8') as out:
+            out.write('\nANALYSIS_WORKER_TOKEN='+secrets.token_hex(32)+'\n')
+        print('Created private analysis worker credential.')
     if not ENV.exists():
         fd = os.open(ENV, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         with os.fdopen(fd, 'w', encoding='utf-8', newline='\n') as out:
@@ -102,12 +110,12 @@ def main():
     parser.add_argument('--role', choices=['admin','support'], default='support')
     parser.add_argument('--revoke', action='store_true')
     parser.add_argument('--apply', action='store_true', help='Apply maintenance deletions; otherwise preview only')
-    parser.add_argument('--scope', choices=['core', 'ui', 'full'], default=None,
+    parser.add_argument('--scope', choices=['core', 'ui', 'full', 'integrated'], default=None,
                         help='up/check default to core; other actions default to full. core: DB + API; ui: DB + API + UI previews; full: all development services')
     parser.add_argument('--shared', action='store_true', help='Explicitly include an already enrolled VPN gateway')
     args = parser.parse_args()
     if args.scope is None:
-        args.scope = 'core' if args.action in ('up', 'check', 'validate', 'monitor') else 'full'
+        args.scope = 'core' if args.action in ('up', 'check', 'validate', 'monitor') else 'integrated' if args.action in ('stop','status','logs') else 'full'
     options = {'scope': args.scope, 'shared': args.shared or args.action == 'share'}
     if args.action == 'share' and args.scope != 'full':
         parser.error('share requires --scope full')
@@ -116,11 +124,11 @@ def main():
     elif args.action == 'init':
         initialize()
     elif args.action in ('validate','monitor'):
-        if args.scope == 'ui':
+        if args.scope in ('ui','integrated'):
             parser.error('validate/monitor use --scope core or full; UI uses check --scope ui')
         run([sys.executable,'tools/operations.py',args.action,'--scope',args.scope])
     elif args.action in ('up', 'share'):
-        compose('up', '-d', '--build', '--wait', '--wait-timeout', '300', **options)
+        compose('up', '-d', '--build', '--wait', '--wait-timeout', '1200' if args.scope == 'integrated' else '300', **options)
         if args.action == 'share':
             run([sys.executable, 'infra/team/team.py', 'home'])
     elif args.action == 'check':

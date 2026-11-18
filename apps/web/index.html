@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="api-base" content="http://localhost:8000" />
   <title>꿀픽 ADMIN - 운영 콘솔</title>
   <!-- Pretendard Font CDN -->
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
@@ -29,6 +30,7 @@
     };
   </script>
   <style>
+    #admin-header[hidden], #admin-workspace[hidden], #admin-login[hidden], #admin-signup[hidden] { display: none !important; }
     body {
       font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
       background-color: #f8fafc;
@@ -113,36 +115,131 @@
 </head>
 <body class="min-h-screen flex flex-col bg-[#f8fafc]">
 
+  <main id="admin-login" class="grid min-h-screen place-items-center p-5">
+    <section aria-labelledby="admin-login-title" class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <p class="text-sm font-bold text-[#0066ff]">꿀픽 ADMIN</p>
+      <h1 id="admin-login-title" class="mt-2 text-2xl font-bold text-slate-900">관리자 로그인</h1>
+      <p id="admin-login-demo" hidden class="mt-3 rounded-lg bg-[#ebf3ff] p-3 text-sm text-slate-700">
+        <strong>로컬 데모</strong> · 이 PC에서 만든 테스트 계정으로 로그인하세요.
+      </p>
+      <p id="admin-login-server-link" hidden class="mt-3 text-sm text-slate-600">
+        <a href="http://localhost:3000/#/login" class="font-semibold text-[#0066ff] underline">웹 서버에서 로그인 열기</a>
+      </p>
+      <form id="admin-login-form" method="post" class="mt-6 space-y-4">
+        <div>
+          <label for="admin-login-id" class="mb-1.5 block text-sm font-semibold">아이디</label>
+          <input id="admin-login-id" name="login_id" type="text" autocomplete="username"
+            autocapitalize="none" spellcheck="false" pattern="[A-Za-z0-9]{4,16}" maxlength="16"
+            title="영문 또는 숫자 4~16자" required class="form-input w-full" />
+        </div>
+        <div>
+          <label for="admin-login-password" class="mb-1.5 block text-sm font-semibold">비밀번호</label>
+          <input id="admin-login-password" name="password" type="password" autocomplete="current-password"
+            maxlength="128" required class="form-input w-full" />
+        </div>
+        <p id="admin-login-message" class="min-h-5 text-sm text-slate-600" aria-live="polite"></p>
+        <button id="admin-login-submit" type="submit" disabled class="btn-primary w-full disabled:opacity-50">로그인</button>
+      </form>
+      <a href="#/signup" class="mt-4 inline-block text-sm font-semibold text-[#0066ff]">회원가입</a>
+    </section>
+  </main>
+
+  <main id="admin-signup" hidden class="grid min-h-screen place-items-center p-5">
+    <section aria-labelledby="admin-signup-title" class="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <p class="text-sm font-bold text-[#0066ff]">꿀픽 ADMIN</p>
+      <h1 id="admin-signup-title" class="mt-2 text-2xl font-bold text-slate-900">회원가입</h1>
+      <p id="admin-signup-server-link" hidden class="mt-3 text-sm text-slate-600">
+        <a href="http://localhost:3000/#/signup" class="font-semibold text-[#0066ff] underline">웹 서버에서 회원가입 열기</a>
+      </p>
+      <p id="admin-signup-role-hint" class="mt-2 text-sm text-slate-600">가입 후 관리자 또는 상담 담당자 권한을 부여받으면 콘솔을 사용할 수 있습니다.</p>
+      <p id="admin-signup-demo" hidden class="mt-3 rounded-lg bg-[#ebf3ff] p-3 text-sm text-slate-700">
+        <strong>로컬 데모</strong> · 테스트용 비밀번호를 사용하세요. 가입한 계정으로 이 PC에서 관리자 콘솔을 확인할 수 있습니다.
+      </p>
+      <form id="admin-signup-form" method="post" class="mt-6 space-y-4">
+        <div>
+          <label for="admin-signup-id" class="mb-1.5 block text-sm font-semibold">아이디</label>
+          <input id="admin-signup-id" type="text" autocomplete="username" autocapitalize="none" spellcheck="false"
+            pattern="[A-Za-z0-9]{4,16}" maxlength="16" required class="form-input w-full" />
+          <p class="mt-1 text-xs text-slate-600">영문·숫자 4~16자</p>
+        </div>
+        <div>
+          <label for="admin-signup-password" class="mb-1.5 block text-sm font-semibold">비밀번호</label>
+          <input id="admin-signup-password" type="password" autocomplete="new-password"
+            minlength="8" maxlength="128" required class="form-input w-full" />
+          <p class="mt-1 text-xs text-slate-600">8~128자</p>
+        </div>
+        <div>
+          <label for="admin-signup-confirmation" class="mb-1.5 block text-sm font-semibold">비밀번호 확인</label>
+          <input id="admin-signup-confirmation" type="password" autocomplete="new-password"
+            minlength="8" maxlength="128" required class="form-input w-full" />
+        </div>
+        <details class="rounded-lg border border-slate-200 px-3 py-2 text-sm">
+          <summary class="cursor-pointer font-semibold">개인정보 수집 및 이용 동의 내용</summary>
+          <div id="admin-signup-terms" data-version="privacy-2026-11-16" class="mt-3 space-y-3 text-sm text-slate-700">
+            <section>
+              <h2 class="font-semibold">1. 수집 목적</h2>
+              <p class="mt-1">꿀픽 회원 가입·로그인, 회원별 맞춤 추천(가격 비교·대체 상품·중고 상품), 식품 알레르기 주의 안내, 추천 기록 제공, 프리미엄 이용권 결제 확인, 고객 문의 응대를 위해 개인정보를 처리합니다.</p>
+            </section>
+            <section>
+              <h2 class="font-semibold">2. 수집 항목</h2>
+              <p class="mt-1">필수: 아이디, 비밀번호(암호화 저장), 동의 일시·동의 문서 버전<br />선택: 생년월일, 성별, 알레르기 정보, 중고상품 포함 여부, 기피·선호 재료<br />서비스 이용 중 생성: 분석 요청 기록·추천 결과, 결제·이용권 기록, 고객지원 상담 내용</p>
+            </section>
+            <section>
+              <h2 class="font-semibold">3. 화면 분석 이미지</h2>
+              <p class="mt-1">추천을 위해 사용자가 보고 있는 쇼핑몰 상품 화면을 캡처해 분석합니다. 로그인·결제·장바구니 등 민감한 화면은 캡처하지 않으며, 캡처 이미지는 분석이 끝나면 정해진 기간 안에 삭제하고 영구 보관하지 않습니다.</p>
+            </section>
+            <section>
+              <h2 class="font-semibold">4. 보유 및 이용 기간</h2>
+              <p class="mt-1">회원 탈퇴 시까지 보유하며, 탈퇴하면 지체 없이 파기합니다. 추천 기록은 설정에서 언제든 전체 삭제할 수 있습니다. 다만 관계 법령에 따라 보관이 필요한 결제 기록은 해당 기간 동안 분리 보관합니다.</p>
+            </section>
+            <section>
+              <h2 class="font-semibold">5. 동의를 거부할 권리</h2>
+              <p class="mt-1">개인정보 수집·이용에 동의하지 않을 수 있습니다. 필수 항목에 동의하지 않으면 회원 가입이 제한되지만, 로그인 없이 기본 추천은 이용할 수 있습니다. 선택 항목은 입력하지 않아도 가입할 수 있습니다.</p>
+            </section>
+          </div>
+        </details>
+        <label class="flex items-start gap-2 text-sm">
+          <input id="admin-signup-consent" type="checkbox" required class="mt-1 accent-[#0066ff]" />
+          <span>개인정보 수집 및 이용에 동의합니다. (필수)</span>
+        </label>
+        <p id="admin-signup-message" class="min-h-5 text-sm text-slate-600" aria-live="polite"></p>
+        <button id="admin-signup-submit" type="submit" disabled class="btn-primary w-full disabled:opacity-50">회원가입</button>
+      </form>
+      <a href="#/login" class="mt-4 inline-block text-sm font-semibold text-[#0066ff]">로그인으로 돌아가기</a>
+    </section>
+  </main>
+
   <!-- 상단 고정 헤더 (Top Bar): 높이 56px, 배경색 #1e2430 -->
-  <header class="fixed top-0 left-0 right-0 h-[56px] bg-[#1e2430] text-white flex items-center justify-between px-6 z-40 select-none">
-    <div class="font-bold text-lg tracking-tight cursor-pointer" onclick="app.navigate('crawling')">
+  <header id="admin-header" hidden class="fixed top-0 left-0 right-0 h-[56px] bg-[#1e2430] text-white flex items-center justify-between px-4 sm:px-6 z-40">
+    <button type="button" class="font-bold text-lg tracking-tight" onclick="app.navigate(app.adminSession.role === 'support' ? 'counseling' : 'main')">
       꿀픽 ADMIN
-    </div>
-    <div class="text-sm text-slate-300 font-normal">
-      운영 관리 &nbsp;&nbsp;/&nbsp;&nbsp; 관리자
+    </button>
+    <div class="flex items-center gap-3 text-sm">
+      <span id="admin-role" class="text-slate-300"></span>
+      <button id="admin-logout" type="button" class="rounded-md border border-slate-400 px-3 py-1.5">로그아웃</button>
     </div>
   </header>
 
   <!-- 전체 화면 구조: 좌측 고정 사이드바(240px) + 우측 메인 콘텐츠 -->
-  <div class="flex flex-1 pt-[56px]">
+  <div id="admin-workspace" hidden class="flex flex-1 flex-col pt-[56px] lg:flex-row">
     <!-- 좌측 고정 사이드바 -->
-    <aside class="fixed top-[56px] left-0 bottom-0 w-[240px] bg-white border-r border-slate-200 px-4 py-6 flex flex-col justify-between z-30 select-none overflow-y-auto">
+    <aside class="bg-white border-b border-slate-200 px-3 py-2 select-none lg:fixed lg:top-[56px] lg:bottom-0 lg:left-0 lg:z-30 lg:flex lg:w-[240px] lg:flex-col lg:justify-between lg:overflow-y-auto lg:border-r lg:px-4 lg:py-6">
       <div>
-        <div class="text-xs text-[#64748b] font-bold px-3 mb-3 tracking-wider">WORKSPACE</div>
-        <nav id="sidebar-nav" class="space-y-1 text-sm">
+        <div class="hidden text-xs text-[#64748b] font-bold px-3 mb-3 tracking-wider lg:block">WORKSPACE</div>
+        <nav id="sidebar-nav" class="grid grid-cols-2 gap-1 text-sm sm:grid-cols-3 lg:block lg:space-y-1">
           <!-- JS에서 렌더링 -->
         </nav>
       </div>
 
       <!-- 사이드바 하단 고정 정보 카드 -->
-      <div class="bg-white border border-slate-200 rounded-lg p-4 mt-6">
+      <div class="hidden bg-white border border-slate-200 rounded-lg p-4 mt-6 lg:block">
         <div class="font-bold text-slate-900 text-sm">꿀픽 운영 콘솔</div>
         <div class="text-xs text-slate-500 mt-1">KST · Asia/Seoul</div>
       </div>
     </aside>
 
     <!-- 우측 메인 콘텐츠 영역 -->
-    <main class="flex-1 ml-[240px] p-8 md:p-10">
+    <main class="min-w-0 flex-1 overflow-x-auto p-4 sm:p-6 lg:ml-[240px] lg:p-8">
       <div id="app-content" class="max-w-[1200px] mx-auto">
         <!-- JS에서 SPA 화면 렌더링 -->
       </div>
@@ -154,6 +251,7 @@
   <div id="toast-root" class="fixed bottom-6 right-6 z-50 space-y-2 pointer-events-none"></div>
 
   <script src="./shared/state.js"></script>
+  <script src="./pages/login/index.js"></script>
   <script src="./shared/layout.js"></script>
   <script src="./shared/charts.js"></script>
   <script src="./pages/crawling/index.js"></script>

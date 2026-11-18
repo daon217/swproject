@@ -9,6 +9,7 @@ const consoleLayout = {
   init() {
     window.addEventListener('hashchange', () => this.renderRoute());
     this.renderRoute();
+    this.setupAdminLogin();
   },
 
   // 모든 활성 차트 안전하게 파기
@@ -40,10 +41,15 @@ const consoleLayout = {
   },
 
   renderRoute() {
+    if (!this.renderAdminAccess()) return;
     let [page, subView = 'list', id] = window.location.hash.slice(2).split('/');
     if (!window.location.hash.startsWith('#/') ||
         !['main', 'crawling', 'affiliate', 'customers', 'counseling', 'stats'].includes(page)) {
-      page = 'crawling';
+      page = 'main';
+    }
+    if (this.adminSession.role === 'support' && page !== 'counseling') {
+      this.navigate('counseling', 'list', undefined, { replace: true });
+      return;
     }
 
     this.state.currentPage = page;
@@ -76,7 +82,11 @@ const consoleLayout = {
     if (!root) return;
     const toast = document.createElement('div');
     toast.className = 'bg-[#1e2430] text-white text-sm px-4 py-3 rounded-lg shadow-lg border border-slate-700 flex items-center gap-2 pointer-events-auto transition-opacity duration-300';
-    toast.innerHTML = `<span class="w-2 h-2 rounded-full bg-[#0066ff] inline-block"></span><span>${message}</span>`;
+    const dot = document.createElement('span');
+    dot.className = 'w-2 h-2 rounded-full bg-[#0066ff] inline-block';
+    const label = document.createElement('span');
+    label.textContent = message;
+    toast.append(dot, label);
     root.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = '0';
@@ -93,46 +103,50 @@ const consoleLayout = {
     const isProductGroup = p === 'affiliate' || p === 'crawling';
 
     const itemClass = (active) =>
-      active
-        ? 'block w-full text-left px-3 py-2.5 rounded-lg bg-[#ebf3ff] text-[#0066ff] font-bold transition-colors'
-        : 'block w-full text-left px-3 py-2.5 rounded-lg text-slate-700 hover:bg-slate-100 font-medium transition-colors';
+      'flex w-full items-center gap-2 rounded-lg border-l-[3px] px-2.5 py-2.5 text-left transition-colors ' +
+      (active
+        ? 'border-[#0066ff] bg-[#ebf3ff] text-[#0066ff] font-bold'
+        : 'border-transparent text-slate-700 hover:bg-slate-100 font-medium');
+    const icon = (path) => `<svg class="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+      aria-hidden="true"><path d="${path}"/></svg>`;
+    const menu = (page, label, path) => `
+      <button type="button" onclick="app.navigate('${page}')" class="${itemClass(p === page)}"
+        ${p === page ? 'aria-current="page"' : ''}>
+        ${icon(path)} <span>${label}</span>
+      </button>`;
 
-    const parentProductClass = isProductGroup
-      ? 'block w-full text-left px-3 py-2 text-[#0066ff] font-bold transition-colors'
-      : 'block w-full text-left px-3 py-2 text-slate-700 hover:text-slate-900 font-medium transition-colors';
-
+    const counselingMenu = menu('counseling', '고객상담', 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5');
+    if (this.adminSession.role === 'support') {
+      nav.innerHTML = counselingMenu;
+      return;
+    }
     nav.innerHTML = `
-      <button onclick="app.navigate('main')" class="${itemClass(p === 'main')}">
-        MAIN
-      </button>
-
-      <div class="pt-1">
-        <!-- 상품관리: 상위 카테고리 라벨 역할, 클릭 시 기본으로 '제휴상품' 이동 -->
-        <button onclick="app.navigate('affiliate', 'list')" class="${parentProductClass}">
-          상품관리
+      ${menu('main', 'MAIN', 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z')}
+      <div>
+        <button type="button" onclick="app.navigate('affiliate')" class="${itemClass(false)} ${isProductGroup ? 'text-[#0066ff]' : ''}">
+          ${icon('M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10')} <span>상품관리</span>
         </button>
-        <div class="mt-1 space-y-1 pl-4">
-          <button onclick="app.navigate('affiliate', 'list')" class="${itemClass(p === 'affiliate')}">
-            제휴상품
-          </button>
-          <button onclick="app.navigate('crawling')" class="${itemClass(p === 'crawling')}">
-            상품 크롤링 검토
-          </button>
+        <div class="mt-1 space-y-1 pl-3">
+          ${menu('affiliate', '제휴상품', 'M5 4h7l7 7-7 7-7-7V4zM8 7h.01')}
+          ${menu('crawling', '상품 크롤링 검토', 'M3 5h18M3 12h18M3 19h18M7 5v14')}
         </div>
       </div>
-
-      <button onclick="app.navigate('counseling', 'list')" class="${itemClass(p === 'counseling')}">
-        고객상담
-      </button>
-
-      <button onclick="app.navigate('stats')" class="${itemClass(p === 'stats')}">
-        통계
-      </button>
-
-      <button onclick="app.navigate('customers', 'list')" class="${itemClass(p === 'customers')}">
-        고객정보
-      </button>
+      ${counselingMenu}
+      ${menu('stats', '통계', 'M4 4v16h16M8 16v-4M13 16V8M18 16V5')}
+      ${menu('customers', '고객정보', 'M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM5 20v-2a7 7 0 0 1 14 0v2z')}
     `;
+  },
+
+  renderStatusBadge(label) {
+    const palette = {
+      '제휴 중': 'bg-emerald-50 text-emerald-800 ring-emerald-600/20',
+      '진행 중': 'bg-blue-50 text-blue-800 ring-blue-600/20',
+      '대기': 'bg-indigo-50 text-indigo-800 ring-indigo-600/20',
+      '종료 예정': 'bg-indigo-50 text-indigo-800 ring-indigo-600/20',
+    };
+    const style = Object.hasOwn(palette, label) ? palette[label] : 'bg-slate-100 text-slate-700 ring-slate-500/20';
+    return `<span class="inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${style}">${this.escapeHtml(label)}</span>`;
   },
 
   // 우측 본문 공통 헤더 생성 헬퍼
@@ -163,6 +177,7 @@ const consoleLayout = {
       container.innerHTML = this.getCrawlingHtml();
     } else if (p === 'affiliate') {
       container.innerHTML = this.getAffiliateHtml();
+      if (this.state.affiliateSubView !== 'list') this.loadOfferCatalog();
     } else if (p === 'customers') {
       container.innerHTML = this.getCustomersHtml();
     } else if (p === 'counseling') {
@@ -174,6 +189,20 @@ const consoleLayout = {
       container.innerHTML = this.getMainDashboardHtml();
       this.initMainChart();
     }
+  },
+
+  parseDateRange(value, precision = 10) {
+    const dates = value.trim().split(/\s*~\s*/);
+    if (dates.length !== 2 || dates[0] > dates[1]) return null;
+
+    const format = { 4: /^\d{4}$/, 7: /^\d{4}\.\d{2}$/, 10: /^\d{4}\.\d{2}\.\d{2}$/ }[precision];
+    const suffix = { 4: '-01-01', 7: '-01', 10: '' }[precision];
+    return dates.every((date) => {
+      if (!format.test(date)) return false;
+      const iso = date.replaceAll('.', '-') + suffix;
+      const time = Date.parse(iso + 'T00:00:00Z');
+      return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === iso;
+    }) ? dates : null;
   },
 
   // HTML 이스케이프 유틸

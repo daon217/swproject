@@ -1,5 +1,6 @@
 const app = {
   ...consoleState,
+  ...loginPage,
   ...consoleLayout,
   ...consoleCharts,
   ...crawlingPage,

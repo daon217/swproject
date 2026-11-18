@@ -1,10 +1,7 @@
 const crawlingPage = {
   getCrawlingHtml() {
-    const query = this.state.crawlingFilterQuery.trim();
-    const rows = this.state.crawlingData.filter((item) => {
-      if (!query) return true;
-      return item.date.includes(query) || String(item.count).includes(query);
-    });
+    const [start, end] = this.parseDateRange(this.state.crawlingPeriod);
+    const rows = this.state.crawlingData.filter((item) => item.date >= start && item.date <= end);
 
     const totalDays = rows.length;
     const totalCount = rows.reduce((acc, r) => acc + r.count, 0).toLocaleString();
@@ -19,9 +16,9 @@ const crawlingPage = {
           <input
             id="crawling-period-input"
             type="text"
-            value="${this.state.crawlingPeriod}"
+            value="${this.escapeHtml(this.state.crawlingPeriod)}"
             placeholder="2026.10.06 ~ 2026.10.12"
-            class="form-input w-[360px]"
+            class="form-input max-w-full w-[360px]"
             onkeydown="if(event.key==='Enter') app.handleCrawlingSearch()"
           />
           <button onclick="app.handleCrawlingSearch()" class="btn-primary">
@@ -40,6 +37,7 @@ const crawlingPage = {
 
         <!-- 각 행(Row)은 흰색 배경 박스 형태(bg-white)로 행 사이 간격 배치 -->
         <div class="space-y-2 mt-2">
+          ${rows.length ? '' : '<p class="px-6 py-4 text-sm text-slate-500">선택한 기간에 수집 내역이 없습니다.</p>'}
           ${rows
             .map(
               (row) => `
@@ -62,10 +60,12 @@ const crawlingPage = {
 
   handleCrawlingSearch() {
     const input = document.getElementById('crawling-period-input');
-    if (input) {
-      this.state.crawlingPeriod = input.value;
+    const range = this.parseDateRange(input.value);
+    if (!range) {
+      this.showToast('조회 기간을 YYYY.MM.DD ~ YYYY.MM.DD 형식으로 입력해 주세요.');
+      return;
     }
+    this.state.crawlingPeriod = range.join(' ~ ');
     this.renderContent();
-    this.showToast(`조회 기간(${this.state.crawlingPeriod}) 내역을 불러왔습니다.`);
   },
 };

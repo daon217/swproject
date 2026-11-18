@@ -38,14 +38,14 @@ const counselingPage = {
               type="text"
               value="${this.escapeHtml(this.state.counselingSearch)}"
               placeholder="문의 ID, 고객 ID 또는 제목"
-              class="form-input w-[360px]"
+              class="form-input max-w-full w-[360px]"
               oninput="app.handleCounselingFilterChange(this.value, null)"
             />
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-600 mb-1.5">분류 / 상태</label>
             <select
-              class="form-input w-[220px] cursor-pointer"
+              class="form-input max-w-full w-[220px] cursor-pointer"
               onchange="app.handleCounselingFilterChange(null, this.value)"
             >
               <option value="전체" ${catFilter === '전체' ? 'selected' : ''}>전체</option>
@@ -73,8 +73,8 @@ const counselingPage = {
       </div>
 
       <!-- 테이블 -->
-      <div class="w-full">
-        <div class="grid grid-cols-12 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
+      <div class="w-full overflow-x-auto">
+        <div class="grid min-w-[820px] grid-cols-12 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
           <div class="col-span-2">문의 ID</div>
           <div class="col-span-2">고객 ID</div>
           <div class="col-span-3">문의 제목</div>
@@ -91,7 +91,7 @@ const counselingPage = {
 
       <!-- 하단 캡션 -->
       <div class="mt-4 text-sm text-slate-500">
-        최근 메시지 시간순 · 1–${filtered.length} / ${this.state.counselingList.length}건
+        최근 메시지 시간순 · <span id="counseling-result-count">${filtered.length}</span> / ${this.state.counselingList.length}건
       </div>
     `;
   },
@@ -105,26 +105,22 @@ const counselingPage = {
       `;
     }
 
-    return filtered
+    return [...filtered]
+      .sort((a, b) => Date.parse(b.lastMessageAt) - Date.parse(a.lastMessageAt))
       .map((item) => {
-        let statusStyle = 'text-slate-700 font-semibold';
-        if (item.status === '진행 중') statusStyle = 'text-[#0066ff] font-bold';
-        else if (item.status === '대기') statusStyle = 'text-amber-600 font-bold';
-        else if (item.status === '완료') statusStyle = 'text-slate-500 font-semibold';
-
         return `
-          <div
-            onclick="app.openCounselingDetail('${item.id}')"
-            class="grid grid-cols-12 items-center bg-white border border-slate-200 hover:border-[#0066ff] rounded-lg px-6 py-4 text-sm cursor-pointer transition-all"
+          <a
+            href="#/counseling/detail/${this.escapeHtml(encodeURIComponent(item.id))}"
+            class="grid min-w-[820px] grid-cols-12 items-center bg-white border border-slate-200 hover:border-[#0066ff] rounded-lg px-6 py-4 text-sm cursor-pointer transition-all"
           >
-            <div class="col-span-2 font-semibold text-slate-900">${item.id}</div>
-            <div class="col-span-2 text-slate-800 font-medium">${item.customerId}</div>
+            <div class="col-span-2 font-semibold text-slate-900">${this.escapeHtml(item.id)}</div>
+            <div class="col-span-2 text-slate-800 font-medium">${this.escapeHtml(item.customerId)}</div>
             <div class="col-span-3 font-medium text-slate-900 pr-2 truncate">${this.escapeHtml(item.title)}</div>
-            <div class="col-span-1 text-slate-600">${item.category}</div>
-            <div class="col-span-1 ${statusStyle}">${item.status}</div>
-            <div class="col-span-1 text-slate-700">${item.agent}</div>
-            <div class="col-span-2 text-right text-slate-500">${item.lastMessageTime}</div>
-          </div>
+            <div class="col-span-1 text-slate-600">${this.escapeHtml(item.category)}</div>
+            <div class="col-span-1">${this.renderStatusBadge(item.status)}</div>
+            <div class="col-span-1 text-slate-700">${this.escapeHtml(item.agent)}</div>
+            <div class="col-span-2 text-right text-slate-500">${this.escapeHtml(this.formatCounselingTime(item.lastMessageAt))}</div>
+          </a>
         `;
       })
       .join('');
@@ -147,6 +143,8 @@ const counselingPage = {
       return matchSearch && matchCat;
     });
 
+    const count = document.getElementById('counseling-result-count');
+    if (count) count.textContent = filtered.length;
     const tbody = document.getElementById('counseling-table-body');
     if (tbody) {
       tbody.innerHTML = this.getCounselingRowsHtml(filtered);
@@ -171,14 +169,14 @@ const counselingPage = {
       };
 
     return `
-      ${this.renderPageHeader('고객 상담', `상담관리 / ${cs.customerId} · ${cs.status}`)}
+      ${this.renderPageHeader('고객 상담', `상담관리 / ${this.escapeHtml(cs.customerId)} · ${this.escapeHtml(cs.status)}`)}
 
       <!-- 상단 액션 버튼 (좌측 정렬) -->
       <div class="flex items-center gap-2.5 mb-6">
         <button onclick="app.navigate('counseling', 'list')" class="btn-secondary">
           목록으로
         </button>
-        <button onclick="app.completeCounseling('${cs.id}')" class="btn-primary">
+        <button onclick="app.completeCounseling()" class="btn-primary disabled:opacity-50" ${cs.status === '완료' ? 'disabled' : ''}>
           상담 완료
         </button>
       </div>
@@ -188,8 +186,8 @@ const counselingPage = {
         <!-- 좌측 대화 카드 (약 68%) -->
         <div class="w-full lg:w-[68%] bg-white border border-slate-200 rounded-xl p-6">
           <div class="mb-5">
-            <h2 class="text-base font-bold text-slate-900">${cs.customerId} 고객과의 대화</h2>
-            <p class="text-xs text-slate-500 mt-0.5">2026년 10월 12일</p>
+            <h2 class="text-base font-bold text-slate-900">${this.escapeHtml(cs.customerId)} 고객과의 대화</h2>
+            <p class="text-xs text-slate-500 mt-0.5">최근 메시지 · ${this.escapeHtml(this.formatCounselingTime(cs.lastMessageAt))}</p>
           </div>
 
           <!-- 대화 메시지 리스트 -->
@@ -208,21 +206,21 @@ const counselingPage = {
           </div>
 
           <!-- 하단 답변 입력 영역 -->
-          <div class="pt-2 border-t border-slate-100">
-            <label class="block text-sm font-bold text-slate-900 mb-2">답변</label>
+          ${cs.status === '완료' ? '<p class="text-sm text-slate-500">완료된 상담입니다.</p>' : `
+          <form class="pt-2 border-t border-slate-100" onsubmit="event.preventDefault(); app.sendCounselingReply()">
+            <label for="chat-reply-input" class="block text-sm font-bold text-slate-900 mb-2">답변</label>
             <div class="flex items-center gap-2.5">
               <input
                 id="chat-reply-input"
                 type="text"
                 placeholder="메시지를 입력하세요"
-                class="form-input flex-1"
-                onkeydown="if(event.key==='Enter') app.sendCounselingReply('${cs.id}')"
+                class="form-input min-w-0 flex-1"
               />
-              <button onclick="app.sendCounselingReply('${cs.id}')" class="btn-primary">
-                전송
+              <button type="submit" class="btn-primary">
+                답변 추가
               </button>
             </div>
-          </div>
+          </form>`}
         </div>
 
         <!-- 우측 고객정보 카드 (약 32%, 높이 자동 맞춤) -->
@@ -231,13 +229,13 @@ const counselingPage = {
 
           <div>
             <div class="text-xs text-slate-500">ID</div>
-            <div class="text-lg font-bold text-slate-900 mt-0.5 mb-4">${customer.id}</div>
+            <div class="text-lg font-bold text-slate-900 mt-0.5 mb-4">${this.escapeHtml(customer.id)}</div>
 
             <div class="text-xs text-slate-500">연령대</div>
-            <div class="text-lg font-bold text-slate-900 mt-0.5 mb-4">${customer.ageGroup}</div>
+            <div class="text-lg font-bold text-slate-900 mt-0.5 mb-4">${this.escapeHtml(customer.ageGroup)}</div>
 
             <div class="text-xs text-slate-500">성별</div>
-            <div class="text-lg font-bold text-slate-900 mt-0.5 mb-4">${customer.gender}</div>
+            <div class="text-lg font-bold text-slate-900 mt-0.5 mb-4">${this.escapeHtml(customer.gender)}</div>
           </div>
 
           <!-- 카드 하단 안내 박스 -->
@@ -249,40 +247,43 @@ const counselingPage = {
     `;
   },
 
-  completeCounseling(csId) {
+  completeCounseling(csId = this.state.selectedCounselingId) {
     const cs = this.state.counselingList.find((item) => item.id === csId);
-    if (cs) {
+    if (cs && cs.status !== '완료') {
       cs.status = '완료';
       this.renderContent();
       this.showToast(`${cs.customerId} 고객 상담이 '완료' 상태로 변경되었습니다.`);
     }
   },
 
-  sendCounselingReply(csId) {
+  sendCounselingReply(csId = this.state.selectedCounselingId) {
     const input = document.getElementById('chat-reply-input');
     if (!input) return;
     const text = input.value.trim();
     if (!text) return;
 
     const cs = this.state.counselingList.find((item) => item.id === csId);
-    if (!cs) return;
+    if (!cs || cs.status === '완료') return;
 
     const now = new Date();
-    const hh = String(now.getHours()).padStart(2, '0');
-    const mm = String(now.getMinutes()).padStart(2, '0');
-    const timeStr = `${hh}:${mm}`;
-
     cs.messages.push({
       sender: '김상담',
       text,
-      time: timeStr,
+      time: this.formatCounselingTime(now),
     });
-    cs.lastMessageTime = `10.12 ${timeStr}`;
+    cs.lastMessageAt = now.toISOString();
     if (cs.agent === '미배정') cs.agent = '김상담';
 
     this.renderContent();
     const newInput = document.getElementById('chat-reply-input');
     if (newInput) newInput.focus();
+  },
+
+  formatCounselingTime(value) {
+    return new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(new Date(value));
   },
 
   // [4-3. 상담설정 화면 (PPT 67p)]
@@ -320,7 +321,7 @@ const counselingPage = {
               <label class="block text-xs font-bold text-slate-600 mb-1.5">시작 시간</label>
               <input
                 id="cs-setting-start"
-                type="text"
+                type="time"
                 value="${this.escapeHtml(s.startTime)}"
                 class="form-input w-full"
               />
@@ -329,7 +330,7 @@ const counselingPage = {
               <label class="block text-xs font-bold text-slate-600 mb-1.5">종료 시간</label>
               <input
                 id="cs-setting-end"
-                type="text"
+                type="time"
                 value="${this.escapeHtml(s.endTime)}"
                 class="form-input w-full"
               />
@@ -360,12 +361,17 @@ const counselingPage = {
 
   saveCounselingSettings() {
     const days = document.getElementById('cs-setting-days')?.value || '월요일 ~ 금요일';
-    const startTime = document.getElementById('cs-setting-start')?.value || '09:00';
-    const endTime = document.getElementById('cs-setting-end')?.value || '18:00';
+    const startTime = document.getElementById('cs-setting-start')?.value || '';
+    const endTime = document.getElementById('cs-setting-end')?.value || '';
     const awayMessage = document.getElementById('cs-setting-away')?.value || '';
 
+    const time = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+    if (!time.test(startTime) || !time.test(endTime) || startTime >= endTime) {
+      this.showToast('같은 날의 운영시간을 입력해 주세요. 종료 시간은 시작 시간보다 늦어야 합니다.');
+      return;
+    }
+
     this.state.counselingSettings = { days, startTime, endTime, awayMessage };
-    alert('상담 설정이 저장되었습니다.');
-    this.showToast('상담 가능시간 및 부재중 메시지가 저장되었습니다.');
+    this.showToast('현재 세션에 상담 가능시간 및 부재중 메시지를 반영했습니다.');
   },
 };

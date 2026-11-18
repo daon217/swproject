@@ -32,14 +32,14 @@ const customersPage = {
             type="text"
             value="${this.escapeHtml(this.state.customerSearch)}"
             placeholder="검색어 입력"
-            class="form-input w-[320px]"
+            class="form-input max-w-full w-[320px]"
             oninput="app.handleCustomerFilterChange(this.value, null, null)"
           />
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1.5">회원 유형</label>
           <select
-            class="form-input w-[190px] cursor-pointer"
+            class="form-input max-w-full w-[190px] cursor-pointer"
             onchange="app.handleCustomerFilterChange(null, this.value, null)"
           >
             <option value="전체" ${typeFilter === '전체' ? 'selected' : ''}>전체</option>
@@ -50,7 +50,7 @@ const customersPage = {
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1.5">계정 상태</label>
           <select
-            class="form-input w-[190px] cursor-pointer"
+            class="form-input max-w-full w-[190px] cursor-pointer"
             onchange="app.handleCustomerFilterChange(null, null, this.value)"
           >
             <option value="전체" ${statusFilter === '전체' ? 'selected' : ''}>전체</option>
@@ -61,8 +61,8 @@ const customersPage = {
       </div>
 
       <!-- 테이블 -->
-      <div class="w-full">
-        <div class="grid grid-cols-5 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
+      <div class="w-full overflow-x-auto">
+        <div class="grid min-w-[540px] grid-cols-5 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
           <div>ID</div>
           <div>구독여부</div>
           <div>성별</div>
@@ -94,17 +94,17 @@ const customersPage = {
     return filtered
       .map(
         (c) => `
-        <div class="grid grid-cols-5 items-center bg-white border border-slate-200 rounded-lg px-6 py-3.5 text-sm">
+        <div class="grid min-w-[540px] grid-cols-5 items-center bg-white border border-slate-200 rounded-lg px-6 py-3.5 text-sm">
           <div>
-            <span
-              onclick="app.openCustomerDetail('${c.id}')"
+            <a
+              href="#/customers/detail/${this.escapeHtml(encodeURIComponent(c.id))}"
               class="text-blue-600 underline cursor-pointer font-medium hover:text-blue-800"
-            >${c.id}</span>
+            >${this.escapeHtml(c.id)}</a>
           </div>
-          <div class="font-semibold text-slate-900">${c.subscribed}</div>
-          <div class="text-slate-700">${c.gender || '미등록'}</div>
-          <div class="text-slate-700">${c.ageGroup || '미등록'}</div>
-          <div class="text-slate-800 font-medium">${c.status}</div>
+          <div class="font-semibold text-slate-900">${this.escapeHtml(c.subscribed)}</div>
+          <div class="text-slate-700">${this.escapeHtml(c.gender || '미등록')}</div>
+          <div class="text-slate-700">${this.escapeHtml(c.ageGroup || '미등록')}</div>
+          <div class="text-slate-800 font-medium">${this.escapeHtml(c.status)}</div>
         </div>
       `
       )
@@ -151,35 +151,35 @@ const customersPage = {
     const subDateText = isSub ? c.subStartDate : '-';
 
     return `
-      ${this.renderPageHeader('고객 세부정보', `고객정보 / ${c.id} · 예시 데이터`)}
+      ${this.renderPageHeader('고객 세부정보', `고객정보 / ${this.escapeHtml(c.id)} · 예시 데이터`)}
 
       <!-- 정보 카드 (흰색 큰 박스 내 가로 구분선 리스트) -->
       <div class="bg-white border border-slate-200 rounded-xl px-7 py-2">
         <div class="flex items-center py-4 border-b border-slate-200 text-sm">
           <div class="w-[180px] text-slate-500">ID</div>
-          <div class="font-bold text-slate-900">${c.id}</div>
+          <div class="font-bold text-slate-900">${this.escapeHtml(c.id)}</div>
         </div>
         <div class="flex items-center py-4 border-b border-slate-200 text-sm">
           <div class="w-[180px] text-slate-500">성별</div>
-          <div class="font-bold text-slate-900">${c.gender || '미등록'}</div>
+          <div class="font-bold text-slate-900">${this.escapeHtml(c.gender || '미등록')}</div>
         </div>
         <div class="flex items-center py-4 border-b border-slate-200 text-sm">
           <div class="w-[180px] text-slate-500">연령대</div>
-          <div class="font-bold text-slate-900">${c.ageGroup || '미등록'}</div>
+          <div class="font-bold text-slate-900">${this.escapeHtml(c.ageGroup || '미등록')}</div>
         </div>
         <div class="flex items-center py-4 border-b border-slate-200 text-sm">
           <div class="w-[180px] text-slate-500">구독 여부</div>
-          <div class="font-bold text-slate-900">${subText}</div>
+          <div class="font-bold text-slate-900">${this.escapeHtml(subText)}</div>
         </div>
         <div class="flex items-center py-4 text-sm">
           <div class="w-[180px] text-slate-500">구독 시작일자</div>
-          <div class="font-bold text-slate-900">${subDateText}</div>
+          <div class="font-bold text-slate-900">${this.escapeHtml(subDateText)}</div>
         </div>
       </div>
 
       <!-- 하단 버튼 영역 (좌측 정렬) -->
       <div class="flex items-center gap-3 mt-6">
-        <button onclick="app.resetCustomerPassword('${c.id}')" class="btn-primary">
+        <button onclick="app.resetCustomerPassword()" class="btn-primary">
           비밀번호 초기화
         </button>
         <button onclick="app.navigate('customers', 'list')" class="btn-secondary">
@@ -189,8 +189,7 @@ const customersPage = {
     `;
   },
 
-  resetCustomerPassword(customerId) {
-    alert('비밀번호 초기화 안내가 발송되었습니다.');
-    this.showToast(`${customerId} 고객님께 비밀번호 초기화 안내가 발송되었습니다.`);
+  resetCustomerPassword() {
+    this.showToast('비밀번호 초기화 안내를 보내려면 회원 API 연결이 필요합니다.');
   },
 };

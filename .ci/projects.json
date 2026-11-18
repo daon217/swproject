@@ -189,7 +189,7 @@
         [
           "npm",
           "run",
-          "check"
+          "typecheck"
         ]
       ],
       "build": [
@@ -217,6 +217,11 @@
           "npm",
           "run",
           "typecheck"
+        ],
+        [
+          "npm",
+          "run",
+          "lint"
         ]
       ],
       "build": [

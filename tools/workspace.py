@@ -25,6 +25,8 @@ def compose_command(scope='full', shared=False):
     files = ['infra/db/compose.yaml', 'infra/db/api.compose.yaml']
     if scope == 'full':
         files.append('infra/workspace/compose.yaml')
+    if scope in ('ui', 'full'):
+        files.append('infra/ui/compose.yaml')
     files.append('infra/workspace/local.compose.yaml')
     for relative in files:
         command += ['-f', str(ROOT / relative)]
@@ -83,7 +85,7 @@ def initialize():
         print('Created workspace settings. Credentials not printed.')
     else:
         print('Existing workspace credentials preserved.')
-    for app in ('web', 'admin', 'mobile'):
+    for app in ('web', 'admin', 'mobile', 'extension'):
         target = ROOT / 'apps' / app / '.env.local'
         if not target.exists():
             with target.open('x', encoding='utf-8', newline='\n') as output:
@@ -100,8 +102,8 @@ def main():
     parser.add_argument('--role', choices=['admin','support'], default='support')
     parser.add_argument('--revoke', action='store_true')
     parser.add_argument('--apply', action='store_true', help='Apply maintenance deletions; otherwise preview only')
-    parser.add_argument('--scope', choices=['core', 'full'], default=None,
-                        help='up/check default to core; other actions default to full. core: DB + API; full: all development services')
+    parser.add_argument('--scope', choices=['core', 'ui', 'full'], default=None,
+                        help='up/check default to core; other actions default to full. core: DB + API; ui: DB + API + UI previews; full: all development services')
     parser.add_argument('--shared', action='store_true', help='Explicitly include an already enrolled VPN gateway')
     args = parser.parse_args()
     if args.scope is None:
@@ -114,15 +116,23 @@ def main():
     elif args.action == 'init':
         initialize()
     elif args.action in ('validate','monitor'):
+        if args.scope == 'ui':
+            parser.error('validate/monitor use --scope core or full; UI uses check --scope ui')
         run([sys.executable,'tools/operations.py',args.action,'--scope',args.scope])
     elif args.action in ('up', 'share'):
         compose('up', '-d', '--build', '--wait', '--wait-timeout', '300', **options)
         if args.action == 'share':
             run([sys.executable, 'infra/team/team.py', 'home'])
     elif args.action == 'check':
-        if args.scope == 'core':
+        if args.scope in ('core', 'ui'):
             run([sys.executable, 'tools/team_dev.py', 'check', '--port', api_port()])
             compose('exec', '-T', 'postgres', 'bash', '/opt/kkulpick/check.sh', **options)
+            if args.scope == 'ui':
+                import urllib.request
+                for port in (5174, 8081):
+                    with urllib.request.urlopen(f'http://127.0.0.1:{port}/backend/health', timeout=10) as response:
+                        assert response.status == 200
+                    print('OK UI and API proxy', port)
         else:
             compose('run', '--rm', '--no-deps', 'smoke', **options)
     elif args.action == 'seed':

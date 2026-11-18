@@ -1,1 +1,36 @@
-{"expo":{"name":"꿀픽 개발 연결","slug":"kkulpick-development","version":"0.1.0","platforms":["android","ios"],"android":{"package":"kr.kkulpick.development"},"ios":{"bundleIdentifier":"kr.kkulpick.development"}}}
+{
+  "expo": {
+    "name": "꿀픽",
+    "slug": "kkulpick",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.kkulpick.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#EEF3FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.kkulpick.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "@react-native-community/datetimepicker"
+    ],
+    "scheme": "kkulpick",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

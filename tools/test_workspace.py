@@ -17,7 +17,7 @@ class LocalWorkspaceTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         for relative in ('services/api/dev.py', 'infra/db/db.py',
-                         'apps/web/.env.example', 'apps/admin/.env.example', 'apps/mobile/.env.example'):
+                         'apps/web/.env.example', 'apps/admin/.env.example', 'apps/mobile/.env.example', 'apps/extension/.env.example'):
             target = self.root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(workspace.ROOT / relative, target)
@@ -48,7 +48,7 @@ class LocalWorkspaceTests(unittest.TestCase):
         for app in ('web', 'admin'):
             self.assertIn('INTERNAL_API_URL=http://127.0.0.1:8000',
                           (self.root / f'apps/{app}/.env.local').read_text())
-        self.assertIn('EXPO_PUBLIC_API_URL=http://10.0.2.2:8000',
+        self.assertIn('EXPO_PUBLIC_API_BASE_URL=http://127.0.0.1:8000',
                       (self.root / 'apps/mobile/.env.local').read_text())
 
     def test_saved_vpn_enrollment_does_not_enable_local_sharing(self):

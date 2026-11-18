@@ -62,3 +62,8 @@ Thumbs.db
 
 # Locally generated benchmark results
 data/benchmarks/
+
+# Frontend preview and browser test output
+preview-dist/
+test-results/
+playwright-report/

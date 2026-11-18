@@ -1,0 +1,37 @@
+# Relative paths use infra/db/compose.yaml as the first Compose file.
+services:
+  api:
+    environment:
+      DEV_ORIGINS: ${DEV_ORIGINS:-http://localhost:3000},http://localhost:5174,http://127.0.0.1:5174,http://localhost:8081,http://127.0.0.1:8081
+  extension-ui:
+    build:
+      context: ../..
+      dockerfile: apps/extension/Dockerfile
+    ports: ["127.0.0.1:5174:8080"]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8080/backend/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+  mobile-ui:
+    build:
+      context: ../..
+      dockerfile: apps/mobile/Dockerfile
+    ports: ["127.0.0.1:8081:8080"]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8080/backend/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}

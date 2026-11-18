@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "extension-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/extension", "run", "preview:sidepanel"],
+      "port": 5174
+    },
+    {
+      "name": "mobile-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/mobile", "run", "preview:web"],
+      "port": 8081
+    }
+  ]
+}
+

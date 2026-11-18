@@ -1,0 +1,393 @@
+{
+ "time": "20261118-184458",
+ "model": "local:gemma-4-26b",
+ "note": "5차 hard gemma-4-26b",
+ "summary": {
+  "queries": 13,
+  "errors": 0,
+  "avg_bytes": 2194,
+  "avg_user_bytes": 1014,
+  "avg_retention": 1.0,
+  "avg_compress_ms": 0.299,
+  "avg_total_s": 1.679,
+  "avg_input_tokens": 827,
+  "avg_output_tokens": 51.692,
+  "avg_precision@3": 1.0,
+  "avg_recall@3": 0.885,
+  "avg_latency_s": 1.679,
+  "avg_invalid_ids": 0,
+  "avg_gold_in_candidates": 0.885,
+  "bytes_vs_json": 0.533,
+  "tokens_vs_json": 0.509
+ },
+ "rows": [
+  {
+   "qid": "k01",
+   "method": "compact",
+   "chars": 1061,
+   "bytes": 2283,
+   "user_bytes": 1103,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.48,
+   "latency_s": 1.66,
+   "total_s": 1.66,
+   "picks": [
+    "hard:h04",
+    "hard:h02"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 848,
+   "output_tokens": 44
+  },
+  {
+   "qid": "k02",
+   "method": "compact",
+   "chars": 1023,
+   "bytes": 2179,
+   "user_bytes": 999,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.29,
+   "latency_s": 1.54,
+   "total_s": 1.54,
+   "picks": [
+    "hard:h13",
+    "hard:h15"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 818,
+   "output_tokens": 46
+  },
+  {
+   "qid": "k03",
+   "method": "compact",
+   "chars": 1045,
+   "bytes": 2227,
+   "user_bytes": 1047,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.25,
+   "latency_s": 1.0,
+   "total_s": 1.0,
+   "picks": [
+    "hard:h10"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.5,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 832,
+   "output_tokens": 25
+  },
+  {
+   "qid": "k04",
+   "method": "compact",
+   "chars": 1024,
+   "bytes": 2168,
+   "user_bytes": 988,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.3,
+   "latency_s": 2.45,
+   "total_s": 2.45,
+   "picks": [
+    "hard:h23",
+    "hard:h22",
+    "hard:h26"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 818,
+   "output_tokens": 87
+  },
+  {
+   "qid": "k05",
+   "method": "compact",
+   "chars": 1061,
+   "bytes": 2251,
+   "user_bytes": 1071,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.28,
+   "latency_s": 2.3,
+   "total_s": 2.3,
+   "picks": [
+    "hard:h28",
+    "hard:h24",
+    "hard:h30"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 0.75,
+   "invalid_ids": 0,
+   "input_tokens": 850,
+   "output_tokens": 79
+  },
+  {
+   "qid": "k06",
+   "method": "compact",
+   "chars": 1019,
+   "bytes": 2163,
+   "user_bytes": 983,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.27,
+   "latency_s": 1.52,
+   "total_s": 1.52,
+   "picks": [
+    "hard:h28",
+    "hard:h32"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.667,
+   "gold_in_candidates": 0.667,
+   "invalid_ids": 0,
+   "input_tokens": 817,
+   "output_tokens": 47
+  },
+  {
+   "qid": "k07",
+   "method": "compact",
+   "chars": 1018,
+   "bytes": 2142,
+   "user_bytes": 962,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.31,
+   "latency_s": 2.04,
+   "total_s": 2.04,
+   "picks": [
+    "hard:h36",
+    "hard:h34",
+    "hard:h35"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 0.75,
+   "invalid_ids": 0,
+   "input_tokens": 819,
+   "output_tokens": 70
+  },
+  {
+   "qid": "k08",
+   "method": "compact",
+   "chars": 1002,
+   "bytes": 2102,
+   "user_bytes": 922,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.27,
+   "latency_s": 1.27,
+   "total_s": 1.27,
+   "picks": [
+    "hard:h39"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.333,
+   "gold_in_candidates": 0.333,
+   "invalid_ids": 0,
+   "input_tokens": 802,
+   "output_tokens": 24
+  },
+  {
+   "qid": "k09",
+   "method": "compact",
+   "chars": 1041,
+   "bytes": 2229,
+   "user_bytes": 1049,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.32,
+   "latency_s": 1.18,
+   "total_s": 1.18,
+   "picks": [
+    "hard:h18"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 828,
+   "output_tokens": 31
+  },
+  {
+   "qid": "k10",
+   "method": "compact",
+   "chars": 1078,
+   "bytes": 2276,
+   "user_bytes": 1096,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.28,
+   "latency_s": 2.32,
+   "total_s": 2.32,
+   "picks": [
+    "hard:h12",
+    "hard:h10",
+    "hard:h08"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 865,
+   "output_tokens": 79
+  },
+  {
+   "qid": "k11",
+   "method": "compact",
+   "chars": 1062,
+   "bytes": 2272,
+   "user_bytes": 1092,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.3,
+   "latency_s": 1.15,
+   "total_s": 1.15,
+   "picks": [
+    "hard:h02"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 850,
+   "output_tokens": 31
+  },
+  {
+   "qid": "k12",
+   "method": "compact",
+   "chars": 1011,
+   "bytes": 2141,
+   "user_bytes": 961,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.29,
+   "latency_s": 1.17,
+   "total_s": 1.17,
+   "picks": [
+    "hard:h44"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 814,
+   "output_tokens": 32
+  },
+  {
+   "qid": "k13",
+   "method": "compact",
+   "chars": 989,
+   "bytes": 2095,
+   "user_bytes": 915,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.25,
+   "latency_s": 2.23,
+   "total_s": 2.23,
+   "picks": [
+    "hard:h26",
+    "hard:h23",
+    "hard:h22"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 790,
+   "output_tokens": 77
+  }
+ ]
+}

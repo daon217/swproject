@@ -1,6 +1,6 @@
 import { Text, View } from 'react-native';
 import { todaySeoul } from '../shared/format';
-import { s } from './components';
+import { s } from './componentStyles';
 import { C } from './theme';
 
 // 웹 미리보기용 생년월일 입력. 네이티브 날짜 선택기 대신 브라우저 기본 date 입력을 쓴다.

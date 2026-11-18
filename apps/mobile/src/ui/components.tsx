@@ -6,7 +6,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  StyleSheet,
   Switch,
   Text,
   TextInput,
@@ -17,7 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ALLERGEN_GROUPS } from '../shared/allergens';
 import { IconBack, IconCheck, IconChevronDown, IconForward } from './icons';
-import { C, R } from './theme';
+import { C } from './theme';
+import { s } from './componentStyles';
 import { KEYBOARD_BEHAVIOR, useKeyboardVisible } from './useKeyboard';
 
 export function SubHeader({ title, onBack }: { title: string; onBack?: () => void }) {
@@ -266,46 +266,4 @@ export function Toast({ message, onDone }: { message: string | null; onDone: () 
   );
 }
 
-export const s = StyleSheet.create({
-  header: { backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
-  back: { position: 'absolute', left: 12, bottom: 18 },
-  headerTitle: { fontSize: 16, fontWeight: '800', color: C.text, height: 60, lineHeight: 60 },
-  page: { flex: 1, backgroundColor: C.surface },
-  pageBody: { padding: 24, paddingTop: 16 },
-  footer: { paddingHorizontal: 24, paddingTop: 12, backgroundColor: C.surface },
-  btn: { height: 52, borderRadius: R, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
-  btnPrimary: { backgroundColor: C.primary },
-  btnDanger: { backgroundColor: C.danger },
-  btnOutline: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-  btnPill: { height: 34, borderRadius: 999, backgroundColor: C.primarySoft, paddingHorizontal: 16 },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  field: { marginBottom: 16, flex: 1 },
-  label: { fontWeight: '700', fontSize: 13, marginBottom: 8, color: C.text },
-  input: { height: 48, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 16, fontSize: 14, color: C.text, backgroundColor: C.surface },
-  inputRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  error: { color: C.danger, fontSize: 12, marginTop: 6 },
-  note: { backgroundColor: C.primarySoft, borderRadius: 10, padding: 14, marginVertical: 16 },
-  noteText: { color: '#4A5465', fontSize: 12, lineHeight: 18 },
-  h1: { fontSize: 28, fontWeight: '800', color: C.text, marginTop: 8, marginBottom: 12, lineHeight: 36 },
-  h2: { fontSize: 17, fontWeight: '800', color: C.text, marginTop: 20, marginBottom: 12 },
-  desc: { color: C.sub, fontSize: 13, marginTop: 4, marginBottom: 16, lineHeight: 19 },
-  row: { height: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  rowText: { fontSize: 15, color: C.text },
-  check: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
-  checkBox: { width: 22, height: 22, borderRadius: 5, borderWidth: 1.5, borderColor: '#C3CAD6', alignItems: 'center', justifyContent: 'center', backgroundColor: C.surface },
-  checkBoxOn: { backgroundColor: C.primary, borderColor: C.primary },
-  checkLabel: { fontSize: 14, color: C.text, flexShrink: 1 },
-  allergy: { backgroundColor: C.surfaceMuted, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
-  allergyHead: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
-  allergyHeadText: { fontWeight: '700', fontSize: 14, color: C.text },
-  allergyCount: { marginLeft: 'auto', color: C.primary, fontSize: 12 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 14, height: 40, borderRadius: 10, borderWidth: 1, borderColor: C.border, justifyContent: 'center' },
-  chipOn: { borderColor: C.primary, backgroundColor: C.primarySoft },
-  chipText: { color: C.text, fontSize: 14 },
-  dim: { flex: 1, backgroundColor: C.dim, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  dialog: { backgroundColor: C.surface, borderRadius: 18, padding: 24, width: '100%' },
-  dialogTitle: { fontSize: 19, fontWeight: '800', color: C.text, marginBottom: 12 },
-  dialogBody: { fontSize: 14, color: C.text, lineHeight: 20 },
-  toast: { position: 'absolute', left: 24, right: 24, bottom: 24, backgroundColor: C.text, borderRadius: 10, padding: 14 },
-});
+export { s } from './componentStyles';

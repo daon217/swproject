@@ -12,7 +12,7 @@ from datetime import datetime,timezone,timedelta
 from collections import OrderedDict
 from .runtime import PACKAGE,STATE_ROOT,read,now,FileState
 from .progress import save,update,replace_with_retry
-from .updates import parsed
+from .updates import parsed,merge_fields
 from .domeggook_open import SafeAPIError,list_items
 from .domeggook_operations import (ROOT,OperationsClient,PermittedStore,BudgetWait,budget_delay,interruptible_wait)
 from .domeggook_options import option_offers
@@ -180,7 +180,13 @@ class DiscoveryRun:
         self.count('list_HTTP_success');new=0
         for item in items:
             pid=str(item['no'])
-            if pid in self.state['listings']:self.count('duplicate_listing_IDs_removed');continue
+            if pid in self.state['listings']:
+                # A repeated listing is not a new product, but its latest list data
+                # can help normalize the next scheduled detail refresh. Keep it bounded.
+                self.count('duplicate_listing_IDs_removed')
+                if pid in self.latest_rows or pid in self.state['pending_ids']:
+                    self.listing_ram[pid]=item
+                continue
             self.state['listings'][pid]={'origin':'discovery','first_seen_at':stamp,'found_page':task['key'],
                 'detail_status':'pending','attempts':0,'option_codes':[],'identity_status':'unconfirmed'}
             self.state['pending_ids'].append(pid);self.listing_ram[pid]=item;new+=1
@@ -197,9 +203,22 @@ class DiscoveryRun:
         self.count('detail_HTTP_success');self.count(lane+'_detail_HTTP_success')
         try:
             row=normalize_detail(self.listing_ram.get(pid,{'no':pid,'url':'https://domeggook.com/'+pid}),payload,stamp)
+            # Manual collection uses an UPSERT on repeated IDs. The live collector
+            # instead merges newly observed fields with the current in-memory row,
+            # preserving fields absent from a partial refresh and rejecting stale data.
+            previous=self.latest_rows.get(pid)
+            row,operation,changed=merge_fields(previous,row,(
+                'product_name','price','currency','seller','product_url','image_url',
+                'category','brand','description','specifications','rating',
+                'rating_scale','review_count','condition','shipping_fee',
+                'stock_status','stock_quantity','minimum_order_quantity',
+                'purchase_unit','availability','unit_price','stock',
+            ))
             offers,reasons=option_offers(row)
             for candidate in offers:self.store.put(candidate)
             self.latest_rows[pid]=row;self.latest_rows.move_to_end(pid)
+            if operation=='update':self.count('refreshed_product_changes')
+            elif operation=='unchanged':self.count('refreshed_product_unchanged')
             while len(self.latest_rows)>self.cfg['discovery']['memory_listing_limit']:self.latest_rows.popitem(last=False)
             while len(self.store.memory)>self.cfg['discovery']['memory_offer_limit']:self.store.memory.pop(next(iter(self.store.memory)))
             self.listing_ram.pop(pid,None)

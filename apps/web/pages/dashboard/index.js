@@ -1,5 +1,14 @@
 const dashboardPage = {
   getMainDashboardHtml() {
+    const todayKst = this.dateText(Date.now()).slice(0, 10);
+    const overview = this.state.overview;
+    const customers = this.state.customers;
+    const todaySubscriberCount = overview?.today_subscribers_date === todayKst.replaceAll('.', '-')
+      ? overview.today_subscribers
+      : overview?.members === customers.length
+        ? customers.filter(customer => customer.subStartDate.slice(0, 10) === todayKst).length
+        : null;
+    const todaySubscribers = todaySubscriberCount == null ? '조회 불가' : `${todaySubscriberCount.toLocaleString()}명`;
     return `
       ${this.renderPageHeader(
         'MAIN · 대시보드',
@@ -16,9 +25,9 @@ const dashboardPage = {
           <div class="text-xs text-slate-500 mt-2">2026.10.12까지 누적</div>
         </div>
         <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
-          <div class="text-xs font-bold text-slate-500">당일 구독 가입자수</div>
-          <div class="text-3xl tabular-nums tracking-tight font-bold text-[#0066ff] mt-2">86명</div>
-          <div class="text-xs text-slate-500 mt-1.5">2026.10.12 가입 완료</div>
+          <div class="text-xs font-bold text-slate-500">당일 구독자 수</div>
+          <div class="text-3xl tabular-nums tracking-tight font-bold text-[#0066ff] mt-2">${todaySubscribers}</div>
+          <div class="text-xs text-slate-500 mt-1.5">${todayKst} 구독 시작</div>
         </div>
         <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
           <div class="text-xs font-bold text-slate-500">당일 구독 해지인원수</div>

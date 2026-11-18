@@ -226,6 +226,44 @@ def test_affiliate_admin_only_periods_version_and_stock(client):
     assert all(c['offer_id']!=offer for c in client.get('/v2/recommendations/featured?limit=100').json()['data'])
 
 
+def test_admin_deletes_only_selected_unlinked_offers(client):
+    admin,_,admin_id=account(client);grant(admin_id)
+    support,_,support_id=account(client);grant(support_id,'support')
+    source='deleted_'+uuid4().hex
+    payload=fixture()|dict(source=source,source_listing_id=uuid4().hex,observation_key=uuid4().hex)
+    ingest_path='/internal/v2/crawl-runs/'+str(uuid4())+'/observations'
+    collector={'Authorization':'Bearer '+os.environ['COLLECTOR_TOKEN']}
+    created=client.post(ingest_path,headers=collector,json=payload)
+    assert created.status_code==201,created.text
+    selected=created.json()['offer_id']
+    other_selected,linked,unselected=new_offer(client),new_offer(client),new_offer(client)
+    r=client.put('/v2/admin/affiliate-offers/'+linked,headers=admin,json={
+        'partner_name':'제휴 테스트','affiliate_url':'https://store.example.test/affiliate',
+        'starts_at':datetime.now(UTC).isoformat(),'expected_version':0,
+    })
+    assert r.status_code==200,r.text
+
+    path='/v2/admin/catalog/offers/delete'
+    request={'offer_ids':[selected,linked,other_selected,selected]}
+    assert client.post(path,headers=support,json=request).status_code==403
+    assert client.post(path,headers=admin,json={'offer_ids':[]}).status_code==422
+    r=client.post(path,headers=admin,json=request)
+    assert r.status_code==200,r.text
+    result=r.json()['data']
+    assert set(result['deleted_offer_ids'])=={selected,other_selected}
+    assert result['protected_offer_ids']==[linked] and result['missing_offer_ids']==[]
+    assert client.post(path,headers=admin,json=request).json()['data']['missing_offer_ids']==[selected,other_selected]
+    with db('catalog') as conn:
+        ids=conn.execute('SELECT offer_id FROM app.offers WHERE offer_id=ANY(%s::uuid[])',
+                         ([selected,other_selected,linked,unselected],)).fetchall()
+        assert {str(item[0]) for item in ids}=={linked,unselected}
+        assert conn.execute('SELECT offer_id FROM app.crawl_observations WHERE source=%s',(source,)).fetchone()==(None,)
+        audit=conn.execute('SELECT actor_id,action FROM app.catalog_admin_audit WHERE offer_id=%s',(selected,)).fetchone()
+        assert (str(audit[0]),audit[1])==(admin_id,'catalog.offer.delete')
+    stale=client.post(ingest_path,headers=collector,json=payload|{'observation_key':uuid4().hex})
+    assert stale.status_code==201 and stale.json()['error_code']=='DELETED_STALE_OBSERVATION'
+
+
 def test_analysis_idempotency_limit_cancel_and_bola(client,worker_headers):
     h,_,_=account(client);other,_,_=account(client);key=uuid4().hex
     r=job(client,h,request_key=key);assert r.status_code==202,r.text
@@ -385,7 +423,20 @@ def test_console_aggregates_settings_and_public_basic(client):
     assert client.get('/v2/admin/overview',headers=ordinary).status_code==403
     r=client.get('/v2/admin/overview',headers=admin)
     assert r.status_code==200,r.text
-    assert r.json()['data']['members']>=2
+    baseline=r.json()['data']
+    assert baseline['members']>=2
+    older,_,_=account(client)
+    older_payment=pay(client,older)
+    assert older_payment.status_code==201,older_payment.text
+    with db('member') as c:
+        c.execute('''UPDATE app.invoices SET period_start=
+            date_trunc('day', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' - interval '1 microsecond'
+            WHERE invoice_id=%s''',(older_payment.json()['data']['invoice_id'],))
+    payment=pay(client,ordinary)
+    assert payment.status_code==201,payment.text
+    r=client.get('/v2/admin/overview',headers=admin)
+    assert r.status_code==200,r.text
+    assert r.json()['data']['today_subscribers']==baseline['today_subscribers']+1
     path='/v2/admin/support/settings'
     r=client.get(path,headers=admin);assert r.status_code==200,r.text
     v=r.json()['data']['version']

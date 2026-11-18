@@ -17,6 +17,7 @@
 | POST `/v2/admin/auth/logout` | 관리자 로그인 세션 종료. Bearer 토큰 → 204 |
 | GET `/v2/admin/auth/requests` | admin, 승인 대기 목록. 신청 시각 오름차순, 최대 100건 |
 | POST `/v2/admin/auth/requests/{user_id}/approve` | admin, `{role:"admin"}` 또는 `{role:"support"}`로 대기 신청 승인. 이미 처리된 신청은 409 |
+| POST `/v2/admin/catalog/offers/delete` | admin, `{offer_ids:[UUID]}`로 최대 50개 카탈로그 판매 정보를 삭제. `deleted_offer_ids`, `protected_offer_ids`, `missing_offer_ids` 반환 |
 | GET `/v2/admin/me` | admin/support, 본인 역할 |
 | GET `/v2/admin/members?limit=20` | admin, 활성 회원 ID·로그인 ID·가입 시각만 최대 100명 |
 | GET `/v2/admin/support/conversations` | admin/support, 상담방 목록. limit, after(UUID) |

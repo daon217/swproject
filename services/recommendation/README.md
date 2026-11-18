@@ -63,3 +63,26 @@ py -m services.recommendation.cli pull-offers --api-base http://127.0.0.1:3000/b
 - **성분 필드는 아직 없습니다.** 백엔드 `Observation`(services/api/kkulpick/models.py)은 `extra=forbid` 이고 성분 필드가 없어서,
   성분이 들어오려면 백엔드에 필드가 추가돼야 합니다. 필드가 생기면 `_INGREDIENT_KEYS` 의 이름만 맞추면 알레르기 판정에 바로 쓰입니다.
 - 성분 정보가 없는 상품은 저장·검색은 되지만 알레르기가 있는 사용자에게는 추천되지 않습니다 (안전 확인 불가).
+
+## catalog DB + pgvector 로 돌리기 (`--store pg`)
+
+상품은 DB(app.offers + catalog_items)에서 읽고, 임베딩은 `food_embeddings` 에 저장·HNSW 검색합니다.
+내부에서 백엔드의 `services/api/kkulpick/vectors.py` (`register`/`put`/`candidates`) 를 그대로 씁니다.
+
+```powershell
+$env:KKULPICK_CATALOG_OWNER_DSN="host=127.0.0.1 port=5433 dbname=kkulpick_catalog user=kkulpick_catalog_owner password=..."
+$env:KKULPICK_CATALOG_DSN="host=127.0.0.1 port=5433 dbname=kkulpick_catalog user=kkulpick_catalog_app password=..."
+
+# 1) 모델 계약 + HNSW 인덱스 등록 (모델마다 한 번, owner 계정). 계약은 못 바꾸니 모델이 바뀌면 새 id.
+py -m services.recommendation.cli --embedder st --model-id food-minilm-v1 register-model
+# 2) DB 상품 전체 임베딩 → pgvector
+py -m services.recommendation.cli --store pg --embedder st --model-id food-minilm-v1 reindex
+# 3) 추천 (프로필은 아직 로컬 JSON)
+py -m services.recommendation.cli --store pg --embedder st --model-id food-minilm-v1 recommend --user u-none --query "단백질 간식"
+```
+
+- 상품 id 는 `source:listing_id#variant_key` (DB 는 variant_key 필수, 없으면 `default` 로 봄).
+- item 하나에 판매처가 여럿이면 판매 중인 것 중 가장 싼 offer 로 대표합니다.
+- pg 모드에서 `ingest`/`import-observations` 는 막혀 있습니다. 상품은 수집기 → API 경로로만 넣습니다.
+- 통합 테스트: `KKULPICK_TEST_PG_DSN`, `KKULPICK_TEST_PG_OWNER_DSN` 설정 후 `tests/test_postgres_adapter.py`.
+  pgvector 0.8 이상 필요 (팀 Docker 이미지 0.8.7 은 OK. 0.6 에서는 `hnsw.iterative_scan` 설정 때문에 실패).

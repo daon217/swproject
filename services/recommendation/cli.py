@@ -5,6 +5,7 @@
   python -m services.recommendation.cli profile services/recommendation/samples/profiles.sample.json
   python -m services.recommendation.cli recommend --user u-milk --query "아이 간식"
   python -m services.recommendation.cli import-observations 준서_observations.json
+  python -m services.recommendation.cli --store pg --dsn "..." reindex   (DB+pgvector)
   python -m services.recommendation.cli pull-offers --api-base http://127.0.0.1:3000/backend --domain food
 
 데이터 폴더는 --data (기본 .reco-data) 입니다.
@@ -54,9 +55,44 @@ def cmd_validate(a) -> int:
     return 1 if bad else 0
 
 
+def _pg_connect(dsn: str | None):
+    import psycopg  # DB 모드에서만 필요
+
+    if not dsn:
+        raise SystemExit("DB 접속 문자열 필요: --dsn 또는 환경변수 KKULPICK_CATALOG_DSN")
+    return psycopg.connect(dsn, autocommit=True)
+
+
 def _recommender(a) -> Recommender:
     emb = make_embedder(a.embedder)
+    if a.store == "pg":
+        from .adapters.postgres import PgCatalog, PgVectorIndex
+
+        conn = _pg_connect(a.dsn)
+        return Recommender(PgCatalog(conn, a.domain_kind), PgVectorIndex(conn, a.model_id), emb, make_ranker(a.ranker))
     return Recommender(JsonCatalog(a.data), InMemoryVectorIndex(a.data, emb.name), emb, make_ranker(a.ranker))
+
+
+def cmd_register_model(a) -> int:
+    """임베딩 모델 계약 + HNSW 인덱스 등록. owner 계정 DSN 으로 한 번만."""
+    from .adapters.postgres import register_model
+
+    emb = make_embedder(a.embedder)
+    with _pg_connect(a.owner_dsn) as conn:
+        register_model(conn, a.model_id, emb, target=a.domain_kind)
+    print(f"모델 등록: {a.model_id} ({emb.name}, {emb.dimensions}차원, {a.domain_kind})")
+    return 0
+
+
+def cmd_reindex(a) -> int:
+    """저장소의 상품 전체를 다시 임베딩 (DB 모드에서는 pgvector 에 저장)."""
+    rec = _recommender(a)
+    ids = rec.catalog.all_ids()
+    done = 0
+    for i in range(0, len(ids), 64):
+        done += rec.reindex(ids[i:i + 64])
+    print(f"임베딩 {done}건 ({rec.embedder.name}) → {a.store}")
+    return 0
 
 
 def cmd_ingest(a) -> int:
@@ -67,6 +103,8 @@ def cmd_ingest(a) -> int:
             print(f"{a.file}:{no}: 건너뜀: " + " / ".join(errs), file=sys.stderr)
         else:
             good.append(p)
+    if a.store == "pg":
+        raise SystemExit("pg 모드에서는 상품을 직접 넣지 않음: 수집기 -> API 로 넣고 reindex 실행")
     rec = _recommender(a)
     rec.catalog.upsert(good)
     n = rec.reindex([p.product_id for p in good])
@@ -75,6 +113,8 @@ def cmd_ingest(a) -> int:
 
 
 def _store(a, products: list, bad: int, label: str) -> int:
+    if a.store == "pg":
+        raise SystemExit("pg 모드에서는 상품을 직접 넣지 않음: 수집기 -> API 로 넣고 reindex 실행")
     rec = _recommender(a)
     rec.catalog.upsert(products)
     n = rec.reindex([p.product_id for p in products])
@@ -135,6 +175,11 @@ def main(argv=None) -> int:
     ap.add_argument("--data", default=".reco-data", help="로컬 데이터 폴더")
     ap.add_argument("--embedder", default="hash", help="hash | st | st:<모델명>")
     ap.add_argument("--ranker", default="auto", help="auto(키 있으면 claude) | rule | claude")
+    ap.add_argument("--store", default="local", choices=["local", "pg"], help="local(JSON) | pg(catalog DB+pgvector)")
+    ap.add_argument("--dsn", default=os.getenv("KKULPICK_CATALOG_DSN"), help="pg 모드 app 계정 접속 문자열")
+    ap.add_argument("--model-id", default=os.getenv("KKULPICK_EMBEDDING_MODEL_ID", "food-hash-384-v1"),
+                    help="embedding_models.model_id")
+    ap.add_argument("--kind", dest="domain_kind", default="food", choices=["food", "product"])
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("validate"); s.add_argument("file"); s.set_defaults(fn=cmd_validate)
     s = sub.add_parser("ingest"); s.add_argument("file"); s.set_defaults(fn=cmd_ingest)
@@ -146,6 +191,10 @@ def main(argv=None) -> int:
     s.add_argument("--api-base", default=os.getenv("KKULPICK_API_BASE", "http://127.0.0.1:3000/backend"))
     s.add_argument("--domain", default="food", choices=["food", "product"])
     s.set_defaults(fn=cmd_pull_offers)
+    s = sub.add_parser("register-model")
+    s.add_argument("--owner-dsn", default=os.getenv("KKULPICK_CATALOG_OWNER_DSN"))
+    s.set_defaults(fn=cmd_register_model)
+    s = sub.add_parser("reindex"); s.set_defaults(fn=cmd_reindex)
     s = sub.add_parser("recommend")
     s.add_argument("--user", required=True); s.add_argument("--query", default="")
     s.add_argument("--top-k", type=int, default=5); s.add_argument("--candidates", type=int, default=30)

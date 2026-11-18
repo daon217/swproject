@@ -126,7 +126,9 @@ class LocalLLMRanker:
                 "response_format": {"type": "json_object"},
                 "messages": [{"role": "system", "content": system + '\n\n출력: {"picks":[{"id":"c1","reason":"..."}]} JSON 만.'},
                              {"role": "user", "content": user}]}
-        headers = {"Content-Type": "application/json"}
+        # Python 기본 User-Agent(Python-urllib) 는 Cloudflare 등에서 403 으로 막히는 경우가 많음
+        headers = {"Content-Type": "application/json", "Accept": "application/json",
+                   "User-Agent": "kkulpick-recommendation/0.1"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
         req = urllib.request.Request(f"{self.base}/chat/completions", json.dumps(body).encode(), headers)
@@ -140,7 +142,8 @@ class LocalLLMRanker:
                 with urllib.request.urlopen(req, timeout=self.timeout) as r:
                     data = json.loads(r.read())
             else:
-                raise RuntimeError(f"LLM 서버 HTTP {e.code}") from None
+                detail = e.read(300).decode("utf-8", "replace").replace("\n", " ")
+                raise RuntimeError(f"LLM 서버 HTTP {e.code}: {detail}") from None
         u = data.get("usage") or {}
         self.last_usage = (u.get("prompt_tokens"), u.get("completion_tokens"))
         picks = _parse_picks(data["choices"][0]["message"]["content"] or "")

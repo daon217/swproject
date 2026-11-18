@@ -66,6 +66,14 @@ for (const platform of ['extension','mobile']) {
       await expect.poll(() => page.evaluate(() => localStorage.getItem('kp.auth'))).toBeNull();
       await login(page,a); await shortcuts(page);
       await expect(page.getByText('A 전용 상점',{exact:true})).toBeVisible();
+      // Another browser tab logs out: existing tab must immediately drop account-only UI.
+      const second = await page.context().newPage();
+      await settings(second);
+      await second.getByRole('button',{name:'로그아웃',exact:true}).click();
+      await expect(page.getByText('A 전용 상점',{exact:true})).toHaveCount(0);
+      await second.close();
+      await login(page,a); await shortcuts(page);
+      await expect(page.getByText('A 전용 상점',{exact:true})).toBeVisible();
       await page.screenshot({path:`test-results/${platform}-account-isolation.png`});
     } finally {
       for(const {login_id} of accounts) {

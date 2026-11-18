@@ -125,6 +125,7 @@ async function analyze(tabId: number, url: string) {
 
   await writeState({ ...state, status: 'analyzing' }, token);
   const page_product = (await readPageScan(tabId))?.product ?? null;
+  if (await isStale(tabId, state)) return;
   try {
     const created = await api.createAnalysis({
       image,

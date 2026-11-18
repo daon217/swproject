@@ -894,3 +894,24 @@ body {
   font-size: 14px;
   line-height: 1.6;
 }
+
+/* 상품 추천 켜기/끄기(탭 위) */
+.sp-recommend-switch {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--kp-border);
+  background: var(--kp-surface);
+}
+.sp-recommend-switch-title {
+  font-size: 15px;
+  font-weight: 800;
+}
+.sp-recommend-switch-desc {
+  font-size: 12px;
+  color: var(--kp-sub);
+  margin-top: 2px;
+}

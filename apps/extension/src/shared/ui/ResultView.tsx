@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react';
 import { allergenLabel } from '../allergens';
 import { formatPrice } from '../format';
 import type { TabState } from '../messages';
 import type { Analysis, OfferCard, ResultSection } from '../types';
-import { IconExternal, IconFilter, IconFood, IconPrinter, IconSearch } from './icons';
+import { IconExternal, IconFilter, IconFood, IconPrinter, IconSearch, IconSparkle } from './icons';
 
 // AI 추천 결과 화면(Figma E16·E17·E19~E22·E24~E27). 사이드 패널과 인페이지 플로팅이 함께 쓴다.
 
@@ -89,6 +90,33 @@ function UsedSection({ s, onOpenUrl }: { s: ResultSection; onOpenUrl: (u: string
   );
 }
 
+const ANALYZING_STEPS = ['상품 화면을 읽고 있어요', '비슷한 상품을 찾고 있어요', '가격을 비교하고 있어요'];
+
+/** AI 분석 중 화면: 가운데 로딩 + 단계 안내(1.6초마다 바뀜) */
+function AnalyzingView() {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setStep((s) => (s + 1) % ANALYZING_STEPS.length), 1600);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="kp-empty kp-analyzing" role="status" aria-live="polite">
+      <div className="kp-ai-loader" aria-hidden="true">
+        <span className="kp-ai-ring" />
+        <IconSparkle size={28} />
+      </div>
+      <div className="kp-empty-title">AI가 상품을 분석하고 있어요</div>
+      <p className="kp-empty-body kp-analyzing-step">{ANALYZING_STEPS[step]}</p>
+      <ol className="kp-analyzing-dots" aria-hidden="true">
+        {ANALYZING_STEPS.map((s, i) => (
+          <li key={s} className={i === step ? 'is-on' : ''} />
+        ))}
+      </ol>
+      <p className="kp-analyzing-note">잠시만 기다려 주세요. 보통 몇 초 걸려요.</p>
+    </div>
+  );
+}
+
 export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="kp-empty">
@@ -113,13 +141,7 @@ export function ResultView({ state, ...h }: { state: TabState | null } & Handler
     return <EmptyState title="이 페이지에는 추천할 상품이 없어요" body="쇼핑몰 상품 페이지를 열면 꿀픽이 비슷한 상품과 더 좋은 가격을 이 패널에 보여드려요." />;
   }
   if (state.status === 'analyzing' || (state.status === 'done' && !state.analysis)) {
-    return (
-      <div className="kp-empty">
-        <div className="kp-spinner" aria-label="분석 중" />
-        <div className="kp-empty-title">화면을 분석하고 있어요</div>
-        <p className="kp-empty-body">비슷한 상품과 가격을 찾는 중이에요.</p>
-      </div>
-    );
+    return <AnalyzingView />;
   }
   if (state.status === 'error') {
     return (

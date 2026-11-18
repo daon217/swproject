@@ -27,6 +27,13 @@ export const IconSearch = (p: P) => (
     <path d="m20 20-3.5-3.5" />
   </Svg>
 );
+/** AI 반짝임(상품 추천) */
+export const IconSparkle = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z" />
+    <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
+  </Svg>
+);
 export const IconClose = (p: P) => (
   <Svg {...p}>
     <path d="M6 6l12 12M18 6 6 18" />

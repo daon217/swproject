@@ -63,4 +63,6 @@ export const KEYS = {
   shortcuts: 'kp.shortcuts',
   mockDb: 'kp.mock.db',
   pendingRoute: 'kp.pendingRoute',
+  /** 상품 추천 켜기/끄기(기본 꺼짐) */
+  recommendEnabled: 'kp.recommendEnabled',
 } as const;

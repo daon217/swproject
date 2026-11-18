@@ -7,6 +7,9 @@ import { isRecommendEnabled } from '../shared/recommendSetting';
 import { KEYS } from '../shared/storage';
 import type { PageScan } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
+import { debugEnabled, dlog } from '../shared/debug';
+
+if (debugEnabled) dlog('bg', '디버그 로그 켜짐', { api: import.meta.env.VITE_API_BASE_URL, mock: isMockApi });
 
 /** [임시] content script에 페이지 상품명·가격을 묻는다. 응답이 없으면 null */
 async function readPageScan(tabId: number): Promise<PageScan | null> {
@@ -113,21 +116,25 @@ async function analyze(tabId: number, url: string) {
   const token = await getAuthToken();
   const state = await resetForUrl(tabId, url);
   owners.set(state, token);
-  if (!(await isRecommendEnabled())) return; // 상품 추천이 꺼져 있으면 캡처·분석하지 않는다
+  const skip = (reason: string) => dlog('analyze', `건너뜀: ${reason}`, { tabId, url });
+  dlog('analyze', '분석 시작 판단', { tabId, url, page_revision: state.page_revision });
+  if (!(await isRecommendEnabled())) return skip('상품 추천 스위치 꺼짐'); // 상품 추천이 꺼져 있으면 캡처·분석하지 않는다
   const rule = captureRule(url);
-  if (!rule) return; // 상품 페이지가 아니면 'none' 상태(E01 빈 화면)
+  if (!rule) return skip('상품 페이지 아님(pageFilter)'); // 상품 페이지가 아니면 'none' 상태(E01 빈 화면)
 
-  if (!isMockApi && !(await getAuthToken())) return; // 로그인 전에 화면을 업로드하지 않음
-  if (!tab.active) return; // 비활성 탭은 활성화될 때 다시 시도
+  if (!isMockApi && !(await getAuthToken())) return skip('로그인 안 됨'); // 로그인 전에 화면을 업로드하지 않음
+  if (!tab.active) return skip('비활성 탭'); // 비활성 탭은 활성화될 때 다시 시도
   // 쇼핑몰이 아닌 사이트는 페이지에 상품 표시가 있을 때만 캡처한다(학습포털 등 제외).
-  if (rule === 'needs-signal' && !(await confirmProductSignal(tabId))) return;
-  if (await isStale(tabId, state)) return;
+  if (rule === 'needs-signal' && !(await confirmProductSignal(tabId))) return skip('상품 신호 없음');
+  if (await isStale(tabId, state)) return skip('탭/URL 변경됨');
   const image = await captureTab(tab);
-  if (await isStale(tabId, state)) return; // 캡처 전후 탭/URL이 바뀌면 폐기
+  dlog('analyze', image ? '화면 캡처 완료' : '화면 캡처 실패(이미지 없이 진행)', image);
+  if (await isStale(tabId, state)) return skip('캡처 중 탭/URL 변경됨'); // 캡처 전후 탭/URL이 바뀌면 폐기
 
   await writeState({ ...state, status: 'analyzing' }, token);
   const page_product = (await readPageScan(tabId))?.product ?? null;
-  if (await isStale(tabId, state)) return;
+  dlog('analyze', '페이지에서 읽은 상품 정보', page_product);
+  if (await isStale(tabId, state)) return skip('탭/URL 변경됨');
   try {
     const created = await api.createAnalysis({
       image,
@@ -145,6 +152,8 @@ async function analyze(tabId: number, url: string) {
         return;
       }
       analysis = await api.getAnalysis(created.analysis_id);
+      dlog('analyze', `폴링 ${Math.round((Date.now() - started) / 1000)}s: state=${analysis.state}`,
+        { analysis_id: created.analysis_id, sections: analysis.sections?.map((s) => `${s.kind}:${s.state}(${s.items.length})`), error: analysis.error ?? null });
       if (await isStale(tabId, state)) return;
       // 응답이 현재 페이지 세션·버전과 다르면 표시하지 않는다.
       if (analysis.page_session_id !== state.page_session_id || analysis.page_revision !== state.page_revision) return;
@@ -157,10 +166,12 @@ async function analyze(tabId: number, url: string) {
     }
     if (await isStale(tabId, state)) return;
     if (analysis?.state !== 'completed') {
+      dlog('analyze', `시간 초과(${POLL_TIMEOUT_MS / 1000}s) — 서버에 분석 워커가 없거나 처리 중`, { analysis_id: created.analysis_id, last_state: analysis?.state });
       await api.cancelAnalysis(created.analysis_id).catch(() => undefined);
       await writeState({ ...state, status: 'error', analysis: null, error: '분석 시간이 오래 걸리고 있어요.' }, token);
     }
   } catch (e) {
+    dlog('analyze', '분석 오류', e);
     if (await isStale(tabId, state)) return;
     await writeState({ ...state, status: 'error', analysis: null, error: e instanceof Error ? e.message : '분석에 실패했어요.' }, token);
   }

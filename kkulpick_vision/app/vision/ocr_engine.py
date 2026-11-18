@@ -1,0 +1,381 @@
+"""
+[ocr_engine.py]
+PaddleOCR(`lang='korean'`) 모델을 워커 프로세스당 단 한 번만 메모리에 로드하는 싱글톤(Singleton) 엔진과,
+1) Phase 1 메타데이터 Fallback용 최대 면적 바운딩 박스 상품명 추출
+2) Phase 2 앵커(Anchor) 키워드 탐색 및 Y좌표 반환
+3) 전처리된 ROI 이미지에서 정규표현식(Regex) 기반 성분표 정제 로직을 담당합니다.
+"""
+
+import logging
+import re
+import threading
+from typing import Any, List, Optional, Tuple
+import numpy as np
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class OCRSingletonEngine:
+    """
+    [PaddleOCR 싱글톤 패턴]
+    PaddleOCR 한국어 모델은 Detection + Recognition 가중치를 포함해 메모리를 많이 점유하고
+    초기화 시간이 길기 때문에, 매 프레임마다 재생성하면 심각한 병목과 OOM이 발생합니다.
+    워커 프로세스 시작 시(또는 최초 호출 시) 단 1회만 메모리에 로드하여 재사용합니다.
+    """
+
+    _instance: Optional["OCRSingletonEngine"] = None
+    _lock: threading.Lock = threading.Lock()
+
+    def __new__(cls) -> "OCRSingletonEngine":
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self) -> None:
+        if getattr(self, "_initialized", False):
+            return
+        with self._lock:
+            if getattr(self, "_initialized", False):
+                return
+            self._ocr_model = None
+            self._load_model()
+            self._initialized = True
+
+    def _load_model(self) -> None:
+        """
+        PaddleOCR 한국어 모델을 메모리에 로드합니다.
+        만약 Windows 스마트 앱 컨트롤(Smart App Control) 등 OS 보안 정책으로 인해
+        libpaddle.pyd 로드가 차단된 환경에서는 Windows OS 내장 한국어 OCR(Windows.Media.Ocr) 엔진을
+        자동 백업 엔진으로 활성화하여 중단 없이 실제 바운딩 박스 및 한글 OCR을 수행합니다.
+        """
+        self._use_windows_native_ocr = False
+        try:
+            from paddleocr import PaddleOCR
+
+            logger.info("[OCRSingletonEngine] PaddleOCR (lang='korean') 모델을 메모리에 로드합니다...")
+            # use_angle_cls=False: 쇼핑몰 상세페이지는 정방향 텍스트이므로 방향 분류기를 꺼서 추론 속도 향상
+            self._ocr_model = PaddleOCR(
+                lang="korean",
+                use_angle_cls=False,
+                show_log=False,
+            )
+            logger.info("[OCRSingletonEngine] PaddleOCR 싱글톤 로드 완료.")
+        except Exception as exc:
+            logger.warning(
+                f"[OCRSingletonEngine] PaddleOCR DLL 로드 제한 감지 ({exc}). "
+                "Windows Native 한국어 OCR 엔진(Windows.Media.Ocr, lang='ko')으로 자동 전환합니다."
+            )
+            self._ocr_model = None
+            self._use_windows_native_ocr = True
+
+    def _run_windows_native_ocr(
+        self, image: np.ndarray
+    ) -> List[Tuple[List[List[float]], str, float]]:
+        """
+        Windows 10/11 내장 WinRT 한국어 OCR 엔진(Windows.Media.Ocr)을 호출하여
+        각 줄(Line)의 실제 바운딩 박스 4점 좌표([[x1,y1], [x2,y2], [x3,y3], [x4,y4]])와
+        인식된 한글 텍스트를 PaddleOCR와 동일한 포맷으로 반환합니다.
+        """
+        import json
+        import os
+        import subprocess
+        import tempfile
+        import cv2
+
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+
+        try:
+            cv2.imwrite(tmp_path, image)
+            ps_script = f"""
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$null = [Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime]
+$null = [Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime]
+$null = [Windows.Graphics.Imaging.BitmapDecoder, Windows.Foundation, ContentType = WindowsRuntime]
+$null = [Windows.Globalization.Language, Windows.Foundation, ContentType = WindowsRuntime]
+
+function Await($WinRtTask, $ResultType) {{
+    $asTaskGeneric = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {{
+        $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
+    }})[0]
+    $asTask = $asTaskGeneric.MakeGenericMethod($ResultType)
+    $netTask = $asTask.Invoke($null, @($WinRtTask))
+    $netTask.Wait(-1) | Out-Null
+    return $netTask.Result
+}}
+
+$file = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync('{tmp_path}')) ([Windows.Storage.StorageFile])
+$stream = Await ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
+$decoder = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
+$bitmap = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
+$lang = New-Object Windows.Globalization.Language('ko')
+$engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromLanguage($lang)
+$result = Await ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
+
+$lines = @()
+foreach ($line in $result.Lines) {{
+    $minX = 999999; $minY = 999999; $maxX = 0; $maxY = 0
+    foreach ($word in $line.Words) {{
+        $r = $word.BoundingRect
+        if ($r.X -lt $minX) {{ $minX = $r.X }}
+        if ($r.Y -lt $minY) {{ $minY = $r.Y }}
+        if (($r.X + $r.Width) -gt $maxX) {{ $maxX = $r.X + $r.Width }}
+        if (($r.Y + $r.Height) -gt $maxY) {{ $maxY = $r.Y + $r.Height }}
+    }}
+    $lines += @{{
+        text = ($line.Words | ForEach-Object {{ $_.Text }}) -join ''
+        text_spaced = $line.Text
+        x1 = $minX; y1 = $minY; x2 = $maxX; y2 = $maxY
+    }}
+}}
+$stream.Dispose()
+ConvertTo-Json -InputObject @($lines) -Compress
+"""
+            completed = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps_script],
+                capture_output=True,
+                timeout=15,
+            )
+            stdout_str = completed.stdout.decode("utf-8", errors="ignore").strip()
+            if not stdout_str:
+                return []
+
+            raw_lines = json.loads(stdout_str)
+            if isinstance(raw_lines, dict):
+                raw_lines = [raw_lines]
+
+            parsed_items: List[Tuple[List[List[float]], str, float]] = []
+            for item in raw_lines:
+                if not item:
+                    continue
+                x1, y1 = float(item.get("x1", 0)), float(item.get("y1", 0))
+                x2, y2 = float(item.get("x2", 0)), float(item.get("y2", 0))
+                box = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]]
+                # 한글 단어 사이 불필요한 공백 보정본(text)과 원문(text_spaced) 중 활용
+                text = str(item.get("text_spaced") or item.get("text") or "").strip()
+                if text:
+                    parsed_items.append((box, text, 0.95))
+            return parsed_items
+        except Exception as exc:
+            logger.error(f"[WindowsNativeOCR] 추론 오류: {exc}")
+            return []
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+    def run_ocr(self, image: np.ndarray) -> List[Tuple[List[List[float]], str, float]]:
+        """
+        PaddleOCR를 실행하고 결과를 표준화된 리스트로 반환합니다.
+        Returns:
+            List of (box_points, text, confidence)
+            box_points: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+        """
+        if getattr(self, "_use_windows_native_ocr", False):
+            return self._run_windows_native_ocr(image)
+
+        if self._ocr_model is None:
+            self._load_model()
+            if getattr(self, "_use_windows_native_ocr", False):
+                return self._run_windows_native_ocr(image)
+            if self._ocr_model is None:
+                return []
+
+        raw_result: Any = self._ocr_model.ocr(image, cls=False)
+        parsed_items: List[Tuple[List[List[float]], str, float]] = []
+
+        if not raw_result:
+            return parsed_items
+
+        # PaddleOCR는 페이지 단위 리스트 [ [ [box, (text, score)], ... ] ] 형태로 반환
+        lines = raw_result[0] if isinstance(raw_result, list) and len(raw_result) > 0 else []
+        if not lines:
+            return parsed_items
+
+        for line in lines:
+            if not line or len(line) < 2:
+                continue
+            box = line[0]
+            text_info = line[1]
+            if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
+                text = str(text_info[0]).strip()
+                score = float(text_info[1])
+                if text:
+                    parsed_items.append((box, text, score))
+
+        return parsed_items
+
+    @staticmethod
+    def calculate_bbox_area(box: List[List[float]]) -> float:
+        """
+        4점 바운딩 박스 좌표 [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]로부터
+        가로(Width) × 세로(Height) 면적을 계산합니다.
+        """
+        xs = [pt[0] for pt in box]
+        ys = [pt[1] for pt in box]
+        width = max(xs) - min(xs)
+        height = max(ys) - min(ys)
+        return float(max(0.0, width) * max(0.0, height))
+
+    def extract_largest_text_as_product_name(self, first_frame_image: np.ndarray) -> Optional[str]:
+        """
+        [Phase 1: 메타데이터 Vision Fallback]
+        프론트엔드에서 안티 크롤링 등으로 인해 product_name을 보내지 못한 경우,
+        0초 차 최상단 화면(first_frame_image)을 스캔하여
+        바운딩 박스 면적(Width × Height)이 가장 큰 텍스트를 상품명으로 추출합니다.
+        """
+        ocr_items = self.run_ocr(first_frame_image)
+        if not ocr_items:
+            return None
+
+        best_text: Optional[str] = None
+        max_area: float = -1.0
+
+        for box, text, score in ocr_items:
+            # 신뢰도가 너무 낮거나 1글자 노이즈인 경우 제외
+            if score < 0.5 or len(text.strip()) < 2:
+                continue
+            area = self.calculate_bbox_area(box)
+            if area > max_area:
+                max_area = area
+                best_text = text.strip()
+
+        if best_text:
+            best_text = re.sub(r"(?<=[가-힣])\s+(?=[가-힣])", "", best_text)
+            # 한국어 OCR에서 중량 표기 '120g'의 소문자 'g'가 숫자 '9'로 오인식되는 흔한 패턴 보정
+            best_text = re.sub(r"(\b\d{2,4})9\b", r"\1g", best_text)
+        return best_text
+
+    def find_anchor_y_coordinate(
+        self,
+        tiles: List[Tuple[int, np.ndarray]],
+        anchor_keywords: List[str] = settings.ANCHOR_KEYWORDS,
+    ) -> Optional[int]:
+        """
+        [Phase 2: 1차 스캔 및 앵커(Anchor) 키워드 탐색]
+        타일링된 이미지 블록들을 순회하며 '원재료명', '영양정보', '성분명', '원재료 및 함량' 등의
+        앵커 키워드가 포함되어 있는지 검사합니다.
+        발견 즉시 원본 이미지 기준의 Y 좌표(상단 Y)를 반환합니다.
+        """
+        # 공백을 제거한 정규화 키워드 목록 준비 (예: "원재료 및 함량" -> "원재료및함량")
+        normalized_anchors = [kw.replace(" ", "") for kw in anchor_keywords]
+
+        for y_offset, tile_img in tiles:
+            ocr_items = self.run_ocr(tile_img)
+            for box, text, _ in ocr_items:
+                normalized_text = text.replace(" ", "")
+                if any(anchor in normalized_text for anchor in normalized_anchors):
+                    # 바운딩 박스의 최상단 Y 좌표 + 타일 오프셋
+                    min_y_in_tile = min(pt[1] for pt in box)
+                    global_anchor_y = int(y_offset + min_y_in_tile)
+                    logger.info(
+                        f"[Anchor Found] 키워드 매칭 텍스트='{text}', Global Y={global_anchor_y}px"
+                    )
+                    return global_anchor_y
+
+        return None
+
+    def extract_and_clean_ingredients(self, enhanced_roi: np.ndarray) -> List[str]:
+        """
+        [Phase 2: 2차 정밀 추출 및 정규표현식(Regex) 후처리]
+        CLAHE 및 샤프닝 전처리가 완료된 ROI 이미지에서 텍스트를 추출하고,
+        불필요한 안내 문구/특수문자/원산지/비율 표기를 제거한 뒤
+        쉼표(,) 및 줄바꿈 기준으로 분리하여 중복 없는 성분 리스트(List[str])를 반환합니다.
+        """
+        ocr_items = self.run_ocr(enhanced_roi)
+        if not ocr_items:
+            return []
+
+        # Y 좌표(위->아래), X 좌표(좌->우) 순으로 정렬하여 문맥 순서 보장
+        ocr_items.sort(key=lambda item: (min(pt[1] for pt in item[0]), min(pt[0] for pt in item[0])))
+
+        raw_lines = [text for _, text, score in ocr_items if score >= 0.45]
+        combined_text = "\n".join(raw_lines)
+
+        return self.clean_ingredient_text(combined_text)
+
+    @staticmethod
+    def clean_ingredient_text(raw_text: str) -> List[str]:
+        """
+        정규표현식(Regex) 기반 성분 텍스트 정제 파이프라인:
+        1. 앵커 타이틀(원재료명 및 함량, 전성분 등) 제거
+        2. 괄호 안의 원산지/함량 비율(예: (미국산), (국산 10%), [밀]) 제거 또는 정제
+        3. 퍼센트 수치(12.5%) 및 불필요한 특수기호 제거
+        4. 쉼표(,), 가운뎃점(·), 슬래시(/), 줄바꿈(\n) 기준으로 토큰 분리
+        5. 노이즈 불용어 제거 및 순서 보존 중복 제거(Deduplication)
+        """
+        if not raw_text or not raw_text.strip():
+            return []
+
+        text = raw_text
+
+        # 1. 앵커 헤더 문구 제거
+        header_pattern = r"(원재료명\s*및\s*함량|원재료\s*및\s*함량|원재료명|영양정보|전성분|성분명|원료명)\s*[:：]?"
+        text = re.sub(header_pattern, ",", text)
+
+        # 2. 괄호 내부의 원산지/부연설명 제거 (예: 소맥분(밀:미국산, 호주산) -> 소맥분)
+        # 중첩 괄호 대응을 위해 2회 반복 치환
+        for _ in range(2):
+            text = re.sub(r"\([^()]*\)", "", text)
+            text = re.sub(r"\[[^\[\]]*\]", "", text)
+
+        # 3. 함량 퍼센트 수치(예: 15.2%, 100%) 제거
+        text = re.sub(r"\d+(?:\.\d+)?\s*%", "", text)
+
+        # 4. 구분자 통일: 줄바꿈, 가운뎃점(·, •), 세미콜론(;), 콜론(:) 등을 쉼표(,)로 변환
+        text = re.sub(r"[\n\r•·;:/|]+", ",", text)
+        # 쉼표가 블러로 유실되어 한글 성분명 뒤에 영문 접두 성분(예: L-글루탐산나트륨)이 공백으로 이어진 경우 분리
+        text = re.sub(r"(?<=[가-힣])\s+(?=[A-Za-z]\s*-)", ",", text)
+
+        # 5. 한글, 영문, 숫자, 하이픈(-, L-글루탐산나트륨 등 보존), 쉼표(,), 공백 외 특수문자 제거
+        text = re.sub(r"[^가-힣a-zA-Z0-9,\-\s]", " ", text)
+
+        # 6. 토큰 분리 및 정제
+        stopwords = {
+            "함유", "포함", "외", "기타", "기준", "일일영양성분", "영양성분",
+            "나트륨", "탄수화물", "당류", "지방", "트랜스지방", "포화지방", "콜레스테롤", "단백질",
+            "미국산", "호주산", "국내산", "국산", "중국산", "독일산", "말레이시아산",
+        }
+
+        cleaned_ingredients: List[str] = []
+        seen = set()
+
+        for token in text.split(","):
+            # 다중 공백 압축 및 양끝 하이픈/공백 제거
+            item = re.sub(r"\s+", " ", token).strip(" -_.")
+            # OCR 엔진이 한글 음절 사이에 불필요한 공백을 삽입한 경우(예: "소 맥 분" -> "소맥분") 보정
+            item = re.sub(r"(?<=[가-힣])\s+(?=[가-힣])", "", item)
+            if not item:
+                continue
+
+            # 숫자만으로 이루어진 토큰이나 1글자 노이즈 제외
+            if item.isdigit() or len(item) < 2:
+                continue
+
+            # 원산지 단독 토큰이나 불용어 제외
+            if item in stopwords or item.endswith("산") and len(item) <= 4:
+                continue
+
+            # "알레르기 유발물질: 대두, 밀 함유" 같은 하단 고지 문구 필터링
+            if "알레르기" in item or "유발물질" in item or "제조시설" in item or "소비자" in item:
+                continue
+
+            if item not in seen:
+                seen.add(item)
+                cleaned_ingredients.append(item)
+
+        return cleaned_ingredients
+
+
+# 모듈 레벨 헬퍼: 워커 프로세스 어디서든 싱글톤 인스턴스를 즉시 획득
+def get_ocr_engine() -> OCRSingletonEngine:
+    return OCRSingletonEngine()
+

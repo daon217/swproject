@@ -1,0 +1,38 @@
+# ==============================================================================
+# 꿀픽(KkulPick) 비전 AI 파이프라인 .gitignore
+# ==============================================================================
+
+# 1. Python 가상환경 (Virtual Environment)
+.venv/
+venv/
+env/
+ENV/
+kkulpick_vision/.venv/
+
+# 2. Python 바이트코드 및 캐시
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 3. 환경 변수 및 민감 정보
+.env
+.env.*
+!.env.example
+
+# 4. 테스트용 샘플 이미지 및 임시 산출물
+sample_*.png
+**/sample_*.png
+samples/
+kkulpick_vision/samples/
+*.log
+celerybeat-schedule
+celerybeat.pid
+
+# 5. OS / IDE 설정 파일
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

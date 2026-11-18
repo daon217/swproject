@@ -25,6 +25,8 @@ for (const platform of ['extension','mobile']) {
     await settings(page);
     await page.getByRole('button',{name:/로그인 해 주세요/}).click();
     await page.getByRole('button',{name:'회원가입',exact:true}).click();
+    // Expo keeps the previous login route mounted during the navigation transition.
+    if(platform==='mobile') await expect(page.getByText('나에게 맞는 추천의 시작',{exact:true})).toBeVisible();
     const id=page.getByPlaceholder('아이디 입력',{exact:true});
     await id.fill('abc def');
     await expect(id).toHaveValue('abc def');

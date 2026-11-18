@@ -1,15 +1,18 @@
 """Disposable real backend -> worker -> recommendation check; optional real OCR fixture.
 Run only against your development stack. Creates a uniquely named test member/job.
 """
-import argparse,base64,json,secrets,time
+import argparse,base64,json,secrets,time,sys
+from datetime import datetime,timezone,timedelta
+from uuid import uuid4
 from pathlib import Path
 from urllib.request import Request,urlopen
 
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT))
 def settings(path):return dict(l.split('=',1) for l in path.read_text().splitlines() if '=' in l and not l.startswith('#'))
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--image');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--image');p.add_argument('--collector',action='store_true');a=p.parse_args()
     api=settings(ROOT/'services/api/.env');work=settings(ROOT/'infra/workspace/.env')
     base='http://127.0.0.1:'+api.get('API_PORT','8000')
     def call(path,body=None,token=None,server=base):
@@ -31,6 +34,30 @@ def main():
         assert result['sections'][0]['items'],result
         assert result['sections'][0]['items'][0]['reason']!='분석 작업자가 선택한 상품'
         print('PASS actual API claim -> catalog -> recommendation -> durable result')
+        if a.collector:
+            from services.collector.domeggook_live.fixture_data import row,config
+            from services.collector.domeggook_live.domeggook_backend import prepare_observation,HTTPBackendTransport
+            cfg=config(base);transport=HTTPBackendTransport(base,api['COLLECTOR_TOKEN'],approved_loopback_test=True)
+            run=str(uuid4());variant='TEST-'+secrets.token_hex(6);start=datetime.now(timezone.utc)-timedelta(seconds=10)
+            def deliver(offset,price,url_suffix='original',quantity=10):
+                item=row((start+timedelta(seconds=offset)).isoformat(),price,quantity)
+                item['variant_key']=variant;item['identity_evidence']['variant_key']['value']=variant
+                item['product_url']='https://store.example.test/TEST-KKULPICK-001/'+url_suffix
+                body=prepare_observation(item,cfg,selected_domain='product',condition='new')
+                return transport('/internal/v2/crawl-runs/'+run+'/observations',body)
+            try:
+                status,first=deliver(0,1000);assert status==201 and first['state']=='applied',first
+                status,updated=deliver(2,900,'changed');assert status==201 and updated['offer_id']==first['offer_id'],updated
+                status,duplicate=deliver(2,900,'changed');assert status==200 and duplicate['observation_id']==updated['observation_id'],duplicate
+                _,stale=deliver(1,500);assert stale['change_kind']=='stale',stale
+                rows=call('/v2/offers?selected_domain=product&source=domeggook_test&limit=100')['items']
+                current=next(o for o in rows if o['offer_id']==first['offer_id'])
+                assert float(current['price'])==900 and current['current_url'].endswith('/changed'),current
+                _,ended=deliver(3,900,'changed',0);assert ended['offer_id']==first['offer_id'],ended
+                rows=call('/v2/offers?selected_domain=product&source=domeggook_test&limit=100')['items']
+                assert not any(o['offer_id']==first['offer_id'] for o in rows)
+                print('PASS collector mapper -> real DB create, price/URL update, duplicate, stale, out-of-stock hiding')
+            finally:transport.close()
         if a.image:
             sid='ci-'+secrets.token_hex(12);frame=base64.b64encode(Path(a.image).read_bytes()).decode()
             def vision(path,body=None):return call('/api/v1/vision/'+path,body,work['WORKSPACE_TOKEN'],'http://127.0.0.1:8100')

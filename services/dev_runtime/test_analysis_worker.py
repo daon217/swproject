@@ -1,4 +1,7 @@
 import json
+import sys
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 import httpx
 import pytest
 from services.dev_runtime.analysis_worker import Worker,context_url
@@ -69,3 +72,11 @@ def test_worker_unknown_page_fails_without_arbitrary_fetch():
         return httpx.Response(200,json={'data':{}})
     assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
     assert paths[-1].endswith('/fail')
+
+
+def test_food_avoid_filter_does_not_assume_missing_ingredients_safe():
+    c=TestClient(app)
+    r=c.post('/internal/process',headers={'Authorization':'Bearer '+TOKEN},json={
+        'query':'간식','selected_domain':'food','offers':[OFFER],
+        'profile':{'user_id':'u','avoid_ingredients':['설탕']}})
+    assert r.status_code==200 and r.json()['offer_ids']==[]

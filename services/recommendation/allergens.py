@@ -118,7 +118,7 @@ def assess(product: CollectedProduct, profile: UserProfile) -> SafetyVerdict:
         if w and any(w in t.lower() for t in tokens):
             reasons.append(f"피하는 성분 '{word}'")
 
-    if wanted and not has_info and profile.exclude_unknown:
+    if (wanted or profile.avoid_ingredients) and not has_info and profile.exclude_unknown:
         reasons.append("성분 정보 없음: 알레르기 안전 확인 불가")
 
     return SafetyVerdict(product.product_id, not reasons, reasons, sorted(detected))

@@ -21,6 +21,37 @@ function loopbackHint(url: string): string | null {
     : '실제 기기에서 localhost/127.0.0.1은 기기 자신을 가리킵니다. PC의 IP를 apps/mobile/.env의 EXPO_PUBLIC_API_BASE_URL에 넣고 Metro를 재시작하세요.';
 }
 
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/** base64 → 바이트. 전역 atob 유무에 기대지 않는다. */
+export function base64ToBytes(b64: string): Uint8Array {
+  const clean = b64.replace(/[^A-Za-z0-9+/]/g, '');
+  const out = new Uint8Array(Math.floor((clean.length * 3) / 4));
+  let o = 0;
+  for (let i = 0; i < clean.length; i += 4) {
+    const n =
+      (B64.indexOf(clean[i]) << 18) |
+      (B64.indexOf(clean[i + 1]) << 12) |
+      ((i + 2 < clean.length ? B64.indexOf(clean[i + 2]) : 0) << 6) |
+      (i + 3 < clean.length ? B64.indexOf(clean[i + 3]) : 0);
+    out[o++] = (n >> 16) & 255;
+    if (i + 2 < clean.length) out[o++] = (n >> 8) & 255;
+    if (i + 3 < clean.length) out[o++] = n & 255;
+  }
+  return out.subarray(0, o);
+}
+
+/**
+ * 캡처 JPEG를 FormData 파일 파트로 만든다.
+ * Expo SDK 58은 전역 fetch를 expo/fetch로 바꾸는데, 이 구현은 RN 방식 { uri, name, type }을
+ * "Unsupported FormDataPart implementation"으로 거부한다. 대신 bytes()를 가진 객체는 받아
+ * name·type을 파일 이름·Content-Type으로 쓴다(expo/src/winter/fetch/convertFormData.ts).
+ */
+function jpegPart(base64: string): Blob {
+  const bytes = base64ToBytes(base64);
+  return { name: 'capture.jpg', type: 'image/jpeg', size: bytes.length, bytes: async () => bytes } as unknown as Blob;
+}
+
 // 실제 백엔드 연결용 구현. 응답 래퍼({data, request_id})와 오류({code,message,retryable})는 명세 17.1 기준.
 export function createHttpApi(baseUrl: string): KkulpickApi {
   if (__DEV__) {
@@ -85,8 +116,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
 
     createAnalysis: (req) => {
       const form = new FormData();
-      // React Native FormData 파일 형식
-      if (req.image) form.append('image', { uri: req.image.uri, name: 'capture.jpg', type: 'image/jpeg' } as unknown as Blob);
+      if (req.image) form.append('image', jpegPart(req.image.base64));
       form.append('page_url', req.page_url);
       if (req.selected_domain) form.append('selected_domain', req.selected_domain); // 기본은 미전송(서버 자동 판단)
       form.append('page_session_id', req.page_session_id);

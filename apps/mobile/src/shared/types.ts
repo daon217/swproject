@@ -58,8 +58,11 @@ export type Domain = 'product' | 'food';
 
 export interface CreateAnalysisRequest {
   selected_domain?: Domain;
-  /** 앱 내 브라우저 캡처 파일(react-native-view-shot tmpfile) */
-  image: { uri: string } | null;
+  /**
+   * 앱 내 브라우저 캡처 JPEG(base64, react-native-view-shot).
+   * Expo SDK 58의 fetch는 RN 방식 { uri } 파일 첨부를 지원하지 않아 바이트로 보낸다.
+   */
+  image: { base64: string } | null;
   page_url: string;
   page_session_id: string;
   page_revision: number;

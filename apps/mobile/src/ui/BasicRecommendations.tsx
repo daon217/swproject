@@ -7,17 +7,19 @@ import { OfferRow } from './ResultView';
 import { C } from './theme';
 
 // 제휴 상품은 표시광고 규정·명세 10.3에 따라 '제휴' 표시를 반드시 남긴다.
+// 비회원 추천 상품은 상품/식품 선택 없이 상품 목록을 보여준다.
+const GUEST_DOMAIN = 'product';
+
 export function BasicRecommendations({ onOpenUrl, onLogin }: { onOpenUrl: (url: string) => void; onLogin: () => void }) {
   const [items, setItems] = useState<OfferCard[] | null>(null);
   const [error, setError] = useState(false);
-  const [domain, setDomain] = useState<'product' | 'food'>('product');
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
-    api.listBasic(domain).then(rows => { if (alive) setItems(rows); })
+    api.listBasic(GUEST_DOMAIN).then(rows => { if (alive) setItems(rows); })
       .catch(() => { if (alive) setError(true); });
     return () => { alive = false; };
-  }, [domain, attempt]);
+  }, [attempt]);
 
   return (
     <ScrollView contentContainerStyle={{ padding: 24 }}>
@@ -32,13 +34,9 @@ export function BasicRecommendations({ onOpenUrl, onLogin }: { onOpenUrl: (url: 
       </Pressable>
       <H1>추천 상품</H1>
       <Desc>로그인 없이 상품을 둘러보세요. 개인 맞춤 AI 분석 결과는 아니에요.</Desc>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Button label="상품" variant={domain === 'product' ? 'primary' : 'outline'} onPress={() => { if (domain !== 'product') { setItems(null); setError(false); setDomain('product'); } }} />
-        <Button label="식품" variant={domain === 'food' ? 'primary' : 'outline'} onPress={() => { if (domain !== 'food') { setItems(null); setError(false); setDomain('food'); } }} />
-      </View>
       {!items && !error && <Text>상품을 불러오는 중이에요.</Text>}
       {error && <><ErrorText>추천 상품을 불러오지 못했어요.</ErrorText><Button label="다시 시도" onPress={() => { setItems(null); setError(false); setAttempt(v => v + 1); }} /></>}
-      {items?.length === 0 && <Text>현재 표시할 상품이 없어요. 다른 종류를 선택하거나 나중에 다시 확인해 주세요.</Text>}
+      {items?.length === 0 && <Text>현재 표시할 상품이 없어요. 나중에 다시 확인해 주세요.</Text>}
       {items?.map((c, i) => (
         <View key={c.offer_id}>
           {i > 0 && <View style={st.divider} />}

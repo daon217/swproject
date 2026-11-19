@@ -67,12 +67,13 @@ export function usePageAnalysis(
       }
       setState({ status: 'analyzing', analysis: null, error: null, pageSessionId });
 
-      let image: { uri: string } | null = null;
+      let image: { base64: string } | null = null;
       // 웹 미리보기(iframe)는 캡처하지 않고 주소 기준으로만 분석한다.
       if (Platform.OS !== 'web') {
         try {
-          const uri = await captureRef(captureTarget as Parameters<typeof captureRef>[0], { format: 'jpg', quality: 0.8, result: 'tmpfile' });
-          image = { uri };
+          // 파일 경로(tmpfile)는 Expo fetch의 FormData가 받지 못해 base64로 받아 바이트로 업로드한다.
+          const base64 = await captureRef(captureTarget as Parameters<typeof captureRef>[0], { format: 'jpg', quality: 0.8, result: 'base64' });
+          image = { base64 };
         } catch {
           image = null; // 캡처 실패 시에도 URL 기반 분석은 진행(서버가 판단)
         }

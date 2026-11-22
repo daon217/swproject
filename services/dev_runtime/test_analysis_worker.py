@@ -112,3 +112,24 @@ def test_infer_domain_without_client_choice():
     assert infer_domain('버터 쿠키 선물세트',groups)=='food'
     assert infer_domain('스테인리스 주전자',groups)=='product'
     assert infer_domain('알 수 없는 이름',groups)=='product'
+
+
+@pytest.mark.parametrize('title,ingredients,expected',[
+    # 식품: 상품명 또는 Vision이 읽은 성분표로 판별(카탈로그에 식품이 없어도)
+    ('오뚜기 진라면 매운맛 5개입',[],'title_keyword'),
+    ('[더블적립] 삼양식품 프리미엄 짜장라면 짜르르 12입',[],'title_keyword'),
+    ('정화 오징어는땅콩을좋아해 40g',[],'title_keyword'),
+    ('브랜드명 없는 상품',['밀가루(밀:미국산)','설탕','대두유','정제소금'],'vision_ingredients'),
+    # 일반 상품
+    ('베이직스 노트북 16인치 사무용 8GB 256GB',[],None),
+    ('스테인리스 전기 주전자 1.7L',[],None),
+    # 식품 단어가 들어간 가전·화장품은 식품이 아님
+    ('드롱기 전자동 커피머신',[],None),
+    ('쿠쿠 전기밥솥 6인용',[],None),
+    ('시어버터 핸드크림 50ml',['정제수','글리세린','부틸렌글라이콜','쉐어버터'],None),
+    ('수분 크림',['정제수','글리세린','우유추출물','페녹시에탄올'],None),
+])
+def test_food_evidence_from_title_and_vision(title,ingredients,expected):
+    """클라이언트가 종류를 보내지 않으면 Vision 성분표와 상품명으로 식품을 먼저 판별한다."""
+    from services.dev_runtime.analysis_worker import food_evidence
+    assert food_evidence(title,ingredients)==expected

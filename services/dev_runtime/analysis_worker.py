@@ -20,6 +20,34 @@ def context_url(value):
 def tokens(text):
     return {w for w in re.findall(r'[0-9A-Za-z가-힣]+',(text or '').lower()) if len(w)>=2}
 
+# 식품 판별 신호. Vision이 원재료명·영양정보 아래에서 성분을 읽었거나, 상품명이 식품일 때 food로 본다.
+# 카탈로그에 식품이 없어도 판별되도록 카탈로그 겹침보다 먼저 확인한다.
+FOOD_TITLE=re.compile(r'라면|과자|스낵|쿠키|비스킷|초콜릿|초코|젤리|사탕|캔디|껌|아이스크림|빵|케이크|떡|만두|국수|파스타|우동|냉면|짜장|짬뽕|'
+    r'즉석밥|햇반|도시락|밀키트|반찬|김치|소스|양념|간장|된장|고추장|케첩|마요네즈|드레싱|식용유|참기름|'
+    r'우유|두유|요거트|요구르트|치즈|버터|분유|커피|음료|주스|탄산|생수|녹차|홍차|'
+    r'견과|땅콩|아몬드|호두|캐슈|시리얼|그래놀라|오트밀|햄|소시지|베이컨|참치|어묵|두부|계란|달걀|'
+    r'정육|한우|돼지고기|닭가슴살|닭고기|소고기|쌀|현미|잡곡|과일|사과|딸기|복숭아|오징어|새우|멸치|'
+    r'식품|간식|과자류|영양제|홍삼|단백질\s*쉐이크|프로틴')
+# 화장품·생활용품 성분표는 식품 성분표로 보지 않는다(전성분에 '크림'·'우유' 같은 말이 섞여도 식품 아님).
+NON_FOOD=re.compile(r'화장품|스킨|토너|로션|에센스|세럼|앰플|선크림|썬크림|클렌징|폼클렌저|샴푸|린스|컨디셔너|트리트먼트|바디워시|'
+    r'핸드크림|립밤|립스틱|파운데이션|쿠션|마스크팩|향수|세제|섬유유연제|치약|'
+    r'글리세린|부틸렌글라이콜|페녹시에탄올|나이아신아마이드|다이메티콘|카보머|토코페릴아세테이트|소듐하이알루로네이트|'
+    # 식품 이름이 들어간 가전·주방용품·반려동물 용품
+    r'커피머신|커피메이커|커피포트|에스프레소머신|믹서기|블렌더|착즙기|원액기|그라인더|우유거품기|에어프라이어|전자레인지|'
+    r'냉장고|토스터기|전기밥솥|밥솥|보관용기|밀폐용기|텀블러|프라이팬|냄비|햄스터')
+# 성분표에서 식품으로 볼 만한 말(알레르기 유발 원료·식품 첨가물)
+FOOD_INGREDIENT=re.compile(r'밀가루|소맥분|전분|설탕|백설탕|액상과당|물엿|올리고당|포도당|정제소금|식염|대두유|팜유|'
+    r'우유|탈지분유|유청|버터|계란|난백|땅콩|대두|간장|향미증진제|L-글루탐산나트륨|산도조절제|유화제|팽창제|'
+    r'돼지고기|닭고기|쇠고기|새우|오징어|고등어|토마토|복숭아|호두|메밀|잣')
+
+def food_evidence(title,ingredients):
+    """식품으로 볼 근거를 돌려준다(없으면 None). 화장품 신호가 있으면 식품으로 보지 않는다."""
+    text=' '.join([title or '',*[str(i) for i in (ingredients or [])]])
+    if NON_FOOD.search(text):return None
+    if ingredients and FOOD_INGREDIENT.search(' '.join(str(i) for i in ingredients)):return 'vision_ingredients'
+    if FOOD_TITLE.search(title or ''):return 'title_keyword'
+    return None
+
 def infer_domain(title,groups):
     """분석 종류를 클라이언트가 고르지 않으면 OCR 상품명과 카탈로그 상품명의 단어 겹침으로 상품/식품을 정한다.
     겹침이 같거나 없으면 product(식품으로 잘못 판정해 성분을 안전하다고 보이게 하지 않기 위해)."""
@@ -95,8 +123,11 @@ class Worker:
                 self.request('POST',path+'/fail',json=lease|{'code':'OCR_FAILED','retryable':False});return True
             # A generic cosmetics ingredient list must not automatically classify a page as food.
             if not kind:
-                kind=infer_domain(title,groups)
-                log.info('analysis %s: selected_domain 미지정 → 자동 판단 %s',job['analysis_id'],kind)
+                # Vision 성분표·상품명으로 식품을 먼저 판별하고, 근거가 없으면 카탈로그 이름 겹침으로 정한다.
+                evidence=food_evidence(title,ingredients)
+                kind='food' if evidence else infer_domain(title,groups)
+                log.info('analysis %s: selected_domain 미지정 → 자동 판단 %s (근거=%s, vision 성분 %d개)',
+                         job['analysis_id'],kind,evidence or 'catalog_overlap',len(ingredients))
             r=self.http.post(self.reco+'/internal/process',headers=self.service_auth,json={
                 'query':title[:1000],'selected_domain':kind,'offers':groups[kind],
                 'ingredients':[str(i)[:500] for i in ingredients[:100]],

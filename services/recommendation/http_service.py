@@ -62,7 +62,9 @@ def process(body:Input,authorization:str=Header(default='')):
         warnings=[{'type':'allergy','allergen':a,'evidence':'contains',
             'message':f"OCR에서 {ALLERGENS[a][0]} 관련 표현이 감지되었습니다. 상품 표시를 직접 확인해 주세요."}
             for a in raw['allergens'] if a in detected]
-        unchecked=unsupported if body.selected_domain=='food' else requested
+        # 식품이 아닌 상품(노트북·가전 등)에는 알레르기 경고를 붙이지 않는다.
+        # 식품일 때만 자동 검증을 지원하지 않는 항목을 '확인 필요'로 알린다.
+        unchecked=unsupported if body.selected_domain=='food' else []
         warnings += [{'type':'allergy','allergen':a,'evidence':'unknown',
             'message':'이 알레르기 항목의 자동 검증은 지원하지 않습니다. 상품 표시를 직접 확인해 주세요.'} for a in unchecked]
         if body.selected_domain=='food' and raw['allergens'] and not body.ingredients:

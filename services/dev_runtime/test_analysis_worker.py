@@ -25,7 +25,7 @@ def test_recommendation_http_auth_domain_and_allergens():
     result=c.post('/internal/process',json=body,headers={'Authorization':'Bearer '+TOKEN})
     assert result.status_code==200,result.text
     assert result.json()['offer_ids']==[OFFER['offer_id']]
-    assert len(result.json()['warnings'])==2
+    assert result.json()['warnings']==[] # 식품이 아닌 상품에는 알레르기 경고를 붙이지 않는다.
     body.update(selected_domain='food',ingredients=['대두','우유'])
     body['profile']['allergens']=['soybean','milk']
     result=c.post('/internal/process',json=body,headers={'Authorization':'Bearer '+TOKEN})

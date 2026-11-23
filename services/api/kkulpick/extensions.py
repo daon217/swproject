@@ -440,8 +440,48 @@ async def offer_matches(
                 "similar_candidates": [],
             }
 
+        match_clauses = []
+        exact_rank_clauses = []
+        query_params: dict[str, object] = {
+            "kind": target["kind"],
+            "id": offer_id,
+            "include_used": include_used,
+            "candidate_cap": max(200, limit * 10),
+        }
+        if t_gtin:
+            match_clauses.append("p.gtin = :gtin")
+            exact_rank_clauses.append("p.gtin = :gtin")
+            query_params["gtin"] = t_gtin
+        if t_brand:
+            match_clauses.append("lower(i.brand) = :brand")
+            query_params["brand"] = t_brand
+        if t_model_num:
+            match_clauses.append("lower(p.model_number) = :model_num")
+            query_params["model_num"] = t_model_num
+            if t_brand:
+                exact_rank_clauses.append("(lower(i.brand) = :brand AND lower(p.model_number) = :model_num)")
+        if t_mpn:
+            match_clauses.append("lower(p.mpn) = :mpn")
+            query_params["mpn"] = t_mpn
+            if t_brand:
+                exact_rank_clauses.append("(lower(i.brand) = :brand AND lower(p.mpn) = :mpn)")
+
+        if not match_clauses:
+            return {
+                "offer_id": offer_id,
+                "exact_candidates": [],
+                "similar_candidates": [],
+            }
+
+        where_filter = " OR ".join(match_clauses)
+        order_priority = (
+            f"CASE WHEN ({' OR '.join(exact_rank_clauses)}) THEN 0 ELSE 1 END ASC,"
+            if exact_rank_clauses
+            else ""
+        )
+
         from sqlalchemy import text
-        rows = (await c.execute(text("""SELECT o.offer_id,o.source,o.source_listing_id,o.variant_key,
+        rows = (await c.execute(text(f"""SELECT o.offer_id,o.source,o.source_listing_id,o.variant_key,
             o.condition,o.price::text AS price,o.currency,o.shipping_fee::text AS shipping_fee,
             o.current_url,o.availability,o.price_observed_at,o.last_seen_at,o.last_checked_at,o.seller_name,
             i.name,i.brand,i.manufacturer,i.category,i.image_url,
@@ -451,31 +491,10 @@ async def offer_matches(
             LEFT JOIN app.products p USING(item_id)
             WHERE o.kind=:kind AND o.offer_id<>:id AND o.availability='available'
               AND (:include_used OR o.condition='new')
-              AND (
-                (:gtin IS NOT NULL AND p.gtin = :gtin)
-                OR (:brand IS NOT NULL AND lower(i.brand) = :brand)
-                OR (:model_num IS NOT NULL AND lower(p.model_number) = :model_num)
-                OR (:mpn IS NOT NULL AND lower(p.mpn) = :mpn)
-              )
-            ORDER BY
-              CASE
-                WHEN (:gtin IS NOT NULL AND p.gtin = :gtin) THEN 0
-                WHEN (:brand IS NOT NULL AND lower(i.brand) = :brand AND :model_num IS NOT NULL AND lower(p.model_number) = :model_num) THEN 0
-                WHEN (:brand IS NOT NULL AND lower(i.brand) = :brand AND :mpn IS NOT NULL AND lower(p.mpn) = :mpn) THEN 0
-                ELSE 1
-              END ASC,
-              o.price ASC, o.offer_id ASC
+              AND ({where_filter})
+            ORDER BY {order_priority} o.price ASC, o.offer_id ASC
             LIMIT :candidate_cap"""),
-            {
-                "kind": target["kind"],
-                "id": offer_id,
-                "include_used": include_used,
-                "gtin": t_gtin,
-                "brand": t_brand,
-                "model_num": t_model_num,
-                "mpn": t_mpn,
-                "candidate_cap": max(200, limit * 10),
-            })).mappings().all()
+            query_params)).mappings().all()
 
     exact_candidates = []
     similar_candidates = []

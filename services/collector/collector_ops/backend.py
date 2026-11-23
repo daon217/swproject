@@ -15,6 +15,11 @@ def configure_CA(transport):
 
 class OpsOutbox(Outbox):
     def flush(self,stop=None):
+        before=self.state['totals'].get('revoked',0)
+        self.prune()
+        if self.enabled and self.state['totals'].get('revoked',0)!=before:self.save()
+        if os.environ.get('COLLECTOR_DELIVERY_APPROVED')!='yes':return self.report()
         if self.transport is None and self.ready and self.enabled and self.pending_count():
-            self.transport=configure_CA(RetryAwareBackend(self.settings.get('base_url',''),os.environ.get('KKULPICK_BACKEND_TOKEN',''),self.clock))
+            from .backend_transport import build_backend
+            self.transport=configure_CA(build_backend(self.settings.get('base_url',''),os.environ.get('KKULPICK_BACKEND_TOKEN',''),self.clock))
         return super().flush(stop)

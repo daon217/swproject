@@ -38,7 +38,12 @@
         "KKULPICK_MARKETPLACE_STATE_DIR": "/state",
         "DOMEGGOOK_API_KEY_FILE": "/run/secrets/domeggook_api_key",
         "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token",
-        "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}"
+        "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}",
+        "COLLECTOR_BACKEND_TRANSPORT": "${COLLECTOR_BACKEND_TRANSPORT:-https}",
+        "COLLECTOR_BACKEND_BASE_URL": "${COLLECTOR_BACKEND_BASE_URL:-}",
+        "COLLECTOR_INTERNAL_HTTP_APPROVED": "${COLLECTOR_INTERNAL_HTTP_APPROVED:-no}",
+        "COLLECTOR_INTERNAL_NETWORK_ID": "${COLLECTOR_INTERNAL_NETWORK_ID:-}",
+        "COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE": "/run/network-review/internal-network-review.json"
       },
       "secrets": [
         "domeggook_api_key",
@@ -114,7 +119,12 @@
         "KKULPICK_MARKETPLACE_STATE_DIR": "/state",
         "SERPER_API_KEY_FILE": "/run/secrets/serper_api_key",
         "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token",
-        "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}"
+        "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}",
+        "COLLECTOR_BACKEND_TRANSPORT": "${COLLECTOR_BACKEND_TRANSPORT:-https}",
+        "COLLECTOR_BACKEND_BASE_URL": "${COLLECTOR_BACKEND_BASE_URL:-}",
+        "COLLECTOR_INTERNAL_HTTP_APPROVED": "${COLLECTOR_INTERNAL_HTTP_APPROVED:-no}",
+        "COLLECTOR_INTERNAL_NETWORK_ID": "${COLLECTOR_INTERNAL_NETWORK_ID:-}",
+        "COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE": "/run/network-review/internal-network-review.json"
       },
       "secrets": [
         "serper_api_key",
@@ -192,7 +202,12 @@
         "EBAY_CLIENT_SECRET_FILE": "/run/secrets/ebay_client_secret",
         "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token",
         "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}",
-        "COLLECTOR_USED_CONFIG": "/run/ebay_used.json"
+        "COLLECTOR_USED_CONFIG": "/run/ebay_used.json",
+        "COLLECTOR_BACKEND_TRANSPORT": "${COLLECTOR_BACKEND_TRANSPORT:-https}",
+        "COLLECTOR_BACKEND_BASE_URL": "${COLLECTOR_BACKEND_BASE_URL:-}",
+        "COLLECTOR_INTERNAL_HTTP_APPROVED": "${COLLECTOR_INTERNAL_HTTP_APPROVED:-no}",
+        "COLLECTOR_INTERNAL_NETWORK_ID": "${COLLECTOR_INTERNAL_NETWORK_ID:-}",
+        "COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE": "/run/network-review/internal-network-review.json"
       },
       "secrets": [
         "ebay_client_id",
@@ -270,7 +285,12 @@
         "KKULPICK_MARKETPLACE_STATE_DIR": "/state",
         "YES24_API_KEY_FILE": "/run/secrets/yes24_api_key",
         "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token",
-        "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}"
+        "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}",
+        "COLLECTOR_BACKEND_TRANSPORT": "${COLLECTOR_BACKEND_TRANSPORT:-https}",
+        "COLLECTOR_BACKEND_BASE_URL": "${COLLECTOR_BACKEND_BASE_URL:-}",
+        "COLLECTOR_INTERNAL_HTTP_APPROVED": "${COLLECTOR_INTERNAL_HTTP_APPROVED:-no}",
+        "COLLECTOR_INTERNAL_NETWORK_ID": "${COLLECTOR_INTERNAL_NETWORK_ID:-}",
+        "COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE": "/run/network-review/internal-network-review.json"
       },
       "secrets": [
         "yes24_api_key",
@@ -343,7 +363,12 @@
         "KKULPICK_STATE_DIR": "/state",
         "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
         "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}",
-        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token"
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token",
+        "COLLECTOR_BACKEND_TRANSPORT": "${COLLECTOR_BACKEND_TRANSPORT:-https}",
+        "COLLECTOR_BACKEND_BASE_URL": "${COLLECTOR_BACKEND_BASE_URL:-}",
+        "COLLECTOR_INTERNAL_HTTP_APPROVED": "${COLLECTOR_INTERNAL_HTTP_APPROVED:-no}",
+        "COLLECTOR_INTERNAL_NETWORK_ID": "${COLLECTOR_INTERNAL_NETWORK_ID:-}",
+        "COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE": "/run/network-review/internal-network-review.json"
       },
       "secrets": [
         "kkulpick_backend_token"
@@ -479,7 +504,12 @@
       "environment": {
         "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
         "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}",
-        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token"
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token",
+        "COLLECTOR_BACKEND_TRANSPORT": "${COLLECTOR_BACKEND_TRANSPORT:-https}",
+        "COLLECTOR_BACKEND_BASE_URL": "${COLLECTOR_BACKEND_BASE_URL:-}",
+        "COLLECTOR_INTERNAL_HTTP_APPROVED": "${COLLECTOR_INTERNAL_HTTP_APPROVED:-no}",
+        "COLLECTOR_INTERNAL_NETWORK_ID": "${COLLECTOR_INTERNAL_NETWORK_ID:-}",
+        "COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE": "/run/network-review/internal-network-review.json"
       },
       "secrets": [
         "kkulpick_backend_token"
@@ -555,7 +585,12 @@
       "environment": {
         "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
         "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}",
-        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token"
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token",
+        "COLLECTOR_BACKEND_TRANSPORT": "${COLLECTOR_BACKEND_TRANSPORT:-https}",
+        "COLLECTOR_BACKEND_BASE_URL": "${COLLECTOR_BACKEND_BASE_URL:-}",
+        "COLLECTOR_INTERNAL_HTTP_APPROVED": "${COLLECTOR_INTERNAL_HTTP_APPROVED:-no}",
+        "COLLECTOR_INTERNAL_NETWORK_ID": "${COLLECTOR_INTERNAL_NETWORK_ID:-}",
+        "COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE": "/run/network-review/internal-network-review.json"
       },
       "secrets": [
         "kkulpick_backend_token"

@@ -40,7 +40,8 @@ def read_key():
 class OpenClient:
     def __init__(self,cap=None,interval=3,*,ledger_path=None):
         self.__key=read_key();self.interval=max(3,interval)
-        self.session=requests.Session();self.session.trust_env=False
+        from .network import secure_public_session
+        self.session=secure_public_session(requests.Session())
         self.session.headers['User-Agent']='KkulPick-OpenAPI-Verification/1.0'
         self.path=ledger_path or ROOT/'request_ledger.json'
         self.state=read(self.path,{'requests':[],'hold':None,'scope':'getItemList/getItemView; max5 distinct listings; internal cap16'})

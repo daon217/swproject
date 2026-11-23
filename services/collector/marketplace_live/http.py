@@ -38,7 +38,8 @@ class ProviderHTTP:
         self.state=load(self.path,{'version':1,'source':cfg['source'],'requests':[],'hold':None,'not_before':None})
         if self.state.get('version')!=1 or self.state.get('source')!=cfg['source'] or not isinstance(self.state.get('requests'),list):
             raise ValueError('request_ledger_schema_mismatch_no_reset')
-        self.session=session or requests.Session();self.session.trust_env=False
+        from services.collector.domeggook_live.network import secure_public_session
+        self.session=session or secure_public_session(requests.Session());self.session.trust_env=False
         self.cycle_id=None;self.task_id=None;self.stop=None
         # Never replay a reservation immediately after an abrupt process exit.
         changed=False

@@ -5,11 +5,23 @@ from services.collector.food_evidence.extract import extract
 
 class FoodDelivery(DeliveryPipeline):
     def __init__(self,*args,**kwargs):
+        if kwargs.get('transport') is None and len(args)<3:
+            from .backend_transport import DeferredBackend
+            from services.collector.domeggook_live.domeggook_delivery import utcnow
+            cfg=args[0] if args else kwargs['cfg']
+            kwargs['transport']=DeferredBackend(cfg.get('backend_delivery',{}).get('base_url',''),kwargs.get('clock',utcnow))
         super().__init__(*args,**kwargs)
         from services.collector.domeggook_live.domeggook_backend import HTTPBackendTransport
         if isinstance(self.transport,HTTPBackendTransport):
             from .backend import configure_CA
             configure_CA(self.transport)
+    def flush(self,stop=None):
+        import os
+        before=self.state['totals'].get('revoked',0)
+        self.prune()
+        if self.enabled and self.state['totals'].get('revoked',0)!=before:self.save()
+        if os.environ.get('COLLECTOR_DELIVERY_APPROVED')!='yes':return self.report()
+        return super().flush(stop)
     def stage(self,row):
         licensed=row.get('detail_content_license_usable') is True
         text=row.get('description') if licensed else None

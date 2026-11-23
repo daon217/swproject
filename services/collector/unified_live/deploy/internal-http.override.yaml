@@ -1,0 +1,73 @@
+{
+  "services": {
+    "domeggook": {
+      "networks": {
+        "default": {},
+        "reviewed_ingest": {}
+      },
+      "volumes": [
+        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/domeggook:/run/network-review:ro"
+      ]
+    },
+    "serper": {
+      "networks": {
+        "default": {},
+        "reviewed_ingest": {}
+      },
+      "volumes": [
+        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/serper:/run/network-review:ro"
+      ]
+    },
+    "ebay": {
+      "networks": {
+        "default": {},
+        "reviewed_ingest": {}
+      },
+      "volumes": [
+        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/ebay:/run/network-review:ro"
+      ]
+    },
+    "yes24": {
+      "networks": {
+        "default": {},
+        "reviewed_ingest": {}
+      },
+      "volumes": [
+        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/yes24:/run/network-review:ro"
+      ]
+    },
+    "url": {
+      "networks": {
+        "default": {},
+        "reviewed_ingest": {}
+      },
+      "volumes": [
+        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/url:/run/network-review:ro"
+      ]
+    },
+    "fleet": {
+      "networks": {
+        "default": {},
+        "reviewed_ingest": {}
+      },
+      "volumes": [
+        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/fleet:/run/network-review:ro"
+      ]
+    },
+    "public_feed": {
+      "networks": {
+        "default": {},
+        "reviewed_ingest": {}
+      },
+      "volumes": [
+        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/public_feed:/run/network-review:ro"
+      ]
+    }
+  },
+  "networks": {
+    "reviewed_ingest": {
+      "external": true,
+      "name": "${COLLECTOR_INTERNAL_NETWORK_NAME:-kkulpick-ingest-reviewed}"
+    }
+  }
+}

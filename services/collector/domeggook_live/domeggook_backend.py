@@ -69,7 +69,9 @@ class HTTPBackendTransport:
         if parsed.scheme!='https' and not loopback or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
             raise ValueError('approved_HTTPS_or_explicit_loopback_test_required')
         if not isinstance(token,str) or len(token)<32 or any(c in token for c in '\r\n'):raise ValueError('valid_collector_token_required')
+        from .network import secure_public_session
         self.base=base_url.rstrip('/');self.session=requests.Session();self.session.trust_env=False
+        if not loopback:secure_public_session(self.session)
         self.session.headers.update({'Authorization':'Bearer '+token,'Content-Type':'application/json'})
     def __call__(self,path,body):
         if not re.fullmatch(r'/internal/v2/crawl-runs/[0-9a-f-]{36}/observations',path):raise ValueError('fixed_observation_route_required')

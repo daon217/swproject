@@ -3,8 +3,12 @@ import argparse
 import logging
 import time
 
-import psycopg
-from psycopg.rows import dict_row
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:  # pragma: no cover - per-project unit CI runs without psycopg
+    psycopg = None
+    dict_row = None
 
 from . import embedding_config as config
 from .adapters.postgres import _vectors

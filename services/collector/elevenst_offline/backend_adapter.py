@@ -2,11 +2,38 @@
 import hashlib
 import json
 from decimal import Decimal
+import re
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from services.collector.domeggook_live.domeggook_backend import HTTPBackendTransport, safe_ack
 from services.collector.domeggook_live.domeggook_backend_contract import Observation
+
+ACK_FIELDS = {
+    "name", "description", "price", "currency", "shipping_fee", "availability", "url", "current_url", "condition",
+    "brand", "manufacturer", "category", "image_url", "image_urls", "seller_id", "seller_name",
+    "model_name", "model_number", "mpn", "gtin", "identifiers", "color", "size", "options", "variant_signature",
+    "ingredients_raw", "ingredients", "allergen_notice_raw", "cross_contact_raw", "allergens_declared", "evidence_status",
+}
+
+
+def safe_ack(value):
+    if not isinstance(value, dict):
+        return {}
+    result = {}
+    if value.get("state") in ("applied", "recorded", "quarantine"):
+        result["state"] = value["state"]
+    if value.get("change_kind") in ("created", "updated", "unchanged", "stale", "failed", "not_found", "quarantined"):
+        result["change_kind"] = value["change_kind"]
+    for key in ("offer_id", "observation_id", "extension_id"):
+        try:
+            result[key] = str(UUID(str(value[key])))
+        except (KeyError, ValueError, TypeError, AttributeError):
+            pass
+    if isinstance(value.get("error_code"), str) and re.fullmatch(r"[A-Z0-9_]{1,80}", value["error_code"]):
+        result["error_code"] = value["error_code"]
+    if isinstance(value.get("changed_fields"), list):
+        result["changed_fields"] = [k for k in value["changed_fields"] if k in ACK_FIELDS]
+    return result
 
 
 def _resolve_variant(row):
@@ -115,7 +142,7 @@ def prepare_elevenst_extension(row, cfg, *, matching_profile=None, food_evidence
 
 
 class ElevenstBackendAdapter:
-    def __init__(self, cfg, transport: HTTPBackendTransport | None = None):
+    def __init__(self, cfg, transport=None):
         self.cfg = cfg
         self.transport = transport
 
@@ -139,6 +166,7 @@ class ElevenstBackendAdapter:
             row, self.cfg, selected_domain=selected_domain, condition=condition, availability=availability
         )
         status, ack = self.transport(f"/internal/v2/crawl-runs/{rid}/observations", obs)
+        ack = safe_ack(ack)
         result = {
             "sent": status in (200, 201) and "state" in ack,
             "status": status,
@@ -152,6 +180,7 @@ class ElevenstBackendAdapter:
         except ValueError:
             return result
         ext_status, ext_ack = self.transport(f"/internal/v2/crawl-runs/{rid}/extensions", ext)
+        ext_ack = safe_ack(ext_ack)
         result["extension_status"] = ext_status
         result["extension_applied"] = ext_ack.get("state") == "applied"
         result["extension_id"] = ext_ack.get("extension_id")

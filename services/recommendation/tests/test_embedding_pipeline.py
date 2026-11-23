@@ -193,9 +193,9 @@ def test_domains_availability_and_missing_food_ingredients(db):
     safe_item, safe_food, _ = seed(conn,source,name='현미 쌀 쿠키',kind='food')
     milk_item, milk_food, _ = seed(conn,source,name='버터 우유 쿠키',kind='food')
     conn.execute(
-        """UPDATE app.foods SET ingredients_raw='현미 98%, 천일염 2%',
+        """UPDATE app.foods SET ingredients_raw=%s,
            ingredients='["현미","천일염"]'::jsonb, evidence_status='reported' WHERE item_id=%s""",
-        (safe_item,),
+        ('현미 98%, 천일염 2%', safe_item),
     )
     conn.execute(
         """UPDATE app.foods SET ingredients_raw='밀가루, 우유, 버터',

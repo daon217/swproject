@@ -1,4 +1,4 @@
-"""Compose-scoped internal HTTP policy. Legacy review CLI is optional and not used by delivery."""
+"""Legacy network-review utilities. Current backend delivery does not use InternalPolicy or this CLI."""
 import argparse
 from datetime import datetime,timezone,timedelta
 import ipaddress,json,os,re,socket,stat,struct,sys,tempfile

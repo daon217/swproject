@@ -47,14 +47,7 @@
     "internal_ingest": {
       "name": "${COLLECTOR_INTERNAL_NETWORK_NAME:-kkulpick-collector-ingest}",
       "driver": "bridge",
-      "internal": true,
-      "ipam": {
-        "config": [
-          {
-            "subnet": "${COLLECTOR_INTERNAL_SUBNET:-172.30.240.0/24}"
-          }
-        ]
-      }
+      "internal": true
     }
   }
 }

@@ -33,36 +33,36 @@ class NetworkPolicyTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.file=self.root/'review.json'
         self.env={'COLLECTOR_BACKEND_TRANSPORT':'internal_http','COLLECTOR_BACKEND_BASE_URL':BASE,
-            'COLLECTOR_INTERNAL_SUBNET':'172.30.42.0/24','COLLECTOR_DELIVERY_APPROVED':'yes','KKULPICK_BACKEND_TOKEN':TOKEN}
+            'COLLECTOR_DELIVERY_APPROVED':'yes','KKULPICK_BACKEND_TOKEN':TOKEN}
         self.stack=__import__('contextlib').ExitStack();self.stack.enter_context(patch.dict(os.environ,self.env,clear=True))
-        self.stack.enter_context(patch('services.collector.collector_ops.internal_network.socket.getaddrinfo',return_value=dns()))
-        self.stack.enter_context(patch('services.collector.collector_ops.container_route.docker_dns_service'))
-        self.route=self.stack.enter_context(patch('services.collector.collector_ops.container_route.connected_endpoint',return_value=('172.30.42.3','eth1')))
     def tearDown(self):self.stack.close();self.temp.cleanup()
-    def test_explicit_Compose_internal_origin_allowed_without_review_file(self):
-        p=InternalPolicy(BASE);self.assertEqual(p.check(),('172.30.42.2','172.30.42.3'));self.route.assert_called();self.assertFalse(self.file.exists())
-    def test_explicit_origin_subnet_and_existing_delivery_activation_required(self):
-        for name in ('COLLECTOR_BACKEND_TRANSPORT','COLLECTOR_BACKEND_BASE_URL','COLLECTOR_INTERNAL_SUBNET','COLLECTOR_DELIVERY_APPROVED'):
-            with self.subTest(name=name),patch.dict(os.environ,{name:''}),self.assertRaises(ValueError):InternalPolicy(BASE)
-    def test_private_IP_loopback_public_IP_and_other_service_not_automatically_allowed(self):
-        for base in ('http://172.30.42.2:8000','http://127.0.0.1:8000','http://localhost:8000','http://8.8.8.8:8000','http://other-api:8000','http://ingest-api:80','http://ingest-api','http://user:pass@ingest-api:8000','http://ingest-api:8000/?token=secret'):
-            with self.subTest(base=base),self.assertRaises(ValueError):InternalPolicy(base)
+    def test_explicit_origin_allowed_without_any_network_preflight(self):
+        with patch('socket.getaddrinfo',side_effect=AssertionError('no DNS preflight')):
+            tx=RoutedBackend(BASE,TOKEN,now);tx.close()
+        self.assertFalse(self.file.exists())
+    def test_missing_configuration_never_enables_HTTP(self):
+        for name in ('COLLECTOR_BACKEND_TRANSPORT','COLLECTOR_BACKEND_BASE_URL','COLLECTOR_DELIVERY_APPROVED'):
+            with self.subTest(name=name),patch.dict(os.environ,{name:''}),self.assertRaises(ValueError):RoutedBackend(BASE,TOKEN,now)
+    def test_only_configured_origin_allowed(self):
+        for base in ('http://172.30.42.2:8000','http://127.0.0.1:8000','http://localhost:8000','http://8.8.8.8:8000','http://other-api:8000','http://ingest-api:80','http://user:pass@ingest-api:8000','http://ingest-api:8000/?token=secret'):
+            with self.subTest(base=base),self.assertRaises(ValueError):RoutedBackend(base,TOKEN,now)
     def test_obsolete_approval_variables_are_not_read_or_required(self):
-        with patch.dict(os.environ,{'COLLECTOR_INTERNAL_HTTP_APPROVED':'no','COLLECTOR_INTERNAL_NETWORK_ID':'old-id','COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE':str(self.file)}),patch('pathlib.Path.read_text',side_effect=AssertionError('approval files forbidden')):
-            self.assertEqual(InternalPolicy(BASE).check(),('172.30.42.2','172.30.42.3'))
-    def test_unbounded_or_public_subnet_rejected(self):
-        for subnet in ('0.0.0.0/0','10.0.0.0/8','8.8.8.0/24','127.0.0.0/24','169.254.0.0/16','172.30.42.1/24','::/64'):
-            with self.subTest(subnet=subnet),patch.dict(os.environ,{'COLLECTOR_INTERNAL_SUBNET':subnet}),self.assertRaises(ValueError):InternalPolicy(BASE)
-    def test_DNS_public_outside_subnet_and_mixed_answers_rejected(self):
-        p=InternalPolicy(BASE)
-        for answers in (dns('8.8.8.8'),dns('127.0.0.1'),dns('169.254.169.254'),dns('172.31.0.2'),dns()+dns('172.30.42.9')):
-            with self.subTest(answers=answers),patch('socket.getaddrinfo',return_value=answers),self.assertRaises(ValueError):p.check()
-    def test_gateway_route_is_not_accepted(self):
-        self.route.side_effect=ValueError('gateway_route')
-        with self.assertRaises(ValueError):InternalPolicy(BASE).check()
-    def test_recreated_service_IP_in_same_network_needs_no_manual_approval(self):
-        p=InternalPolicy(BASE);p.check()
-        with patch('socket.getaddrinfo',return_value=dns('172.30.42.9')):self.assertEqual(p.check(),('172.30.42.9','172.30.42.3'))
+        with patch.dict(os.environ,{'COLLECTOR_INTERNAL_HTTP_APPROVED':'no','COLLECTOR_INTERNAL_NETWORK_ID':'old-id','COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE':str(self.file)}),patch('pathlib.Path.read_text',side_effect=AssertionError('no approval files')):
+            tx=RoutedBackend(BASE,TOKEN,now);tx.close()
+    def test_arbitrary_subnet_settings_are_irrelevant(self):
+        for subnet in ('','invalid','0.0.0.0/0','8.8.8.0/24','::/64'):
+            with self.subTest(subnet=subnet),patch.dict(os.environ,{'COLLECTOR_INTERNAL_SUBNET':subnet}):
+                tx=RoutedBackend(BASE,TOKEN,now);tx.close()
+    def test_configured_IP_FQDN_loopback_and_default_port_supported(self):
+        for base in ('http://192.168.1.40:8000','http://nas.example.test:8100','http://127.0.0.1:8000','http://localhost:8000','http://api','http://[::1]:8000'):
+            with self.subTest(base=base),patch.dict(os.environ,{'COLLECTOR_BACKEND_BASE_URL':base}):
+                tx=RoutedBackend(base,TOKEN,now);self.assertEqual(tx.base,base);tx.close()
+    def test_Docker_driver_or_route_is_not_a_delivery_condition(self):
+        with patch('services.collector.collector_ops.internal_network.InternalPolicy',side_effect=AssertionError('no InternalPolicy')),patch('services.collector.collector_ops.container_route.connected_endpoint',side_effect=AssertionError('no veth checks')):
+            tx=RoutedBackend(BASE,TOKEN,now);tx.close()
+    def test_invalid_HTTP_URL_configuration_rejected(self):
+        for base in ('http://user:secret@api:8000','http://api:8000?token=x','http://api:8000/prefix','http://api:70000','https://api:8000'):
+            with self.subTest(base=base),patch.dict(os.environ,{'COLLECTOR_BACKEND_BASE_URL':base}),self.assertRaises(ValueError):RoutedBackend(base,TOKEN,now)
     def test_origin_and_route_cannot_leak_backend_token(self):
         tx=RoutedBackend(BASE,TOKEN,now)
         try:
@@ -74,7 +74,7 @@ class NetworkPolicyTests(unittest.TestCase):
     def test_configuration_violation_returns_hold_without_connect_or_sensitive_output(self):
         tx=RoutedBackend(BASE,TOKEN,now)
         try:
-            with patch.dict(os.environ,{'COLLECTOR_INTERNAL_SUBNET':'172.31.0.0/24'}),patch.object(tx.session,'post') as send:
+            with patch.dict(os.environ,{'COLLECTOR_BACKEND_BASE_URL':'http://other-api:8000'}),patch.object(tx.session,'post') as send:
                 result=tx(PATH,{});self.assertEqual(result,(403,{}));send.assert_not_called();self.assertNotIn(TOKEN,str(result))
         finally:tx.close()
     def test_retries_after_same_body_and_ACK_sanitization(self):

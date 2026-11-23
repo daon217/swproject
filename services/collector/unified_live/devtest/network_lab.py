@@ -25,7 +25,7 @@ def server():
             counters['auth_rejections']+=1;save();raise HTTPException(401)
         body=await request.json()
         if str(body.get('observation_key','')).endswith(':redirect'):
-            counters['redirects']+=1;save();return JSONResponse({},status_code=302,headers={'Location':'http://8.8.8.8:9000/forbidden'})
+            counters['redirects']+=1;save();return JSONResponse({},status_code=302,headers={'Location':'http://canary:9000/forbidden'})
         if not failed:
             failed=True;counters['forced_503']+=1;save();return JSONResponse({},status_code=503,headers={'Retry-After':'1'})
         code,ack=store.receive(body);return JSONResponse(ack,status_code=code)
@@ -61,6 +61,12 @@ def client():
         assert all(e['status']=='delivered' for e in box.state['entries'].values())
         redirect=copy.deepcopy(changed['observation']);redirect['observation_key']+=':redirect'
         assert box.transport(route,redirect)==(302,{})
+        import requests
+        direct_redirect_blocked=False
+        try:box.transport.session.post(box.transport.base+route,json=redirect,allow_redirects=True,timeout=(5,15))
+        except requests.exceptions.InvalidURL:direct_redirect_blocked=True
+        assert direct_redirect_blocked
+
         denied=False
         try:RoutedBackend('http://8.8.8.8:8000',os.environ['KKULPICK_BACKEND_TOKEN'],lambda:clock[0])
         except ValueError:denied=True
@@ -69,7 +75,7 @@ def client():
         print(json.dumps({'synthetic_only':True,'real_internal_HTTP_fastapi':True,'first_failure_503_retried':True,
             'new_events':gate.data['totals'].get('new'),'changed_events':gate.data['totals'].get('updated'),
             'unchanged_skipped':gate.data['totals'].get('unchanged'),'queue_HTTP_attempts':box.state['totals']['HTTP_attempts'],
-            'direct_idempotent_replay_verified':True,'redirect_not_followed':True,'public_IP_HTTP_blocked':denied,
+            'direct_idempotent_replay_verified':True,'cross_origin_redirect_blocked_even_if_follow_requested':direct_redirect_blocked,'redirect_not_followed':True,'unconfigured_origin_blocked':denied,
             'approval_file_required':False,'approval_file_present':path.exists(),'supplier_HTTP_requests':0,'production_DB_writes':0,'NAS_changed':False}))
     finally:gate.close()
 

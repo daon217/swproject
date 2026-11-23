@@ -47,21 +47,21 @@ class KernelNetworkTests(unittest.TestCase):
         with patch('pathlib.Path.read_text',autospec=True,side_effect=override),self.assertRaises(ValueError):route.docker_dns_service('ingest-api')
 
 class AutomaticDeliveryTests(unittest.TestCase):
-    def test_old_approval_files_are_irrelevant(self):
-        with patch.dict(os.environ,ENV,clear=True),patch('services.collector.collector_ops.container_route.docker_dns_service'),patch('socket.getaddrinfo',return_value=dns()),patch.object(route,'connected_endpoint',return_value=('172.30.42.3','eth1')):
-            self.assertEqual(InternalPolicy(BASE).check(),('172.30.42.2','172.30.42.3'))
-    def test_pool_is_cleared_when_service_IP_changes(self):
-        p=Mock();p.check.side_effect=[('172.30.42.2','172.30.42.3'),('172.30.42.9','172.30.42.3')]
-        adapter=InternalHTTPAdapter(p,BASE);prepared=requests.Request('POST',BASE+PATH,json={}).prepare()
-        with patch.object(adapter.poolmanager,'clear') as clear,patch('requests.adapters.HTTPAdapter.send',return_value=Mock()):
-            adapter.send(prepared);adapter.send(prepared);clear.assert_called_once()
-        adapter.close()
-    def test_DNS_not_ready_is_retryable_and_does_not_send_a_token(self):
-        with patch.dict(os.environ,ENV,clear=True),patch.object(route,'docker_dns_service'),patch.object(route,'connected_endpoint',return_value=('172.30.42.3','eth1')):
+    def test_no_topology_or_approval_data_required(self):
+        with patch.dict(os.environ,ENV,clear=True),patch('services.collector.collector_ops.internal_network.InternalPolicy',side_effect=AssertionError('not used')):
+            tx=RoutedBackend(BASE,TOKEN,now);tx.close()
+    def test_standard_HTTP_pool_without_source_bind_or_DNS_guard(self):
+        adapter=InternalHTTPAdapter(BASE)
+        try:
+            pool=adapter.poolmanager.connection_from_url(BASE)
+            conn=pool.ConnectionCls('ingest-api',port=8000)
+            self.assertIsNone(conn.source_address);self.assertEqual(conn.debuglevel,0)
+        finally:adapter.close()
+    def test_standard_network_failure_is_retried_without_a_preflight_hold(self):
+        with patch.dict(os.environ,ENV,clear=True):
             tx=RoutedBackend(BASE,TOKEN,now)
             try:
-                with patch('socket.getaddrinfo',side_effect=socket.gaierror('not ready')),patch.object(tx.session,'post') as post:
-                    self.assertEqual(tx(PATH,{}),(503,{}));post.assert_not_called()
+                with patch.object(tx.session,'post',side_effect=requests.ConnectionError('SYNTHETIC network failure')):self.assertEqual(tx(PATH,{}),(0,{}))
                 response=Mock(status_code=201);response.json.return_value={'state':'applied','change_kind':'created'}
-                with patch('socket.getaddrinfo',return_value=dns()),patch.object(tx.session,'post',return_value=response):self.assertEqual(tx(PATH,{})[0],201)
+                with patch.object(tx.session,'post',return_value=response):self.assertEqual(tx(PATH,{})[0],201)
             finally:tx.close()

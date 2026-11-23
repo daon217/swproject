@@ -90,6 +90,6 @@ render_javascript=true는 선택적 Playwright Chromium transport다. stealth/�
 
 최신 실제 검증/운영 명령은 [MASTER_GUIDE.md](MASTER_GUIDE.md), 공급자별 상태는 [MASTER_API_STATUS.md](MASTER_API_STATUS.md), 팀 계약은 [MASTER_CONTRACT.md](MASTER_CONTRACT.md)를 참조한다. 이전 조사·검증 기록과 현재 live 결과를 구분한다.
 
-## 파일 없는 NAS 내부 HTTP 설정
+## 일반 HTTP 백엔드 전송
 
-현재 내부 HTTP는 [INTERNAL_HTTP.md](INTERNAL_HTTP.md)의 Compose 서비스/포트/서브넷 및 kernel 경로 검증을 사용한다. 이전6df7d22의 승인 파일·컨테이너 ID·5분 갱신 절차는 더 이상 필요하지 않다. 외부 수집 HTTPS 정책은 유지한다.
+현재 internal_http는 [INTERNAL_HTTP.md](INTERNAL_HTTP.md)의 명시적 URL로 일반 HTTP를 전송한다. Docker DNS/veth/서브넷/컨테이너/승인 파일 검사는 전송 경로에서 제거했다. 외부 상품 수집의 HTTPS 보안 정책과 기존 전송 스위치·인증·Outbox는 유지한다.

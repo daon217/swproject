@@ -5,6 +5,7 @@ from services.collector.marketplace_live.delivery import Outbox,RetryAwareBacken
 
 
 def configure_CA(transport):
+    if getattr(transport,'internal_http',False) is True:return transport  # HTTP has no CA/deployment file dependency.
     path=os.environ.get('COLLECTOR_CA_FILE')
     if path:
         if not Path(path).is_file():raise ValueError('trusted_CA_file_required')

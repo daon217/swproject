@@ -1,17 +1,14 @@
 """Backend-only routing. Internal HTTP never shares external collection transport policy."""
-import os,re,socket
+import os,re
 from urllib.parse import urlsplit
 import requests
 from requests.adapters import HTTPAdapter
 from requests.exceptions import InvalidURL
 from urllib3.connection import HTTPConnection
 from urllib3.connectionpool import HTTPConnectionPool
-from urllib3.exceptions import NewConnectionError
-from urllib3.util.connection import create_connection
 from services.collector.domeggook_live.network import PublicHTTPSAdapter,DenyHTTPAdapter
 from services.collector.marketplace_live.delivery import RetryAwareBackend
 from services.collector.marketplace_live.http import retry_after
-from .internal_network import InternalPolicy
 
 ROUTE=re.compile(r'/internal/v2/crawl-runs/[0-9a-f-]{36}/observations')
 
@@ -28,49 +25,55 @@ class OriginHTTPSAdapter(PublicHTTPSAdapter):
         return super().send(request,**kwargs)
 
 
+def configured_http_origin():
+    """The administrator's URL is the backend authority; no topology discovery or approval."""
+    value=os.environ.get('COLLECTOR_BACKEND_BASE_URL','')
+    if os.environ.get('COLLECTOR_BACKEND_TRANSPORT')!='internal_http' or os.environ.get('COLLECTOR_DELIVERY_APPROVED')!='yes' or not value:
+        raise InvalidURL('explicit_HTTP_backend_and_enabled_delivery_required')
+    if not isinstance(value,str) or any(ord(c)<33 for c in value) or '\\' in value:raise InvalidURL('valid_backend_origin_required')
+    p=urlsplit(value)
+    if p.scheme!='http' or not p.hostname or p.username or p.password or p.query or p.fragment or p.path not in ('','/'):
+        raise InvalidURL('HTTP_backend_origin_only_required')
+    p.port  # Validate a supplied port, without forcing a particular port or network.
+    return requests.Request('POST',value).prepare().url.rstrip('/')
+
+
 class InternalHTTPAdapter(HTTPAdapter):
-    def __init__(self,policy,origin):self.policy=policy;self.origin=origin;self.endpoint=None;super().__init__(max_retries=0)
+    """Ordinary HTTP connection with exact-origin/route and credential forwarding guards."""
+    def __init__(self,origin):self.origin=origin;super().__init__(max_retries=0)
     def init_poolmanager(self,*args,**kwargs):
-        policy=self.policy
-        class PinnedInternalConnection(HTTPConnection):
-            def _new_conn(self):
-                try:
-                    destination,source=policy.check()
-                    if self.host!=policy.host or self.port!=policy.port:raise ValueError('internal_origin_mismatch')
-                    sock=create_connection((destination,self.port),timeout=self.timeout,source_address=(source,0),socket_options=self.socket_options)
-                    if sock.getpeername()[0]!=destination or sock.getsockname()[0]!=source:
-                        sock.close();raise ValueError('internal_peer_or_source_mismatch')
-                    self.debuglevel=0;return sock
-                except (OSError,ValueError,KeyError):raise NewConnectionError(self,'reviewed_internal_connection_blocked_or_failed') from None
-        class InternalPool(HTTPConnectionPool):ConnectionCls=PinnedInternalConnection
+        class QuietHTTPConnection(HTTPConnection):
+            def __init__(self,*args,**kwargs):
+                super().__init__(*args,**kwargs);self.debuglevel=0
+        class BackendHTTPPool(HTTPConnectionPool):ConnectionCls=QuietHTTPConnection
         super().init_poolmanager(*args,**kwargs)
-        self.poolmanager.pool_classes_by_scheme=dict(self.poolmanager.pool_classes_by_scheme,http=InternalPool)
+        self.poolmanager.pool_classes_by_scheme=dict(self.poolmanager.pool_classes_by_scheme,http=BackendHTTPPool)
     def proxy_manager_for(self,*args,**kwargs):raise InvalidURL('backend_proxy_forbidden')
     def send(self,request,**kwargs):
         origin_check(request.url,self.origin)
+        if configured_http_origin()!=self.origin:raise InvalidURL('backend_configuration_changed')
         if kwargs.get('proxies'):raise InvalidURL('backend_proxy_forbidden')
-        endpoint=self.policy.check()
-        if self.endpoint is not None and self.endpoint!=endpoint:self.poolmanager.clear()
-        self.endpoint=endpoint  # Never reuse a connection to an old service IP after recreation.
         return super().send(request,**kwargs)
 
 
 class RoutedBackend(RetryAwareBackend):
     def __init__(self,base_url,token,clock):
         mode=os.environ.get('COLLECTOR_BACKEND_TRANSPORT','https');p=urlsplit(base_url)
-        self.policy=None
+        self.internal_http=False
         if p.path not in ('','/') or p.query or p.fragment or p.username or p.password:raise ValueError('backend_origin_only_required')
         if mode=='https' and p.scheme=='https' and p.port in (None,443):
             super().__init__(base_url,token,clock)
             self.session.mount('https://',OriginHTTPSAdapter(self.base))
             self.session.mount('http://',DenyHTTPAdapter(max_retries=0))
         elif mode=='internal_http' and p.scheme=='http':
-            self.policy=InternalPolicy(base_url)
+            configured=configured_http_origin()
+            if requests.Request('POST',base_url).prepare().url.rstrip('/')!=configured:raise ValueError('only_configured_backend_origin_allowed')
+            self.internal_http=True
             if not isinstance(token,str) or len(token)<32 or any(not 33<=ord(c)<=126 for c in token):raise ValueError('valid_backend_token_required')
-            self.base=base_url.rstrip('/');self.clock=clock;self.retry_not_before=None
+            self.base=configured;self.clock=clock;self.retry_not_before=None
             self.session=requests.Session();self.session.trust_env=False
             self.session.headers.update({'Authorization':'Bearer '+token,'Content-Type':'application/json'})
-            self.session.mount('http://',InternalHTTPAdapter(self.policy,self.base))
+            self.session.mount('http://',InternalHTTPAdapter(self.base))
             self.session.mount('https://',DenyHTTPAdapter(max_retries=0))
             def observe(response,*_,**__):
                 if response.status_code in (429,503) and response.headers.get('Retry-After'):
@@ -79,10 +82,10 @@ class RoutedBackend(RetryAwareBackend):
         else:raise ValueError('backend_transport_mode_or_scheme_not_approved')
     def __call__(self,path,body):
         if os.environ.get('COLLECTOR_DELIVERY_APPROVED')!='yes':return 403,{}
-        if self.policy:
-            try:self.policy.check()
-            except socket.gaierror:return 503,{}  # Service startup/recreation: retry without sending token/body.
-            except Exception:return 403,{}  # Configuration/path violation: retain existing hold semantics.
+        if self.internal_http:
+            try:
+                if configured_http_origin()!=self.base:return 403,{}
+            except (ValueError,requests.RequestException):return 403,{}
         return super().__call__(path,body)
 
 

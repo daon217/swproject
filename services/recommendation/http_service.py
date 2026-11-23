@@ -2,7 +2,12 @@
 import os
 import secrets
 from contextlib import asynccontextmanager
-import psycopg
+try:
+    import psycopg
+    PG_ERRORS = (psycopg.Error,)
+except ImportError:  # pragma: no cover - per-project unit CI runs without psycopg
+    psycopg = None
+    PG_ERRORS = ()
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
@@ -50,7 +55,7 @@ def health():
             for kind in ('product', 'food'):
                 config.validate(conn, kind)
         config.embedder()
-    except (psycopg.Error, ValueError, KeyError, OSError) as error:
+    except PG_ERRORS + (ValueError, KeyError, OSError) as error:
         raise HTTPException(503, 'EMBEDDING_DEPENDENCY_UNAVAILABLE') from error
     return {'status':'ok','service':'recommendation','implementation':'team-pipeline',
             'business_ready':os.getenv('RECO_EMBEDDER','st') != 'hash',
@@ -83,7 +88,7 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
         if ing:
             match['ingredients']=ing
         return {'match':match}
-    except psycopg.Error as error:
+    except PG_ERRORS + (OSError,) as error:
         raise HTTPException(503,'CATALOG_UNAVAILABLE') from error
 
 @app.post('/internal/process')
@@ -121,7 +126,7 @@ def process(body:Input,authorization:str=Header(default='')):
         return {'offer_ids':[ids[p.product_id] for p in result.picks if p.product_id in ids],
                 'reasons':{ids[p.product_id]:p.reason for p in result.picks if p.product_id in ids},
                 'ranker':result.ranker,'selected_domain':body.selected_domain,'warnings':warnings}
-    except (psycopg.Error, KeyError, OSError) as error:
+    except PG_ERRORS + (KeyError, OSError) as error:
         raise HTTPException(503,'RECOMMENDATION_DEPENDENCY_UNAVAILABLE') from error
     except (ValueError,KeyError,ContractError) as error:
         raise HTTPException(422,'INVALID_RECOMMENDATION_INPUT') from error

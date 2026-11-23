@@ -11,6 +11,13 @@ if role not in ('vision', 'recommendation', 'collector'):
     raise SystemExit('Unknown adapter')
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ['WORKSPACE_TOKEN'] = 'test-only-' + 'a' * 64
+if role == 'recommendation' and 'CATALOG_PASSWORD' not in os.environ:
+    from contextlib import nullcontext
+    from services.recommendation import embedding_config as config
+    from services.recommendation.embedders import HashEmbedder
+    config.connect = lambda role='app': nullcontext(None)
+    config.validate = lambda conn, kind: 'adapter-check'
+    config.embedder = lambda: HashEmbedder()
 app = importlib.import_module(f'services.{role}.devapp').app
 with TestClient(app) as client:
     health = client.get('/health').json()

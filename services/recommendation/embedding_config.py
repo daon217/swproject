@@ -6,7 +6,10 @@ import json
 import os
 import re
 
-import psycopg
+try:
+    import psycopg
+except ImportError:  # pragma: no cover - per-project unit CI runs without psycopg
+    psycopg = None
 
 from .adapters.postgres import _vectors
 from .embedders import HashEmbedder, SentenceTransformerEmbedder
@@ -55,6 +58,8 @@ def embedder():
 def connect(role='app'):
     if role not in ('app', 'owner'):
         raise ValueError('invalid database role')
+    if psycopg is None:
+        raise OSError('psycopg is not installed')
     return psycopg.connect(host=os.getenv('DB_HOST', '127.0.0.1'), port=os.getenv('DB_PORT', '5433'),
         dbname='kkulpick_catalog', user='kkulpick_catalog_' + role,
         password=os.environ['CATALOG_PASSWORD'], autocommit=True, connect_timeout=5)

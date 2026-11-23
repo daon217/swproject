@@ -153,6 +153,103 @@ def test_omitted_condition_preserves_used(catalog):
     assert current()['condition'] == 'used'
 
 
+def test_listing_extension_matching_and_food_evidence(catalog):
+    api, post, _, _, source, _, base, start, path, headers = catalog
+    first_id = post(0).json()['offer_id']
+    second_id = post(5, dict(source_listing_id='stable-2', variant_key='sku-1', condition='used', price='9500')).json()['offer_id']
+    conflict_id = post(5, dict(source_listing_id='stable-3', variant_key='sku-1', price='9000')).json()['offer_id']
+    food_id = post(5, dict(source_listing_id='food-1', variant_key='default', selected_domain='food', name='유기농 현미 스낵')).json()['offer_id']
+
+    ext_path = path.replace('/observations', '/extensions')
+    ext_body = {
+        'schema_version': 'listing-matching-extension-v1',
+        'source': source,
+        'source_listing_id': 'stable-1',
+        'variant_key': 'sku-1',
+        'observation_key': 'ext-stable-1',
+        'observed_at': (start + timedelta(seconds=10)).isoformat(),
+        'matching_profile': {
+            'brand': '꿀픽테크',
+            'model_name': '주전자 프로',
+            'model_number': 'KP-1000',
+            'mpn': 'KP-1000-BLUE',
+            'gtin': '8801043014809',
+            'image_url': 'https://store.example.test/images/kettle.jpg',
+            'color': 'blue',
+            'options': {'capacity': '1L'},
+            'seller_name': '공식스토어',
+        },
+    }
+    r1 = api.post(ext_path, json=ext_body, headers=headers)
+    assert r1.status_code == 201 and r1.json()['state'] == 'applied', r1.text
+    # Idempotent replay
+    assert api.post(ext_path, json=ext_body, headers=headers).status_code == 200
+    # Payload conflict on same observation_key
+    assert api.post(ext_path, json=ext_body | {'is_synthetic': True}, headers=headers).status_code == 409
+    # Stale extension does not overwrite newer metadata
+    stale = ext_body | {
+        'observation_key': 'ext-stale',
+        'observed_at': (start + timedelta(seconds=1)).isoformat(),
+        'matching_profile': {'brand': '과거브랜드'},
+    }
+    assert api.post(ext_path, json=stale, headers=headers).json()['change_kind'] == 'stale'
+
+    # Second offer matches exact brand + model_number + GTIN (used condition)
+    ext2 = ext_body | {
+        'source_listing_id': 'stable-2',
+        'observation_key': 'ext-stable-2',
+    }
+    assert api.post(ext_path, json=ext2, headers=headers).status_code == 201
+
+    # Third offer has conflicting color option
+    ext3 = ext_body | {
+        'source_listing_id': 'stable-3',
+        'observation_key': 'ext-stable-3',
+        'matching_profile': ext_body['matching_profile'] | {'color': 'red'},
+    }
+    assert api.post(ext_path, json=ext3, headers=headers).status_code == 201
+
+    matches = api.get(f'/v2/offers/{first_id}/matches?include_used=true').json()
+    exact_ids = [c['offer_id'] for c in matches['exact_candidates']]
+    assert second_id in exact_ids and conflict_id not in exact_ids
+    assert api.get(f'/v2/offers/{first_id}/matches?include_used=false').json()['exact_candidates'] == []
+
+    # Food evidence on product domain is quarantined
+    bad_domain = {
+        'schema_version': 'food-evidence-v1',
+        'source': source,
+        'source_listing_id': 'stable-1',
+        'variant_key': 'sku-1',
+        'observation_key': 'ext-domain-conflict',
+        'observed_at': (start + timedelta(seconds=15)).isoformat(),
+        'food_evidence': {'ingredients': ['현미', '소금']},
+    }
+    assert api.post(ext_path, json=bad_domain, headers=headers).json()['error_code'] == 'DOMAIN_CONFLICT'
+
+    # Food evidence on food domain persists ingredients and allergen declarations
+    food_ext = {
+        'schema_version': 'food-evidence-v1',
+        'source': source,
+        'source_listing_id': 'food-1',
+        'variant_key': 'default',
+        'observation_key': 'ext-food-1',
+        'observed_at': (start + timedelta(seconds=15)).isoformat(),
+        'food_evidence': {
+            'ingredients_raw': '유기농 현미 98%, 천일염 2%',
+            'ingredients': ['유기농 현미', '천일염'],
+            'allergen_notice_raw': '대두 함유',
+            'allergens_declared': ['soy'],
+            'evidence_status': 'reported',
+        },
+    }
+    rf = api.post('/internal/v2/listing-extensions', json=food_ext, headers=headers)
+    assert rf.status_code == 201 and rf.json()['offer_id'] == food_id
+    food_items = api.get(f'/v2/offers?selected_domain=food&source={source}').json()['items']
+    assert len(food_items) == 1
+    assert food_items[0]['ingredients'] == ['유기농 현미', '천일염']
+    assert food_items[0]['allergens_declared'] == ['soy']
+
+
 def test_uploaded_300_import_and_replay(monkeypatch):
     path = os.getenv('CATALOG_REAL_DATA')
     if not path:

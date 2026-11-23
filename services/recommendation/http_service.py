@@ -68,12 +68,21 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
     authorize(authorization)
     try:
         with config.connect() as conn:
-            row=conn.execute('''SELECT i.name,o.kind FROM app.offers o
+            row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw
+                FROM app.offers o
                 JOIN app.catalog_items i USING(item_id)
+                LEFT JOIN app.foods f USING(item_id)
                 WHERE o.current_url=%s AND (%s::text IS NULL OR o.kind=%s)
                 ORDER BY (o.availability='available') DESC,o.offer_id LIMIT 1''',
                 (body.page_url,body.selected_domain,body.selected_domain)).fetchone()
-        return {'match':{'name':row[0],'kind':row[1]} if row else None}
+        if not row:
+            return {'match':None}
+        from .allergens import split_ingredients
+        ing=[str(x) for x in (row[2] or []) if str(x).strip()] or split_ingredients(row[3])
+        match={'name':row[0],'kind':row[1]}
+        if ing:
+            match['ingredients']=ing
+        return {'match':match}
     except psycopg.Error as error:
         raise HTTPException(503,'CATALOG_UNAVAILABLE') from error
 

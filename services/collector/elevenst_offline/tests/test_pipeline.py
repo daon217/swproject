@@ -222,3 +222,49 @@ def test_common_contract_compatible_with_domeggook_validator():
     row = parse_listing(payload(), T0)[0][0]
     normalized = normalize(row, source='elevenst')
     assert normalized['product_id'] == 'fixture-1' and normalized['variant_key'] == 'OPT-1'
+
+
+def test_elevenst_backend_adapter_delivers_observation_and_extension():
+    from unittest.mock import Mock
+    from ..backend_adapter import ElevenstBackendAdapter, prepare_elevenst_extension, prepare_elevenst_observation
+
+    row = parse_listing(payload([item(brandName='11번가브랜드')]), T0)[0][0]
+    row.update(
+        source='elevenst_test',
+        product_url='https://store.example.test/products/fixture-1',
+        image_url='https://store.example.test/images/fixture-1.jpg',
+    )
+    cfg = {
+        'backend_enabled': True,
+        'backend_owner_approved': True,
+        'price_semantics_confirmed': True,
+        'backend_delivery': {
+            'mode': 'synthetic_test',
+            'allowed_product_hosts': ['store.example.test'],
+            'currencies': ['KRW'],
+        },
+    }
+    obs = prepare_elevenst_observation(row, cfg, selected_domain='product', condition='new')
+    assert obs['schema_version'] == 2 and obs['price'] == '1234' and obs['variant_key'] == 'OPT-1'
+    ext = prepare_elevenst_extension(
+        row,
+        cfg,
+        matching_profile={'model_number': '11ST-MODEL-1', 'gtin': '8801043014809'},
+    )
+    assert ext['schema_version'] == 'listing-matching-extension-v1'
+    assert ext['matching_profile']['brand'] == '11번가브랜드'
+    assert ext['matching_profile']['seller_name'] == 'Synthetic shop'
+    assert ext['matching_profile']['model_number'] == '11ST-MODEL-1'
+
+    tx = Mock(
+        side_effect=[
+            (201, {'state': 'applied', 'change_kind': 'created', 'offer_id': '00000000-0000-0000-0000-000000000011'}),
+            (201, {'state': 'applied', 'change_kind': 'updated', 'extension_id': '00000000-0000-0000-0000-000000000022'}),
+        ]
+    )
+    adapter = ElevenstBackendAdapter(cfg, tx)
+    res = adapter.send('00000000-0000-0000-0000-000000000001', row, selected_domain='product', condition='new')
+    assert res['applied'] is True and res['extension_applied'] is True
+    assert tx.call_count == 2
+    assert tx.call_args_list[0].args[0].endswith('/observations')
+    assert tx.call_args_list[1].args[0].endswith('/extensions')

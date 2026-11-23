@@ -32,9 +32,13 @@ def _source_code(s: str) -> str:
 def _common(d: dict[str, Any], *, source: str, listing: str, url: str | None,
             collected_at: str | None, category: str | None, checked_at: str | None = None) -> dict[str, Any]:
     out: dict[str, Any] = {"source": _source_code(source), "source_listing_id": listing,
-                           "name": d["name"], "category": category, "description": d.get("description"),
+                           "name": d["name"], "category": d.get("category") or category,
+                           "brand": d.get("brand"), "image_url": d.get("image_url"),
+                           "description": d.get("description"),
                            "condition": d.get("condition"), "availability": d.get("availability"),
                            "checked_at": checked_at}
+    if isinstance(d.get("ingredients"), list) and d["ingredients"]:
+        out["ingredients"] = [str(x) for x in d["ingredients"] if str(x).strip()]
     if d.get("price") is not None and d.get("currency"):
         out["price"], out["currency"] = str(d["price"]), d["currency"]
     if url:

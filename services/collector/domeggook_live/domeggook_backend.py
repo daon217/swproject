@@ -55,7 +55,7 @@ def safe_ack(value):
     result={}
     if value.get('state') in ('applied','recorded','quarantine'):result['state']=value['state']
     if value.get('change_kind') in ('created','updated','unchanged','stale','failed','not_found','quarantined'):result['change_kind']=value['change_kind']
-    for key in ('offer_id','observation_id'):
+    for key in ('offer_id','observation_id','extension_id'):
         try:result[key]=str(UUID(str(value[key])))
         except (KeyError,ValueError,TypeError,AttributeError):pass
     if isinstance(value.get('error_code'),str) and re.fullmatch(r'[A-Z0-9_]{1,80}',value['error_code']):result['error_code']=value['error_code']
@@ -72,7 +72,7 @@ class HTTPBackendTransport:
         self.base=base_url.rstrip('/');self.session=requests.Session();self.session.trust_env=False
         self.session.headers.update({'Authorization':'Bearer '+token,'Content-Type':'application/json'})
     def __call__(self,path,body):
-        if not re.fullmatch(r'/internal/v2/crawl-runs/[0-9a-f-]{36}/observations',path):raise ValueError('fixed_observation_route_required')
+        if not re.fullmatch(r'/internal/v2/crawl-runs/[0-9a-f-]{36}/(observations|extensions)',path):raise ValueError('fixed_observation_route_required')
         try:
             response=self.session.post(self.base+path,json=body,timeout=(5,15),allow_redirects=False)
             if response.status_code not in (200,201):return response.status_code,{}

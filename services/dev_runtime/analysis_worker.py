@@ -2,8 +2,10 @@
 
 No arbitrary page URL is fetched. Only configured internal services receive requests.
 Jobs, image access and completion all use the backend's authenticated lease protocol.
+Concurrent worker pool prevents a slow OCR job from blocking other queued analyses.
 """
 import base64
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 import logging
 import os
 import re
@@ -58,21 +60,26 @@ def infer_domain(title,groups):
     return 'food' if score('food')>score('product') else 'product'
 
 class Worker:
-    def __init__(self,client=None):
+    def __init__(self,client=None,*,worker_id='team-integration',max_concurrency=None,poll_interval=0.5):
         self.http=client or httpx.Client(timeout=20,follow_redirects=False,trust_env=False)
         self.api=os.getenv('API_INTERNAL_URL','http://api:8000').rstrip('/')
         self.vision=os.getenv('VISION_INTERNAL_URL','http://vision-api:8100').rstrip('/')
         self.reco=os.getenv('RECOMMENDATION_INTERNAL_URL','http://recommendation:8000').rstrip('/')
         self.auth={'Authorization':'Bearer '+os.environ['ANALYSIS_WORKER_TOKEN']}
         self.service_auth={'Authorization':'Bearer '+os.environ['WORKSPACE_TOKEN']}
+        self.worker_id=worker_id
+        self.max_concurrency=max(1,int(max_concurrency or os.getenv('ANALYSIS_WORKER_CONCURRENCY','4')))
+        self.poll_interval=float(poll_interval)
 
     def request(self,method,path,**kwargs):
         r=self.http.request(method,self.api+path,headers=self.auth,**kwargs)
         r.raise_for_status()
         return r.json().get('data')
 
-    def once(self):
-        job=self.request('POST','/internal/v2/analyses/claim',json={'worker_id':'team-integration'})
+    def claim_job(self):
+        return self.request('POST','/internal/v2/analyses/claim',json={'worker_id':self.worker_id})
+
+    def process_job(self,job):
         if not job:return False
         path='/internal/v2/analyses/'+job['analysis_id'];lease={'lease_token':job['lease_token']}
         try:
@@ -87,6 +94,7 @@ class Worker:
                      job['analysis_id'],'yes' if page else 'none',job.get('selected_domain'),bool(match))
             kind=job.get('selected_domain') or (match['kind'] if match else None)
             title=match['name'] if match else None
+            catalog_ingredients=list(match.get('ingredients') or []) if match else []
             ingredients=[]
             if job.get('image_url'):
                 image=self.http.get(self.api+job['image_url'],headers=self.auth|{'X-Worker-Lease':job['lease_token']})
@@ -107,10 +115,12 @@ class Worker:
                         r=self.http.get(self.vision+'/api/v1/vision/status/'+sid,headers=self.service_auth);r.raise_for_status();v=r.json()
                         if v['status']!='processing':
                             title=title or v.get('product_name');ingredients=v.get('ingredients',[]);break
-                        time.sleep(.5)
+                        time.sleep(self.poll_interval)
                 except httpx.HTTPError:
                     if not title:raise
                     # A catalog match can still be ranked; never pretend OCR succeeded.
+            if not ingredients and catalog_ingredients:
+                ingredients=catalog_ingredients
             if not title:
                 self.request('POST',path+'/fail',json=lease|{'code':'OCR_FAILED','retryable':False});return True
             # A generic cosmetics ingredient list must not automatically classify a page as food.
@@ -137,6 +147,31 @@ class Worker:
         except (httpx.HTTPError,KeyError,ValueError):
             self.fail(path,lease);return True
 
+    def once(self):
+        job=self.claim_job()
+        if not job:return False
+        return self.process_job(job)
+
+    def drain_concurrent(self,max_workers=None):
+        """Claim and execute up to max_workers jobs concurrently until the queue is empty."""
+        workers=max(1,int(max_workers or self.max_concurrency))
+        completed=0
+        active=set()
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            while True:
+                while len(active)<workers:
+                    job=self.claim_job()
+                    if not job:
+                        break
+                    active.add(pool.submit(self.process_job,job))
+                if not active:
+                    break
+                done,active=wait(active,return_when=FIRST_COMPLETED)
+                for fut in done:
+                    if fut.result():
+                        completed+=1
+        return completed
+
     def fail(self,path,lease):
         try:self.request('POST',path+'/fail',json=lease|{'code':'DEPENDENCY_UNAVAILABLE','retryable':False})
         except httpx.HTTPError:pass
@@ -144,10 +179,25 @@ class Worker:
 def main():
     logging.basicConfig(level=logging.INFO)
     worker=Worker()
-    while True:
-        try:
-            if not worker.once():time.sleep(2)
-        except httpx.HTTPError:
-            log.warning('Backend unavailable; retrying in 5 seconds');time.sleep(5)
+    active=set()
+    with ThreadPoolExecutor(max_workers=worker.max_concurrency) as pool:
+        while True:
+            try:
+                claimed=False
+                while len(active)<worker.max_concurrency:
+                    job=worker.claim_job()
+                    if not job:
+                        break
+                    claimed=True
+                    active.add(pool.submit(worker.process_job,job))
+                if active:
+                    done,active=wait(active,timeout=0.2 if claimed else 1.0,return_when=FIRST_COMPLETED)
+                    for fut in done:
+                        try:fut.result()
+                        except Exception as exc:log.warning('Worker task error (%s)',type(exc).__name__)
+                elif not claimed:
+                    time.sleep(2)
+            except httpx.HTTPError:
+                log.warning('Backend unavailable; retrying in 5 seconds');time.sleep(5)
 
 if __name__=='__main__':main()

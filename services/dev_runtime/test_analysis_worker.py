@@ -154,3 +154,106 @@ def test_food_evidence_from_title_and_vision(title,ingredients,expected):
     """클라이언트가 종류를 보내지 않으면 Vision 성분표와 상품명으로 식품을 먼저 판별한다."""
     from services.dev_runtime.analysis_worker import food_evidence
     assert food_evidence(title,ingredients)==expected
+
+
+def test_worker_concurrent_pool_processes_multiple_jobs_without_blocking():
+    """앞선 작업이 Vision OCR을 폴링하는 동안에도 뒤 작업들을 동시에 가져와 병렬 완료한다."""
+    import threading
+    lock=threading.Lock()
+    queue=[
+        {'analysis_id':'job-1','lease_token':'lease-1','page_url':None,'selected_domain':'product','image_url':'/internal/image','profile':{'user_id':'u1','allergens':[]}},
+        {'analysis_id':'job-2','lease_token':'lease-2','page_url':OFFER['current_url'],'selected_domain':'food','image_url':None,'profile':{'user_id':'u2','allergens':['milk']}},
+        {'analysis_id':'job-3','lease_token':'lease-3','page_url':OFFER['current_url'],'selected_domain':'product','image_url':None,'profile':{'user_id':'u3','allergens':[]}},
+    ]
+    polls={'job-1-lease-1':0}
+    completed_order=[]
+
+    def handle(req):
+        path=req.url.path
+        if path.endswith('/claim'):
+            with lock:
+                payload=queue.pop(0) if queue else None
+            return httpx.Response(200,json={'data':payload})
+        if path=='/internal/catalog-context':
+            return httpx.Response(200,json={'match':{'kind':'food','name':'우유 과자','ingredients':['우유','밀가루']}})
+        if path=='/internal/image':
+            return httpx.Response(200,content=b'image')
+        if path.startswith('/api/v1/vision/status/'):
+            sid=path.rsplit('/',1)[-1]
+            with lock:
+                polls[sid]=polls.get(sid,0)+1
+                count=polls[sid]
+            if count<3:
+                return httpx.Response(200,json={'status':'processing'})
+            return httpx.Response(200,json={'status':'success','product_name':'주전자','ingredients':[]})
+        if path.startswith('/api/v1/vision/'):
+            return httpx.Response(200,json={'status':'processing'})
+        if path=='/internal/process':
+            body=json.loads(req.content)
+            return httpx.Response(200,json={'offer_ids':[OFFER['offer_id']],'reasons':{},'ranker':'rule','warnings':[{'type':'allergy','allergen':'milk','evidence':'contains','message':'우유 감지'}] if '우유' in body.get('ingredients',[]) else []})
+        if path.endswith('/complete'):
+            job_id=path.split('/')[-2]
+            with lock:
+                completed_order.append(job_id)
+            return httpx.Response(200,json={'data':{'state':'completed'}})
+        raise AssertionError(str(req.url))
+
+    worker=Worker(httpx.Client(transport=httpx.MockTransport(handle)),max_concurrency=3,poll_interval=0.05)
+    assert worker.drain_concurrent(max_workers=3)==3
+    assert set(completed_order)=={'job-1','job-2','job-3'}
+    # job-2 and job-3 finish while job-1 is still polling Vision OCR
+    assert completed_order[-1]=='job-1'
+
+
+def test_elevenst_offline_backend_adapter_observation_and_extension():
+    from unittest.mock import Mock
+    from services.collector.elevenst_offline.backend_adapter import (
+        ElevenstBackendAdapter,
+        prepare_elevenst_extension,
+        prepare_elevenst_observation,
+    )
+    from services.collector.elevenst_offline.parser import parse_listing
+
+    raw=json.dumps({
+        'data':{
+            'products':[{
+                'id':'fixture-1',
+                'optionId':'OPT-1',
+                'title':'Synthetic test product',
+                'finalPrc':'1,234',
+                'linkUrl':'https://m.11st.co.kr/products/fixture-1',
+                'imageUrl':'https://cdn.011st.com/image/synthetic.jpg',
+                'currency':'KRW',
+                'sellerName':'Synthetic shop',
+                'categoryName':'Test category',
+                'brandName':'11번가브랜드',
+            }],
+            'pagination':{'pageNo':1,'hasMore':False,'nextPageNo':None},
+        }
+    })
+    row=parse_listing(raw,'2026-11-18T00:00:00+00:00')[0][0]
+    row.update(
+        source='elevenst_test',
+        product_url='https://store.example.test/products/fixture-1',
+        image_url='https://store.example.test/images/fixture-1.jpg',
+    )
+    cfg={
+        'backend_enabled':True,
+        'backend_owner_approved':True,
+        'price_semantics_confirmed':True,
+        'backend_delivery':{
+            'mode':'synthetic_test',
+            'allowed_product_hosts':['store.example.test'],
+            'currencies':['KRW'],
+        },
+    }
+    obs=prepare_elevenst_observation(row,cfg,selected_domain='product',condition='new')
+    assert obs['schema_version']==2 and obs['price']=='1234'
+    ext=prepare_elevenst_extension(row,cfg,matching_profile={'model_number':'11ST-M1','gtin':'8801043014809'})
+    assert ext['matching_profile']['brand']=='11번가브랜드' and ext['matching_profile']['model_number']=='11ST-M1'
+    tx=Mock(side_effect=[
+        (201,{'state':'applied','change_kind':'created','offer_id':'00000000-0000-0000-0000-000000000011'}),
+        (201,{'state':'applied','change_kind':'updated','extension_id':'00000000-0000-0000-0000-000000000022'}),
+    ])
+    res=ElevenstBackendAdapter(cfg,tx).send('00000000-0000-0000-0000-000000000001',row)
+    assert res['applied'] is True and res['extension_applied'] is True

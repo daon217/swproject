@@ -190,14 +190,30 @@ def test_domains_availability_and_missing_food_ingredients(db):
     _, conn, source = db
     ids = [seed(conn,source,availability=status)[1] for status in ('ended','suspect','out_of_stock')]
     food = seed(conn,source,name='우유 쿠키',kind='food')[1]
+    safe_item, safe_food, _ = seed(conn,source,name='현미 쌀 쿠키',kind='food')
+    milk_item, milk_food, _ = seed(conn,source,name='버터 우유 쿠키',kind='food')
+    conn.execute(
+        """UPDATE app.foods SET ingredients_raw='현미 98%, 천일염 2%',
+           ingredients='["현미","천일염"]'::jsonb, evidence_status='reported' WHERE item_id=%s""",
+        (safe_item,),
+    )
+    conn.execute(
+        """UPDATE app.foods SET ingredients_raw='밀가루, 우유, 버터',
+           ingredients='["밀가루","우유","버터"]'::jsonb, allergens_declared='["milk","wheat"]'::jsonb,
+           evidence_status='reported' WHERE item_id=%s""",
+        (milk_item,),
+    )
     visible = seed(conn,source)[1]
     drain(conn)
     with TestClient(app) as client:
         data = request(client).json()
-        assert visible in data['offer_ids'] and not set(ids+[food]) & set(data['offer_ids'])
-        response = request(client,selected_domain='food',profile={'user_id':'test','allergens':['milk']},ingredients=['우유'])
+        assert visible in data['offer_ids'] and not set(ids+[food, safe_food, milk_food]) & set(data['offer_ids'])
+        response = request(client,query='쿠키',selected_domain='food',profile={'user_id':'test','allergens':['milk']},ingredients=['우유'])
         assert response.status_code == 200
+        # Missing-ingredient food and milk-containing food are excluded, while safe food with DB ingredients is recommended.
         assert food not in response.json()['offer_ids']
+        assert milk_food not in response.json()['offer_ids']
+        assert safe_food in response.json()['offer_ids']
         assert response.json()['warnings'][0]['allergen'] == 'milk'
 
 

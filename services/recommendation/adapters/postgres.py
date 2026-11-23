@@ -100,8 +100,9 @@ class PgVectorIndex:
         return [Candidate(reps[str(iid)], round(1.0 - float(dist), 6)) for iid, dist in rows if str(iid) in reps]
 
 
-# 식품-성분 테이블이 생기면: item_id 별 성분 원문/알레르기 표시를 돌려주는 SQL 로 바꾸기.
-_INGREDIENTS_SQL = None
+_INGREDIENTS_SQL = """SELECT item_id::text, ingredients_raw, ingredients, allergen_notice_raw,
+                             cross_contact_raw, allergens_declared
+                      FROM app.foods WHERE item_id = ANY(%s::uuid[])"""
 
 
 class PgCatalog:
@@ -136,20 +137,33 @@ class PgCatalog:
         rows = self.conn.execute(
             """SELECT o.source, o.source_listing_id, o.variant_key, i.name, i.description, o.price::text,
                       o.currency, o.current_url, o.price_observed_at,
-                      o.condition, o.availability, o.last_checked_at
-               FROM app.offers o JOIN app.catalog_items i USING(item_id)
+                      o.condition, o.availability, o.last_checked_at,
+                      i.brand, i.category, i.image_url,
+                      f.ingredients_raw, f.ingredients, f.allergen_notice_raw,
+                      f.cross_contact_raw, f.allergens_declared
+               FROM app.offers o
+               JOIN app.catalog_items i USING(item_id)
+               LEFT JOIN app.foods f USING(item_id)
                WHERE o.kind=%s AND o.availability='available' AND (o.source, o.source_listing_id, o.variant_key) IN
                      (SELECT * FROM unnest(%s::text[], %s::text[], %s::text[]))""",
             (self.kind, [k[0] for k in keys], [k[1] for k in keys], [k[2] or "default" for k in keys])).fetchall()
         out = {}
-        for s, l, v, name, desc, price, cur, url, seen, cond, avail, checked in rows:
+        for (s, l, v, name, desc, price, cur, url, seen, cond, avail, checked,
+             brand, cat, img_url, ing_raw, ing_list, notice_raw, cross_raw, declared) in rows:
             pid = join_product_id(s, l, v)
+            ing = [str(x) for x in ing_list if str(x).strip()] if isinstance(ing_list, list) and ing_list else None
+            dec = [str(x) for x in declared if str(x).strip()] if isinstance(declared, list) and declared else []
+            notice = notice_raw or (", ".join(dec) if dec else None)
             out[pid] = CollectedProduct.from_dict({
                 k: x for k, x in {"source": s, "source_listing_id": f"{l}#{v}" if v else l, "name": name,
-                                  "description": desc, "category": self.kind, "price": price, "currency": cur,
+                                  "description": desc, "category": cat or self.kind, "brand": brand,
+                                  "image_url": img_url, "price": price, "currency": cur,
                                   "url": url, "collected_at": seen.isoformat() if seen else None,
                                   "condition": cond, "availability": avail,
-                                  "checked_at": checked.isoformat() if checked else None}.items()
+                                  "checked_at": checked.isoformat() if checked else None,
+                                  "ingredients_raw": ing_raw, "ingredients": ing,
+                                  "allergen_notice_raw": notice,
+                                  "cross_contact_raw": cross_raw}.items()
                 if x is not None})
         # 요청한 id 철자(variant 생략 등) 그대로 돌려주기
         return {p: out[join_product_id(*(k[0], k[1], k[2] or "default"))] for p, k in zip(product_ids, keys)

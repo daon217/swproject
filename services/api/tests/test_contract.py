@@ -68,3 +68,42 @@ def test_body_limit_preserves_valid_json():
 
     response = TestClient(app).post('/echo', json={'name': '상품'})
     assert response.status_code == 200 and response.json() == {'name': '상품'}
+
+
+def test_listing_extension_validation_gtin_and_images():
+    from kkulpick.extensions import ListingExtension, canonical_gtin
+    assert canonical_gtin("8801043014809") == "08801043014809"
+    with pytest.raises(ValueError):
+        canonical_gtin("8801043014800")  # invalid check digit
+
+    ext = ListingExtension(
+        source="demo",
+        source_listing_id="item-1",
+        variant_key="default",
+        observation_key="ext-1",
+        observed_at=datetime.now(UTC).isoformat(),
+        matching_profile={
+            "brand": "꿀픽전자",
+            "model_number": "KP-100",
+            "gtin": "8801043014809",
+            "image_url": "https://store.example.test/img/1.jpg",
+            "options": {"color": "silver", "capacity": "1.7L"},
+        },
+    )
+    assert ext.matching_profile.gtin == "08801043014809"
+
+    for invalid in (
+        {"matching_profile": None, "food_evidence": None},
+        {"matching_profile": {"image_url": "http://store.example.test/insecure.jpg"}},
+        {"matching_profile": {"image_url": "https://127.0.0.1/private.jpg"}},
+        {"matching_profile": {"gtin": "8801043014800"}},
+    ):
+        with pytest.raises(ValidationError):
+            ListingExtension(
+                source="demo",
+                source_listing_id="item-1",
+                variant_key="default",
+                observation_key="ext-bad",
+                observed_at=datetime.now(UTC).isoformat(),
+                **invalid,
+            )

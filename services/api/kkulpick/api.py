@@ -16,6 +16,7 @@ from .support import router as support_router
 from .affiliates import router as affiliate_router
 from .analyses import router as analysis_router
 from .console import router as console_router
+from .extensions import router as extension_router
 
 from .db import url
 from .ingest import accept
@@ -41,7 +42,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="꿀픽 카탈로그 개발 API", version="0.1", lifespan=lifespan)
-for router in (member_router, account_router, support_router, affiliate_router, analysis_router, console_router):
+for router in (member_router, account_router, support_router, affiliate_router, analysis_router, console_router, extension_router):
     app.include_router(router)
 app.add_middleware(RequestBodyLimit)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DEV_ORIGINS","http://localhost:3000").split(","),
@@ -87,8 +88,13 @@ async def offers(req: Request, selected_domain: Literal["product","food"],
     async with req.app.state.engine.connect() as c:
         rows = (await c.execute(text("""SELECT o.offer_id,i.name,i.description,o.source,o.variant_key,o.price::text AS price,
           o.currency,o.shipping_fee::text AS shipping_fee,o.current_url,o.price_observed_at,
-          o.condition,o.availability,o.source_listing_id,o.last_seen_at,o.last_checked_at,o.last_changed_at
+          o.condition,o.availability,o.source_listing_id,o.last_seen_at,o.last_checked_at,o.last_changed_at,
+          i.brand,i.manufacturer,i.category,i.image_url,i.image_urls,o.seller_id,o.seller_name,
+          p.model_name,p.model_number,p.mpn,p.gtin,p.color,p.size,p.options,p.variant_signature,
+          f.ingredients_raw,f.ingredients,f.allergen_notice_raw,f.cross_contact_raw,f.allergens_declared,f.evidence_status
           FROM app.offers o JOIN app.catalog_items i USING(item_id)
+          LEFT JOIN app.products p USING(item_id)
+          LEFT JOIN app.foods f USING(item_id)
           WHERE o.kind=:k AND (:condition='all' OR o.condition=:condition)
           AND (:availability='all' OR o.availability=:availability)
           AND (CAST(:source AS text) IS NULL OR o.source=:source)

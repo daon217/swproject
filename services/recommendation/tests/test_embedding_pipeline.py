@@ -3,7 +3,10 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
-import psycopg
+try:
+    import psycopg
+except ImportError:  # pragma: no cover - skipped in unit-only CI without psycopg
+    psycopg = None
 import pytest
 from fastapi.testclient import TestClient
 

@@ -3,71 +3,58 @@
     "domeggook": {
       "networks": {
         "default": {},
-        "reviewed_ingest": {}
-      },
-      "volumes": [
-        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/domeggook:/run/network-review:ro"
-      ]
+        "internal_ingest": {}
+      }
     },
     "serper": {
       "networks": {
         "default": {},
-        "reviewed_ingest": {}
-      },
-      "volumes": [
-        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/serper:/run/network-review:ro"
-      ]
+        "internal_ingest": {}
+      }
     },
     "ebay": {
       "networks": {
         "default": {},
-        "reviewed_ingest": {}
-      },
-      "volumes": [
-        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/ebay:/run/network-review:ro"
-      ]
+        "internal_ingest": {}
+      }
     },
     "yes24": {
       "networks": {
         "default": {},
-        "reviewed_ingest": {}
-      },
-      "volumes": [
-        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/yes24:/run/network-review:ro"
-      ]
+        "internal_ingest": {}
+      }
     },
     "url": {
       "networks": {
         "default": {},
-        "reviewed_ingest": {}
-      },
-      "volumes": [
-        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/url:/run/network-review:ro"
-      ]
+        "internal_ingest": {}
+      }
     },
     "fleet": {
       "networks": {
         "default": {},
-        "reviewed_ingest": {}
-      },
-      "volumes": [
-        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/fleet:/run/network-review:ro"
-      ]
+        "internal_ingest": {}
+      }
     },
     "public_feed": {
       "networks": {
         "default": {},
-        "reviewed_ingest": {}
-      },
-      "volumes": [
-        "${INTERNAL_REVIEW_DIR:-/volume1/docker/kkulpick-collectors-v2/network-review}/public_feed:/run/network-review:ro"
-      ]
+        "internal_ingest": {}
+      }
     }
   },
   "networks": {
-    "reviewed_ingest": {
-      "external": true,
-      "name": "${COLLECTOR_INTERNAL_NETWORK_NAME:-kkulpick-ingest-reviewed}"
+    "internal_ingest": {
+      "name": "${COLLECTOR_INTERNAL_NETWORK_NAME:-kkulpick-collector-ingest}",
+      "driver": "bridge",
+      "internal": true,
+      "ipam": {
+        "config": [
+          {
+            "subnet": "${COLLECTOR_INTERNAL_SUBNET:-172.30.240.0/24}"
+          }
+        ]
+      }
     }
   }
 }

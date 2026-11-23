@@ -1,134 +1,113 @@
-# 외부 HTTPS / 내부 백엔드 HTTP 분리
+# NAS 내부 HTTP: Compose 설정으로 연결
 
-외부 상품/API와 내부 ingestion은 다른 정책이다. 상품 URL·Observation v2의 URL은 계속 HTTPS다.
-기존 전송은 HTTPS와 명시적 loopback 테스트만 허용했으며, 일반 NAS 내부 HTTP는 지원하지 않았다.
-기존 loopback 테스트 예외를 운영 내부 HTTP 승인으로 사용하지 않는다.
+별도 승인 JSON, 컨테이너 ID 등록,5분 만료,검토 파일 갱신 감독자는 더 이상 필요하지 않다.
+내부 HTTP는 명시된 Docker 서비스와 포트,설정된 단일 내부 서브넷의 직접 연결로 제한한다.
+외부 상품/API의 HTTPS·TLS·공개 IP pinning 정책은 변경하지 않았다.
 
-## 기본값
+## 기존 차단 원인
 
-- COLLECTOR_DELIVERY_APPROVED=no. source 권한/가격/백엔드 owner 검사도 그대로 필요하다.
-- COLLECTOR_BACKEND_TRANSPORT=https, COLLECTOR_BACKEND_BASE_URL은 비워두면 기존 backend_delivery.base_url.
-- COLLECTOR_INTERNAL_HTTP_APPROVED=no, COLLECTOR_INTERNAL_NETWORK_ID 비어 있음, 검토 파일 없음.
-- NAS 네트워크를 확인하지 못했으므로 모든 배포 예제의 HTTP 운영 전송은 비활성이다.
-- 실제 NAS `/volume1/docker/swproject`, 별도 test-v1 release와 기존8개 컨테이너/네트워크는 변경하지 않는다.
+6df7d22의 InternalPolicy는 COLLECTOR_INTERNAL_HTTP_APPROVED,network ID,관리자 파일,만료시간,
+정확한 collector/backend ID·IP·hostname·멤버,백엔드 단일 네트워크/비공개 포트를 모두 요구했다.
+파일을 주기적으로 갱신하지 않거나 컨테이너가 재생성되면 차단됐다. NAS의 정상적인 다중 네트워크
+API와 기존 Compose 배치에도 맞지 않았다. 이 조건들은 현재 전송 경로에서 제거했다.
+legacy issue_review/refresh 도구는 호환 보존용이며 현재 전송의 승인 수단이 아니다. 실행할 필요가 없다.
 
-## 외부 수집 HTTPS 유지·보강
+## 최소 설정
 
-unified_live.policy/url/transport의 HTTPS·권한·TLS hostname·공개 IP pinning·robots·원장/예산은 유지한다.
-도매꾹·고정 API의 기본 requests session에도 공개 DNS/IP pinning을 적용한다. DNS의 답 중 하나라도
-private/loopback/link-local이면 차단하며 검증한 주소로 접속하고 원래 hostname으로 TLS를 검증한다.
-HTTP·proxy·verify=False는 거부한다. redirect를 따라가지 않으므로 HTTP downgrade나 다른 호스트에
-키를 재전달하지 않는다. 테스트에서 주입한 Fake session은 모의 경계이며 운영 기본 session과 구분한다.
-백엔드 환경변수는 상품/API endpoint나 상품 URL 정규화에 사용하지 않는다.
+기존 token/소스·저장·가격·backend owner 설정은 그대로 사용한다. 추가적인 HTTP 승인 절차는 없다.
 
-## 내부 HTTP가 허용되는 조건
-
-다음 조건이 모두 필요하다. 사설 IP/localhost라는 사실만으로 허용하지 않는다.
-
-1. 수집·저장·가격·owner 승인과 별도 COLLECTOR_DELIVERY_APPROVED=yes.
-2. COLLECTOR_BACKEND_TRANSPORT=internal_http, COLLECTOR_INTERNAL_HTTP_APPROVED=yes.
-3. COLLECTOR_BACKEND_BASE_URL은 검토된 Docker DNS 서비스명과 명시 포트의 origin만 사용.
-   예: http://ingest-api:8000. IP literal/localhost/userinfo/query/fragment/경로 prefix는 거부한다.
-4. 관리자 소유 검토 파일과 COLLECTOR_INTERNAL_NETWORK_ID가 실제 inspect의 full network ID와 일치.
-5. 검토 자료는 Internal=true/bridge/local/IPv4, 정확히 신뢰된 container ID 집합, endpoint IP와 alias,
-   비특권·cap_drop ALL·publish된 포트 없음·Docker socket 없음을 확인해야 한다.
-   ingest 서비스는 해당 내부망에만 연결한다. 외부 API와 양방향으로 붙은 일반 NAS API를 무조건 승인하지 않는다.
-6. 실행 시 DNS가 정확히 승인된 backend IP 하나로 해석되고, Linux 직접 연결 route의 인터페이스가
-   승인된 collector IP를 소유해야 한다. gateway/default route/다른 source IP는 거부한다.
-7. 검증 IP에 source IP를 bind해 접속하고 peer/source를 확인한다. 토큰은 그 뒤에 전송한다.
-   요청마다 재사용 연결도 검토 파일·만료·DNS·route를 재검사한다. endpoint 변경은 검토 후 재시작이 필요하다.
-8. redirect는 따라가지 않는다. session은 proxy/env 상속을 끄고 origin/port/고정 Observation route만 허용한다.
-9. 검토 파일은 관리자 소유 디렉터리를 read-only로 mount한다. 그룹/기타 쓰기를 거부한다.
-   파일은 최대5분 유효하다. host 측 감독자가 약30초마다 inspect를 재확인하고 실패 시 approved=false로 취소한다.
-
-검토 파일은 암호학적 Docker 증명이 아니라 관리자 신뢰 경계의 짧은 수명 증명이다. worker에 Docker socket을
-노출하지 않는다. 런타임에서 Docker membership 자체를 직접 조회하지 않으므로 관리자 측 신뢰된 갱신·감시가
-필수다. 신뢰할 수 없는 사용자가 Docker daemon 권한을 갖거나 임의 컨테이너를 연결할 수 있으면 HTTP 사용을
-승인하지 않는다. 그 경우 분리된 ingest service와 관리자 접근 통제/방화벽 또는 TLS가 선행되어야 한다.
-
-## 검토 파일 생성·취소
-
-collector_ops.internal_network.issue_review는 network/container inspect 스냅샷을 검증하는 순수 함수다.
-CLI는 다음 형식이며 Docker 상태를 변경하지 않는다. --admin-network-review-confirmed와 독립 reference는
-관리자의 실제 접근 통제·멤버 검토 후에만 넣는다. 실패 시 기존 긍정 검토 파일도 approved=false로 갱신한다.
-
-```sh
-python -m services.collector.collector_ops.internal_network \
-  --network-inspect /private-review/network.json \
-  --collector-inspect /private-review/collector.json \
-  --backend-inspect /private-review/backend.json \
-  --trusted-container-id <full-collector-id> --trusted-container-id <full-ingest-id> \
-  --service ingest-api --port 8000 --review-reference <approved-admin-record> \
-  --admin-network-review-confirmed \
-  --output /volume1/docker/kkulpick-collectors-v2/network-review/internal-network-review.json
-```
-
-inspect 자료에서 Config.Env/비밀값은 수집하지 않는다. 필요한 Id/Hostname/State/HostConfig/NetworkSettings/Mounts만
-보존한다. 실제 검토 파일·인프라 inspect·secrets는 Git에 넣지 않는다. 갱신 파일을 atomic rename하므로 파일 하나가
-아닌 디렉터리 전체를 read-only로 mount해야 worker가 최신 inode를 읽을 수 있다.
-
-## Compose 준비 — 지금 실행하지 않음
-
-기본 compose는 새 네트워크를 만들거나 기존 NAS 네트워크에 연결하지 않는다. internal-http.override.yaml은
-관리자가 이미 격리를 확인한 external network만 참조한다. external:true는 Compose 밖에서 관리한다는 뜻으로,
-인터넷 공개 허용이라는 뜻이 아니다. 실제 network의 Internal=true는 검토 생성 시 별도로 검사한다.
-
-승인 후 필요한 값:
-
-```
+```dotenv
 COLLECTOR_BACKEND_TRANSPORT=internal_http
-COLLECTOR_BACKEND_BASE_URL=http://ingest-api:8000
-COLLECTOR_INTERNAL_HTTP_APPROVED=yes
-COLLECTOR_INTERNAL_NETWORK_NAME=<reviewed-existing-network-name>
-COLLECTOR_INTERNAL_NETWORK_ID=<full-reviewed-network-id>
-INTERNAL_REVIEW_DIR=/volume1/docker/kkulpick-collectors-v2/network-review
+COLLECTOR_BACKEND_BASE_URL=http://api:8000
 COLLECTOR_DELIVERY_APPROVED=yes
 ```
 
-서비스별 collector IP/container ID가 다르므로 하나의 검토 파일을 여러 컨테이너에 공유하지 않는다.
-override는 INTERNAL_REVIEW_DIR 아래 domeggook/serper/ebay/yes24/url/fleet/public_feed별 디렉터리를 read-only mount한다. 각 worker에 맞는 검토 파일을 발급해야 한다.
-한 fleet 컨테이너의 child는 같은 net namespace이므로 동일 검토를 사용할 수 있다.
-API token은 계속 KKULPICK_BACKEND_TOKEN_FILE secret, 상태/원장/Outbox volume과 기존 소스별 예산은 유지한다.
+COLLECTOR_DELIVERY_APPROVED는 기존 전송 활성화 설정이다. 이미yes라면 주소·전송 모드만 지정한다.
+기본 배포값은 여전히 no/HTTPS이므로 설치만으로 운영 데이터가 전송되지 않는다.
+인증은 기존 KKULPICK_BACKEND_TOKEN_FILE을 사용한다. 토큰을 URL/명령 인자/로그/Git에 넣지 않는다.
+
+내부 네트워크 기본값:
+
+```dotenv
+COLLECTOR_INTERNAL_SUBNET=172.30.240.0/24
+COLLECTOR_INTERNAL_NETWORK_NAME=kkulpick-collector-ingest
+```
+
+서브넷이 NAS 기존망과 겹치면 두 값과 실제 Compose IPAM을 함께 맞춘다. 런타임은 임의의 사설망을
+추측해 허용하지 않는다. 직접 실행할 때도 COLLECTOR_INTERNAL_SUBNET을 명시한다. Compose는 위 기본값을 전달한다.
+HTTP는 명시적 포트가 있는 단일 Docker 서비스 이름만 허용한다(api/api_service 등). IP literal,
+localhost,host.docker.internal,공인호스트/FQDN,credential/query/path prefix는 거부한다.
+
+## Docker 연결 조건
+
+기존 독립 collector Compose와 internal-http.override.yaml을 함께 사용한다.
+override는 driver=bridge,internal=true,지정 IPAM 서브넷의 내부망을 선언한다. 외부 상품 수집을 위한
+기존 default 망은 함께 유지한다. worker는 내부망에서 API로,외부 수집은 기존 HTTPS 경로로 통신한다.
+승인 파일 mount와 network ID/컨테이너 ID 설정은 없다. 기존 상태·Outbox·secret volume은 유지된다.
+
+백엔드도 이 내부망에 연결하고 api라는 이름 또는 명시한 alias를 부여한다. 백엔드의 기존 DB/웹
+네트워크 연결을 유지할 수 있다. 백엔드의 네트워크 개수나 전체 컨테이너 ID를 크롤러가 검사하지 않는다.
+팀 API Compose 담당자가 참고할 연결 예시는 다음과 같다. 이번 작업에서 팀원 코드/NAS에는 적용하지 않는다.
+
+```yaml
+services:
+  api: # 실제 팀 서비스 이름에 맞춤
+    networks:
+      default: {}
+      collector_ingest:
+        aliases: [api]
+networks:
+  collector_ingest:
+    external: true
+    name: kkulpick-collector-ingest
+```
+
+collector override가 먼저 만든 내부망을 API 측은 참조한다. API 이름과 alias의 중복/충돌을 피한다.
+internal_ingest에 신뢰하는 collector와 API만 연결한다. 이 망의 HTTP 경로를 인터넷에 port publish하거나
+불특정 컨테이너가 Docker daemon으로 망에 참가할 수 있게 하지 않는다. API의 기존 공개 웹 경로와
+collector의 내부 주소는 별개다. 관리자 설정과 Docker daemon 접근 통제가 신뢰 경계다.
 
 ```sh
-# 관리자가 별도 release에서 검토할 정적 검사 예. 이번 작업에서 NAS 실행하지 않음.
-docker compose --env-file <reviewed-runtime.env> -p kkulpick-collectors-v2 \
+# 설정 검증 예. 이번 작업에서 NAS 배포는 하지 않는다.
+docker compose --env-file <runtime.env> -p kkulpick-collectors-v2 \
   -f services/collector/unified_live/deploy/compose.yaml \
   -f services/collector/unified_live/deploy/internal-http.override.yaml --profile ebay config -q
 ```
 
-기존 prepare/deploy 스크립트는 기본 HTTPS compose만 사용한다. 내부 HTTP override를 쓰는 운영 절차는
-관리자가 명시적으로 적용해야 하며, 기존8개 NAS 서비스를 재시작하거나 네트워크를 임의 생성/변경하지 않는다.
-5분 검토 만료·endpoint 변경 시 송신은 차단되지만 영속 payload/key/원장은 유지된다.
+기본 배포 스크립트는 기본 HTTPS compose를 사용하므로 HTTP 배포 시 위 override를 명시한다.
+기존 NAS8개 서비스와 /volume1/docker/swproject 및 test-v1은 이번 작업에서 접속·변경하지 않았다.
 
-## ACK·중복·재시도 및 검증
+## 파일 없는 런타임 검증
 
-HTTP/HTTPS는 동일 Observation v2·source/listing/variant·run/event key와 ACK 정책을 사용한다.
-신규/변경/미변경 처리와 immutable payload, Retry-After/backoff/상한을 재사용한다. 알려진 정책 거부/redirect는
-hold, 기존 transient 오류는 같은 body/key로 재시도한다. 직접 PostgreSQL 접속/DDL/INSERT는 추가하지 않았다.
-실제 외부 상품 요청 대신 모의 HTTPS/TLS/DNS/redirect 테스트를 사용한다. 별도 로컬 Docker lab에서는
-Internal=true 네트워크와 FastAPI/SQLite 테스트 저장소로 실제 HTTP/ACK/중복/재시도를 확인한다.
-로컬 검증은 NAS 도달성·기존 NAS API 버전·접근 통제·운영 PG 저장 완료를 증명하지 않는다.
+1. HTTP 모드와 기존 전송 활성화가 켜져 있고,요청 origin이 환경변수의 정확한 서비스/포트와 일치해야 한다.
+2. 설정 서브넷은 한정된 RFC1918 IPv4 CIDR(/16~30)이어야 한다.0/0·공인망·loopback·link-local은 거부한다.
+3. Docker embedded DNS(127.0.0.11)를 사용한다. /etc/hosts/extra_hosts/host-gateway 대체 주소는 거부한다.
+4. DNS 답은 하나의 IPv4이고 해당 서브넷 안이어야 한다. 공인 IP·다른 사설망·혼합 답은 거부한다.
+5. Linux kernel route가 정확히 그 서브넷의 on-link 경로여야 한다. gateway/default/loopback 경로는 거부한다.
+6. 실제 인터페이스는 kernel이 보고하는 veth이며,IP와 netmask도 서브넷과 일치해야 한다.
+   host network/물리 LAN/bridge/VPN/macvlan 경로는 허용하지 않는다. Docker socket은 mount하지 않는다.
+7. 확인한 source IP를 bind하고 대상 IP에 pinning한다. 연결 후 peer/source를 확인한 뒤 토큰을 보낸다.
+8. 같은 서비스의 컨테이너 IP가 바뀌면 pool을 비우고 새 주소로 연결한다. ID 재등록이나 승인 파일은 필요 없다.
+   DNS 준비 지연은503으로 기존 재시도에 넘기며,설정/경로 위반은 기존 hold 정책을 유지한다.
+9. 리다이렉트·proxy·다른 origin/port/route로 토큰을 전달하지 않는다. Observation v2는 그대로다.
 
-관리자 협의: 신뢰된 network/container/image ID, 접근 가능한 Docker 관리자, 격리 ingest alias/port,
-검토 갱신 감독자·재시작 절차, token 범위/source/host/currency·가격·저장권한과 최종 API route/ACK.
+컨테이너 내부의 kernel 경로만으로 Docker의 Internal 플래그나 전체 신뢰 멤버를 조회할 수는 없다.
+따라서 실제 격리는 Compose의 internal:true와 제한된 네트워크 연결/daemon 접근 통제가 강제한다.
+런타임은 실제 veth/직접 경로까지 검증하지만 이것을 Docker 관리자 권한에 대한 암호학적 증명으로
+보고하지 않는다. internal:false인 다른 망으로 override를 임의 대체하지 않는다.
+지원 범위는 Linux Docker의 user-defined IPv4 bridge/veth다. host/macvlan/rootless 대체 드라이버,
+IPv6 다중 주소 또는 직접Windows 실행에서는 HTTP를 자동 허용하지 않는다.
 
-공식 근거: [Docker network isolation](https://docs.docker.com/engine/network/),
-[Compose networking](https://docs.docker.com/compose/how-tos/networking/),
-[urllib3 HTTPS connection](https://github.com/urllib3/urllib3/blob/main/src/urllib3/connection.py).
+## 유지되는 데이터 처리와 마이그레이션
 
-## 관리자 검토 갱신 도우미
+상품 URL은 계속 HTTPS다. 백엔드 HTTP/HTTPS에 따라 v2 body,source/listing/variant,event key,
+ACK/중복/신규·변경 비교/영구 큐가 달라지지 않는다. 가격·저장 권한과 토큰 인증도 유지한다.
+COLLECTOR_INTERNAL_HTTP_APPROVED/NETWORK_ID/NETWORK_REVIEW_FILE/INTERNAL_REVIEW_DIR은 새 전송에서
+읽지 않는다. 예전 refresh-internal-review 감독을 새 워커 때문에 시작할 필요가 없다.
+기존401/403/409/불확실 응답으로 저장된 hold는 자동 삭제하지 않는다. 이전 파일 만료와 실제 인증 오류가
+같은 old hold 코드로 기록됐을 수 있으므로 기존 hold가 있으면 원인을 한 번 확인해야 한다. 큐/원장을 지우지 않는다.
+이후 정상 DNS 재생성이나 시간 경과만으로 별도 승인 hold가 새로 생기지는 않는다.
 
-deploy/refresh-internal-review.sh는 승인된 단일 collector/ingest 쌍의 정확한 ID를 받아 local Linux daemon의
-inspect만 약30초마다 읽는다. 새 멤버/공개 포트/네트워크 변경/검사 실패/감독 종료 시 승인 파일을 취소한다.
-Config.Env는 읽지 않으며 API key가 든 inspect를 파일로 저장하지 않는다. worker에는 socket을 mount하지 않는다.
-REVIEW_NETWORK_ID/COLLECTOR_ID/BACKEND_ID 대신 실제 변수명은 REVIEW_NETWORK_ID, REVIEW_COLLECTOR_ID,
-REVIEW_BACKEND_ID, REVIEW_SERVICE, REVIEW_PORT, REVIEW_REFERENCE, REVIEW_OUTPUT_DIR, REVIEW_PYTHON이다.
-REVIEW_PYTHON은 해당 모듈/기존 의존성이 설치된 관리자 전용 절대 경로여야 한다. NAS에 Python/감독 서비스가
-준비됐다고 가정하지 않는다. 스크립트는 해당 release의 루트에서 관리자 검토 후 실행한다. 이번 NAS 실행은0이다.
-
-기본 도우미는 정확히 두 컨테이너만 신뢰한다. 여러 worker를 같은 망에 넣으려면 관리자 소유 REVIEW_TRUSTED_IDS_FILE에
-승인된 full container ID를 한 줄씩 명시한다. 전체 망 멤버와 정확히 일치해야 하며 각 worker별 감독·검토 파일은 여전히 분리한다.
-단순히 worker를 늘리고 검사 조건을 해제하지 않는다. 관리자 전용 디렉터리의 검토 파일은 worker가 읽을 수 있게
-원자적 교체 전에0644로 설정한다. 임시 inspect는0700 디렉터리에 보관한다. 감독 Python 모듈은 표준 라이브러리만 사용한다.
-Docker 재시작은 같은 ID/endpoint면 갱신되나 컨테이너 재생성으로 ID/IP가 바뀌면 재검토 후 재시작해야 한다.
+검증: 외부 HTTPS 회귀,파일 없는 실제 Docker veth 경로,다중 네트워크 API/collector,
+FastAPI→SQLite,503 재시도/신규·변경/미변경/replay/redirect/공인HTTP 차단을 독립적으로 확인한다.
+운영 NAS/PG 및 실제 공급자 API는 사용하지 않는다.

@@ -1,4 +1,4 @@
-"""Admin-reviewed Docker topology + per-request DNS, source-IP and direct-route checks."""
+"""Compose-scoped internal HTTP policy. Legacy review CLI is optional and not used by delivery."""
 import argparse
 from datetime import datetime,timezone,timedelta
 import ipaddress,json,os,re,socket,stat,struct,sys,tempfile
@@ -83,37 +83,38 @@ def direct_route(destination,source):
 
 
 class InternalPolicy:
+    """Explicit Compose origin + subnet; Docker enforces isolation, kernel checks the actual path."""
     def __init__(self,base_url):
         from urllib.parse import urlsplit
         p=urlsplit(base_url)
-        if p.scheme!='http' or not p.hostname or not re.fullmatch('[a-z][a-z0-9-]{1,62}',p.hostname) or p.path not in ('','/') or p.username or p.password or p.query or p.fragment or p.port is None:
+        if p.scheme!='http' or not p.hostname or not re.fullmatch('[a-z][a-z0-9_-]{1,62}',p.hostname) or p.path not in ('','/') or p.username or p.password or p.query or p.fragment or p.port is None:
             raise ValueError('explicit_internal_service_origin_required')
-        self.host=p.hostname;self.port=p.port;self.identity=None
-        self.check()
+        if p.hostname in ('localhost','host_docker_internal','host-docker-internal'):raise ValueError('Docker_service_required')
+        self.host=p.hostname;self.port=p.port
+        self.subnet=self.settings()
+    def settings(self):
+        from urllib.parse import urlsplit
+        if os.environ.get('COLLECTOR_BACKEND_TRANSPORT','https')!='internal_http' or os.environ.get('COLLECTOR_DELIVERY_APPROVED')!='yes':
+            raise ValueError('internal_HTTP_not_configured_for_delivery')
+        target=urlsplit(os.environ.get('COLLECTOR_BACKEND_BASE_URL',''))
+        if target.scheme!='http' or target.hostname!=self.host or target.port!=self.port or target.path not in ('','/') or target.username or target.password or target.query or target.fragment:
+            raise ValueError('only_explicit_Compose_service_and_port_allowed')
+        subnet=ipaddress.ip_network(os.environ.get('COLLECTOR_INTERNAL_SUBNET',''),strict=True)
+        if subnet.version!=4 or not 16<=subnet.prefixlen<=30:raise ValueError('bounded_Docker_IPv4_subnet_required')
+        private4(str(subnet.network_address));private4(str(subnet.broadcast_address))
+        if hasattr(self,'subnet') and subnet!=self.subnet:raise ValueError('restart_after_network_configuration_change')
+        return subnet
     def check(self):
-        if os.environ.get('COLLECTOR_BACKEND_TRANSPORT','https')!='internal_http' or os.environ.get('COLLECTOR_INTERNAL_HTTP_APPROVED')!='yes' or os.environ.get('COLLECTOR_DELIVERY_APPROVED')!='yes':
-            raise ValueError('internal_HTTP_disabled')
-        path=Path(os.environ.get('COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE',''))
-        if not path.is_file() or path.is_symlink() or path.stat().st_size>65536 or os.name=='posix' and path.stat().st_mode&0o022:
-            raise ValueError('admin_readonly_network_review_required')
-        d=json.loads(path.read_text(encoding='utf-8'));current=now()
-        if d.get('version')!=1 or d.get('approved') is not True or d.get('internal') is not True or d.get('driver')!='bridge' or d.get('backend_internal_only') is not True or d.get('published_ports') is not False or not d.get('review_reference'):
-            raise ValueError('network_not_independently_reviewed')
-        issued,expiry=stamp(d['issued_at']),stamp(d['expires_at'])
-        if not issued<=current<expiry or expiry-issued>timedelta(minutes=5):raise ValueError('network_review_expired')
-        if ident(d['network_id'])!=os.environ.get('COLLECTOR_INTERNAL_NETWORK_ID') or ident(d['collector_id']) not in d['trusted_container_ids'] or ident(d['backend_id']) not in d['trusted_container_ids']:
-            raise ValueError('network_identity_not_approved')
-        if d['collector_hostname']!=socket.gethostname() or d['service']!=self.host or d['port']!=self.port:
-            raise ValueError('container_service_or_port_mismatch')
-        source,dest=private4(d['collector_ip']),private4(d['backend_ip']);subnet=ipaddress.ip_network(d['subnet'])
-        if ipaddress.ip_address(source) not in subnet or ipaddress.ip_address(dest) not in subnet or source==dest:raise ValueError('approved_subnet_mismatch')
+        from .container_route import connected_endpoint,docker_dns_service
+        subnet=self.settings();docker_dns_service(self.host)
         addresses={r[4][0] for r in socket.getaddrinfo(self.host,self.port,type=socket.SOCK_STREAM)}
-        if addresses!={dest}:raise ValueError('internal_DNS_not_exact_reviewed_endpoint')
-        direct_route(dest,source)
-        identity=(d['network_id'],d['collector_id'],d['backend_id'],source,dest,self.host,self.port)
-        if self.identity and self.identity!=identity:raise ValueError('network_changed_restart_after_review')
-        self.identity=identity
-        return dest,source
+        if not addresses:raise socket.gaierror('Docker_service_not_ready')
+        if len(addresses)!=1:raise ValueError('single_Docker_service_IP_required')
+        destination=private4(next(iter(addresses)))
+        if ipaddress.ip_address(destination) not in subnet or ipaddress.ip_address(destination) in (subnet.network_address,subnet.broadcast_address):
+            raise ValueError('HTTP_destination_outside_configured_Docker_network')
+        source,interface=connected_endpoint(destination,subnet)
+        return destination,source
 
 
 def save_review(path,data):

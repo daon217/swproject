@@ -31,40 +31,38 @@ def dns(address='172.30.42.2'):return [(socket.AF_INET,socket.SOCK_STREAM,6,'',(
 
 class NetworkPolicyTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.file=self.root/'review.json';self.file.write_text(json.dumps(review()))
-        self.env={'COLLECTOR_BACKEND_TRANSPORT':'internal_http','COLLECTOR_BACKEND_BASE_URL':BASE,'COLLECTOR_INTERNAL_HTTP_APPROVED':'yes',
-            'COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE':str(self.file),'COLLECTOR_INTERNAL_NETWORK_ID':NID,'COLLECTOR_DELIVERY_APPROVED':'yes','KKULPICK_BACKEND_TOKEN':TOKEN}
+        self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name);self.file=self.root/'review.json'
+        self.env={'COLLECTOR_BACKEND_TRANSPORT':'internal_http','COLLECTOR_BACKEND_BASE_URL':BASE,
+            'COLLECTOR_INTERNAL_SUBNET':'172.30.42.0/24','COLLECTOR_DELIVERY_APPROVED':'yes','KKULPICK_BACKEND_TOKEN':TOKEN}
         self.stack=__import__('contextlib').ExitStack();self.stack.enter_context(patch.dict(os.environ,self.env,clear=True))
-        self.stack.enter_context(patch('services.collector.collector_ops.internal_network.socket.gethostname',return_value=CID[:12]))
         self.stack.enter_context(patch('services.collector.collector_ops.internal_network.socket.getaddrinfo',return_value=dns()))
-        self.route=self.stack.enter_context(patch('services.collector.collector_ops.internal_network.direct_route',return_value='eth1'))
+        self.stack.enter_context(patch('services.collector.collector_ops.container_route.docker_dns_service'))
+        self.route=self.stack.enter_context(patch('services.collector.collector_ops.container_route.connected_endpoint',return_value=('172.30.42.3','eth1')))
     def tearDown(self):self.stack.close();self.temp.cleanup()
-    def test_exact_reviewed_internal_origin_allowed(self):
-        p=InternalPolicy(BASE);self.assertEqual(p.check(),('172.30.42.2','172.30.42.3'));self.route.assert_called()
-    def test_default_HTTP_is_disabled(self):
-        for name in ('COLLECTOR_INTERNAL_HTTP_APPROVED','COLLECTOR_DELIVERY_APPROVED','COLLECTOR_INTERNAL_NETWORK_ID'):
+    def test_explicit_Compose_internal_origin_allowed_without_review_file(self):
+        p=InternalPolicy(BASE);self.assertEqual(p.check(),('172.30.42.2','172.30.42.3'));self.route.assert_called();self.assertFalse(self.file.exists())
+    def test_explicit_origin_subnet_and_existing_delivery_activation_required(self):
+        for name in ('COLLECTOR_BACKEND_TRANSPORT','COLLECTOR_BACKEND_BASE_URL','COLLECTOR_INTERNAL_SUBNET','COLLECTOR_DELIVERY_APPROVED'):
             with self.subTest(name=name),patch.dict(os.environ,{name:''}),self.assertRaises(ValueError):InternalPolicy(BASE)
     def test_private_IP_loopback_public_IP_and_other_service_not_automatically_allowed(self):
         for base in ('http://172.30.42.2:8000','http://127.0.0.1:8000','http://localhost:8000','http://8.8.8.8:8000','http://other-api:8000','http://ingest-api:80','http://ingest-api','http://user:pass@ingest-api:8000','http://ingest-api:8000/?token=secret'):
             with self.subTest(base=base),self.assertRaises(ValueError):InternalPolicy(base)
-    def test_missing_revoked_expired_review_blocked(self):
-        for change in ({'approved':False},{'expires_at':'2000-01-01T00:00:00+00:00'},{'network_id':'d'*64},{'collector_hostname':'other'}):
-            with self.subTest(change=change):
-                d=review();d.update(change);self.file.write_text(json.dumps(d))
-                with self.assertRaises(ValueError):InternalPolicy(BASE)
-    def test_overlong_approval_validity_rejected(self):
-        d=review();d['expires_at']=(now()+timedelta(days=1)).isoformat();self.file.write_text(json.dumps(d))
-        with self.assertRaises(ValueError):InternalPolicy(BASE)
-    def test_DNS_rebinding_and_mixed_addresses_rejected(self):
+    def test_obsolete_approval_variables_are_not_read_or_required(self):
+        with patch.dict(os.environ,{'COLLECTOR_INTERNAL_HTTP_APPROVED':'no','COLLECTOR_INTERNAL_NETWORK_ID':'old-id','COLLECTOR_INTERNAL_NETWORK_REVIEW_FILE':str(self.file)}),patch('pathlib.Path.read_text',side_effect=AssertionError('approval files forbidden')):
+            self.assertEqual(InternalPolicy(BASE).check(),('172.30.42.2','172.30.42.3'))
+    def test_unbounded_or_public_subnet_rejected(self):
+        for subnet in ('0.0.0.0/0','10.0.0.0/8','8.8.8.0/24','127.0.0.0/24','169.254.0.0/16','172.30.42.1/24','::/64'):
+            with self.subTest(subnet=subnet),patch.dict(os.environ,{'COLLECTOR_INTERNAL_SUBNET':subnet}),self.assertRaises(ValueError):InternalPolicy(BASE)
+    def test_DNS_public_outside_subnet_and_mixed_answers_rejected(self):
         p=InternalPolicy(BASE)
-        for answers in (dns('8.8.8.8'),dns('127.0.0.1'),dns('169.254.169.254'),dns()+dns('172.30.42.9')):
+        for answers in (dns('8.8.8.8'),dns('127.0.0.1'),dns('169.254.169.254'),dns('172.31.0.2'),dns()+dns('172.30.42.9')):
             with self.subTest(answers=answers),patch('socket.getaddrinfo',return_value=answers),self.assertRaises(ValueError):p.check()
     def test_gateway_route_is_not_accepted(self):
         self.route.side_effect=ValueError('gateway_route')
-        with self.assertRaises(ValueError):InternalPolicy(BASE)
-    def test_reviewed_endpoint_change_requires_restart(self):
-        p=InternalPolicy(BASE);d=review();d['backend_id']='e'*64;d['trusted_container_ids'].append('e'*64);self.file.write_text(json.dumps(d))
-        with self.assertRaises(ValueError):p.check()
+        with self.assertRaises(ValueError):InternalPolicy(BASE).check()
+    def test_recreated_service_IP_in_same_network_needs_no_manual_approval(self):
+        p=InternalPolicy(BASE);p.check()
+        with patch('socket.getaddrinfo',return_value=dns('172.30.42.9')):self.assertEqual(p.check(),('172.30.42.9','172.30.42.3'))
     def test_origin_and_route_cannot_leak_backend_token(self):
         tx=RoutedBackend(BASE,TOKEN,now)
         try:
@@ -73,10 +71,10 @@ class NetworkPolicyTests(unittest.TestCase):
             with self.assertRaises(InvalidURL):tx.session.post(BASE+'/other-route')
         finally:tx.close()
         self.assertNotIn('Authorization',tx.session.headers)
-    def test_revocation_returns_hold_without_connect_or_sensitive_output(self):
-        tx=RoutedBackend(BASE,TOKEN,now);d=review();d['approved']=False;self.file.write_text(json.dumps(d))
+    def test_configuration_violation_returns_hold_without_connect_or_sensitive_output(self):
+        tx=RoutedBackend(BASE,TOKEN,now)
         try:
-            with patch.object(tx.session,'post') as send:
+            with patch.dict(os.environ,{'COLLECTOR_INTERNAL_SUBNET':'172.31.0.0/24'}),patch.object(tx.session,'post') as send:
                 result=tx(PATH,{});self.assertEqual(result,(403,{}));send.assert_not_called();self.assertNotIn(TOKEN,str(result))
         finally:tx.close()
     def test_retries_after_same_body_and_ACK_sanitization(self):

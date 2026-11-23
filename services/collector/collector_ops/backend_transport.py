@@ -1,5 +1,5 @@
 """Backend-only routing. Internal HTTP never shares external collection transport policy."""
-import os,re
+import os,re,socket
 from urllib.parse import urlsplit
 import requests
 from requests.adapters import HTTPAdapter
@@ -29,7 +29,7 @@ class OriginHTTPSAdapter(PublicHTTPSAdapter):
 
 
 class InternalHTTPAdapter(HTTPAdapter):
-    def __init__(self,policy,origin):self.policy=policy;self.origin=origin;super().__init__(max_retries=0)
+    def __init__(self,policy,origin):self.policy=policy;self.origin=origin;self.endpoint=None;super().__init__(max_retries=0)
     def init_poolmanager(self,*args,**kwargs):
         policy=self.policy
         class PinnedInternalConnection(HTTPConnection):
@@ -49,7 +49,9 @@ class InternalHTTPAdapter(HTTPAdapter):
     def send(self,request,**kwargs):
         origin_check(request.url,self.origin)
         if kwargs.get('proxies'):raise InvalidURL('backend_proxy_forbidden')
-        self.policy.check()  # Also recheck reused connections, freshness, revocation and direct route.
+        endpoint=self.policy.check()
+        if self.endpoint is not None and self.endpoint!=endpoint:self.poolmanager.clear()
+        self.endpoint=endpoint  # Never reuse a connection to an old service IP after recreation.
         return super().send(request,**kwargs)
 
 
@@ -79,7 +81,8 @@ class RoutedBackend(RetryAwareBackend):
         if os.environ.get('COLLECTOR_DELIVERY_APPROVED')!='yes':return 403,{}
         if self.policy:
             try:self.policy.check()
-            except Exception:return 403,{}  # Known preflight rejection: hold without sending token/body.
+            except socket.gaierror:return 503,{}  # Service startup/recreation: retry without sending token/body.
+            except Exception:return 403,{}  # Configuration/path violation: retain existing hold semantics.
         return super().__call__(path,body)
 
 

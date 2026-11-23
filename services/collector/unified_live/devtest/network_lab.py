@@ -20,7 +20,7 @@ def server():
     async def ingest(run_id:uuid.UUID,request:Request):
         nonlocal failed
         counters['POST_attempts']+=1;save()
-        token=Path('/tmp/network-review/token').read_text().strip()
+        token=Path('/tmp/lab-secret/token').read_text().strip()
         if not secrets.compare_digest(request.headers.get('Authorization',''),'Bearer '+token):
             counters['auth_rejections']+=1;save();raise HTTPException(401)
         body=await request.json()
@@ -41,8 +41,8 @@ def client():
     from services.collector.unified_live.changes import ChangeDelivery
     from services.collector.collector_ops.backend_transport import RoutedBackend
     if os.environ.get('COLLECTOR_NETWORK_LAB')!='synthetic_only':raise RuntimeError('isolated_lab_only')
-    path=Path('/tmp/network-review/internal-network-review.json');policy=json.loads(path.read_text())
-    os.environ.update(COLLECTOR_INTERNAL_NETWORK_ID=policy['network_id'],KKULPICK_BACKEND_TOKEN=Path('/tmp/network-review/token').read_text().strip())
+    path=Path('/tmp/network-review/internal-network-review.json');assert not path.exists()
+    os.environ['KKULPICK_BACKEND_TOKEN']=Path('/tmp/lab-secret/token').read_text().strip()
     cfg=fixture_config();cfg['backend_delivery']['base_url']='https://unreachable.example.test'
     clock=[datetime.now(timezone.utc)];body=normalize(product(),cfg['base_url'],clock[0].isoformat(),cfg)
     body['metadata']['synthetic']=True
@@ -65,15 +65,12 @@ def client():
         try:RoutedBackend('http://8.8.8.8:8000',os.environ['KKULPICK_BACKEND_TOKEN'],lambda:clock[0])
         except ValueError:denied=True
         assert denied
-        readonly=False
-        try:path.write_text('{}')
-        except PermissionError:readonly=True
-        assert readonly
+        assert not path.exists()  # No approval or topology file was ever injected.
         print(json.dumps({'synthetic_only':True,'real_internal_HTTP_fastapi':True,'first_failure_503_retried':True,
             'new_events':gate.data['totals'].get('new'),'changed_events':gate.data['totals'].get('updated'),
             'unchanged_skipped':gate.data['totals'].get('unchanged'),'queue_HTTP_attempts':box.state['totals']['HTTP_attempts'],
             'direct_idempotent_replay_verified':True,'redirect_not_followed':True,'public_IP_HTTP_blocked':denied,
-            'admin_review_readonly_for_worker':readonly,'supplier_HTTP_requests':0,'production_DB_writes':0,'NAS_changed':False}))
+            'approval_file_required':False,'approval_file_present':path.exists(),'supplier_HTTP_requests':0,'production_DB_writes':0,'NAS_changed':False}))
     finally:gate.close()
 
 if __name__=='__main__':

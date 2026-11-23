@@ -1,4 +1,5 @@
 #!/bin/sh
+# LEGACY OPTIONAL TOOL: current delivery does not read these files or require this daemon.
 # Host-side, read-only Docker inspection. NEVER mount the daemon socket in a worker.
 # Admin must approve the exact IDs, directory and Python environment before starting.
 set -eu

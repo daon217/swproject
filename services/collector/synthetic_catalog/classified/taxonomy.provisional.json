@@ -1,0 +1,1594 @@
+{
+  "schema_version": "synthetic-taxonomy-v1",
+  "namespace": "synthetic_provisional",
+  "status": "pending_team_approval",
+  "team_category_ids_authoritative": false,
+  "team_domain_basis": "current app.catalog_items.kind product/food only",
+  "category_label_contract": "contracts/collected-product.v1.md category string (cached origin/main)",
+  "nodes": [
+    {
+      "id": "SYN-CAT-01",
+      "name": "디지털·가전",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-01-01",
+      "name": "컴퓨터·노트북",
+      "level": 2,
+      "parent_id": "SYN-CAT-01"
+    },
+    {
+      "id": "SYN-CAT-01-01-01",
+      "name": "사무용 노트북",
+      "level": 3,
+      "parent_id": "SYN-CAT-01-01"
+    },
+    {
+      "id": "SYN-CAT-01-01-02",
+      "name": "게이밍 노트북",
+      "level": 3,
+      "parent_id": "SYN-CAT-01-01"
+    },
+    {
+      "id": "SYN-CAT-01-02",
+      "name": "스마트폰·휴대폰",
+      "level": 2,
+      "parent_id": "SYN-CAT-01"
+    },
+    {
+      "id": "SYN-CAT-01-02-01",
+      "name": "일반 스마트폰",
+      "level": 3,
+      "parent_id": "SYN-CAT-01-02"
+    },
+    {
+      "id": "SYN-CAT-01-02-02",
+      "name": "폴더블 스마트폰",
+      "level": 3,
+      "parent_id": "SYN-CAT-01-02"
+    },
+    {
+      "id": "SYN-CAT-02",
+      "name": "패션",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-02-01",
+      "name": "의류",
+      "level": 2,
+      "parent_id": "SYN-CAT-02"
+    },
+    {
+      "id": "SYN-CAT-02-01-01",
+      "name": "티셔츠",
+      "level": 3,
+      "parent_id": "SYN-CAT-02-01"
+    },
+    {
+      "id": "SYN-CAT-02-01-02",
+      "name": "재킷",
+      "level": 3,
+      "parent_id": "SYN-CAT-02-01"
+    },
+    {
+      "id": "SYN-CAT-02-02",
+      "name": "신발",
+      "level": 2,
+      "parent_id": "SYN-CAT-02"
+    },
+    {
+      "id": "SYN-CAT-02-02-01",
+      "name": "운동화",
+      "level": 3,
+      "parent_id": "SYN-CAT-02-02"
+    },
+    {
+      "id": "SYN-CAT-02-02-02",
+      "name": "로퍼",
+      "level": 3,
+      "parent_id": "SYN-CAT-02-02"
+    },
+    {
+      "id": "SYN-CAT-03",
+      "name": "식품",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "food"
+    },
+    {
+      "id": "SYN-CAT-03-01",
+      "name": "가공식품",
+      "level": 2,
+      "parent_id": "SYN-CAT-03"
+    },
+    {
+      "id": "SYN-CAT-03-01-01",
+      "name": "시리얼",
+      "level": 3,
+      "parent_id": "SYN-CAT-03-01"
+    },
+    {
+      "id": "SYN-CAT-03-01-02",
+      "name": "파스타",
+      "level": 3,
+      "parent_id": "SYN-CAT-03-01"
+    },
+    {
+      "id": "SYN-CAT-03-02",
+      "name": "차·커피",
+      "level": 2,
+      "parent_id": "SYN-CAT-03"
+    },
+    {
+      "id": "SYN-CAT-03-02-01",
+      "name": "티백 차",
+      "level": 3,
+      "parent_id": "SYN-CAT-03-02"
+    },
+    {
+      "id": "SYN-CAT-03-02-02",
+      "name": "원두커피",
+      "level": 3,
+      "parent_id": "SYN-CAT-03-02"
+    },
+    {
+      "id": "SYN-CAT-04",
+      "name": "생활·주방",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-04-01",
+      "name": "주방용품",
+      "level": 2,
+      "parent_id": "SYN-CAT-04"
+    },
+    {
+      "id": "SYN-CAT-04-01-01",
+      "name": "프라이팬",
+      "level": 3,
+      "parent_id": "SYN-CAT-04-01"
+    },
+    {
+      "id": "SYN-CAT-04-01-02",
+      "name": "밀폐용기",
+      "level": 3,
+      "parent_id": "SYN-CAT-04-01"
+    },
+    {
+      "id": "SYN-CAT-04-02",
+      "name": "생활용품",
+      "level": 2,
+      "parent_id": "SYN-CAT-04"
+    },
+    {
+      "id": "SYN-CAT-04-02-01",
+      "name": "세탁세제",
+      "level": 3,
+      "parent_id": "SYN-CAT-04-02"
+    },
+    {
+      "id": "SYN-CAT-04-02-02",
+      "name": "수건 세트",
+      "level": 3,
+      "parent_id": "SYN-CAT-04-02"
+    },
+    {
+      "id": "SYN-CAT-05",
+      "name": "가구",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-05-01",
+      "name": "책상·의자",
+      "level": 2,
+      "parent_id": "SYN-CAT-05"
+    },
+    {
+      "id": "SYN-CAT-05-01-01",
+      "name": "책상",
+      "level": 3,
+      "parent_id": "SYN-CAT-05-01"
+    },
+    {
+      "id": "SYN-CAT-05-01-02",
+      "name": "사무용 의자",
+      "level": 3,
+      "parent_id": "SYN-CAT-05-01"
+    },
+    {
+      "id": "SYN-CAT-05-02",
+      "name": "수납가구",
+      "level": 2,
+      "parent_id": "SYN-CAT-05"
+    },
+    {
+      "id": "SYN-CAT-05-02-01",
+      "name": "책장",
+      "level": 3,
+      "parent_id": "SYN-CAT-05-02"
+    },
+    {
+      "id": "SYN-CAT-05-02-02",
+      "name": "서랍장",
+      "level": 3,
+      "parent_id": "SYN-CAT-05-02"
+    },
+    {
+      "id": "SYN-CAT-06",
+      "name": "뷰티",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-06-01",
+      "name": "스킨케어",
+      "level": 2,
+      "parent_id": "SYN-CAT-06"
+    },
+    {
+      "id": "SYN-CAT-06-01-01",
+      "name": "보습크림",
+      "level": 3,
+      "parent_id": "SYN-CAT-06-01"
+    },
+    {
+      "id": "SYN-CAT-06-01-02",
+      "name": "세안제",
+      "level": 3,
+      "parent_id": "SYN-CAT-06-01"
+    },
+    {
+      "id": "SYN-CAT-06-02",
+      "name": "메이크업",
+      "level": 2,
+      "parent_id": "SYN-CAT-06"
+    },
+    {
+      "id": "SYN-CAT-06-02-01",
+      "name": "립스틱",
+      "level": 3,
+      "parent_id": "SYN-CAT-06-02"
+    },
+    {
+      "id": "SYN-CAT-06-02-02",
+      "name": "쿠션 파운데이션",
+      "level": 3,
+      "parent_id": "SYN-CAT-06-02"
+    },
+    {
+      "id": "SYN-CAT-07",
+      "name": "스포츠",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-07-01",
+      "name": "실내운동",
+      "level": 2,
+      "parent_id": "SYN-CAT-07"
+    },
+    {
+      "id": "SYN-CAT-07-01-01",
+      "name": "요가매트",
+      "level": 3,
+      "parent_id": "SYN-CAT-07-01"
+    },
+    {
+      "id": "SYN-CAT-07-01-02",
+      "name": "덤벨",
+      "level": 3,
+      "parent_id": "SYN-CAT-07-01"
+    },
+    {
+      "id": "SYN-CAT-07-02",
+      "name": "아웃도어",
+      "level": 2,
+      "parent_id": "SYN-CAT-07"
+    },
+    {
+      "id": "SYN-CAT-07-02-01",
+      "name": "텐트",
+      "level": 3,
+      "parent_id": "SYN-CAT-07-02"
+    },
+    {
+      "id": "SYN-CAT-07-02-02",
+      "name": "트레킹 스틱",
+      "level": 3,
+      "parent_id": "SYN-CAT-07-02"
+    },
+    {
+      "id": "SYN-CAT-08",
+      "name": "자동차",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-08-01",
+      "name": "차량관리",
+      "level": 2,
+      "parent_id": "SYN-CAT-08"
+    },
+    {
+      "id": "SYN-CAT-08-01-01",
+      "name": "차량 세정제",
+      "level": 3,
+      "parent_id": "SYN-CAT-08-01"
+    },
+    {
+      "id": "SYN-CAT-08-01-02",
+      "name": "세차 타월",
+      "level": 3,
+      "parent_id": "SYN-CAT-08-01"
+    },
+    {
+      "id": "SYN-CAT-08-02",
+      "name": "차량용품",
+      "level": 2,
+      "parent_id": "SYN-CAT-08"
+    },
+    {
+      "id": "SYN-CAT-08-02-01",
+      "name": "차량용 휴대폰 거치대",
+      "level": 3,
+      "parent_id": "SYN-CAT-08-02"
+    },
+    {
+      "id": "SYN-CAT-08-02-02",
+      "name": "차량용 충전기",
+      "level": 3,
+      "parent_id": "SYN-CAT-08-02"
+    },
+    {
+      "id": "SYN-CAT-09",
+      "name": "도서",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-09-01",
+      "name": "문학",
+      "level": 2,
+      "parent_id": "SYN-CAT-09"
+    },
+    {
+      "id": "SYN-CAT-09-01-01",
+      "name": "장편소설",
+      "level": 3,
+      "parent_id": "SYN-CAT-09-01"
+    },
+    {
+      "id": "SYN-CAT-09-01-02",
+      "name": "에세이",
+      "level": 3,
+      "parent_id": "SYN-CAT-09-01"
+    },
+    {
+      "id": "SYN-CAT-09-02",
+      "name": "실용·학습",
+      "level": 2,
+      "parent_id": "SYN-CAT-09"
+    },
+    {
+      "id": "SYN-CAT-09-02-01",
+      "name": "요리책",
+      "level": 3,
+      "parent_id": "SYN-CAT-09-02"
+    },
+    {
+      "id": "SYN-CAT-09-02-02",
+      "name": "프로그래밍 도서",
+      "level": 3,
+      "parent_id": "SYN-CAT-09-02"
+    },
+    {
+      "id": "SYN-CAT-10",
+      "name": "반려동물",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-10-01",
+      "name": "반려동물 용품",
+      "level": 2,
+      "parent_id": "SYN-CAT-10"
+    },
+    {
+      "id": "SYN-CAT-10-01-01",
+      "name": "하네스",
+      "level": 3,
+      "parent_id": "SYN-CAT-10-01"
+    },
+    {
+      "id": "SYN-CAT-10-01-02",
+      "name": "급식 그릇",
+      "level": 3,
+      "parent_id": "SYN-CAT-10-01"
+    },
+    {
+      "id": "SYN-CAT-10-02",
+      "name": "반려동물 먹거리",
+      "level": 2,
+      "parent_id": "SYN-CAT-10"
+    },
+    {
+      "id": "SYN-CAT-10-02-01",
+      "name": "반려동물 사료",
+      "level": 3,
+      "parent_id": "SYN-CAT-10-02"
+    },
+    {
+      "id": "SYN-CAT-10-02-02",
+      "name": "반려동물 간식",
+      "level": 3,
+      "parent_id": "SYN-CAT-10-02"
+    },
+    {
+      "id": "SYN-CAT-11",
+      "name": "완구·취미",
+      "level": 1,
+      "parent_id": null,
+      "team_domain": "product"
+    },
+    {
+      "id": "SYN-CAT-11-01",
+      "name": "완구",
+      "level": 2,
+      "parent_id": "SYN-CAT-11"
+    },
+    {
+      "id": "SYN-CAT-11-01-01",
+      "name": "조립 블록",
+      "level": 3,
+      "parent_id": "SYN-CAT-11-01"
+    },
+    {
+      "id": "SYN-CAT-11-01-02",
+      "name": "봉제인형",
+      "level": 3,
+      "parent_id": "SYN-CAT-11-01"
+    },
+    {
+      "id": "SYN-CAT-11-02",
+      "name": "취미·게임",
+      "level": 2,
+      "parent_id": "SYN-CAT-11"
+    },
+    {
+      "id": "SYN-CAT-11-02-01",
+      "name": "보드게임",
+      "level": 3,
+      "parent_id": "SYN-CAT-11-02"
+    },
+    {
+      "id": "SYN-CAT-11-02-02",
+      "name": "직소 퍼즐",
+      "level": 3,
+      "parent_id": "SYN-CAT-11-02"
+    }
+  ],
+  "profiles": [
+    {
+      "leaf_id": "SYN-CAT-01-01-01",
+      "legacy_category": "laptop",
+      "brands": [
+        "SYNTHETIC-노바컴",
+        "SYNTHETIC-노바컴플러스"
+      ],
+      "model_prefix": "NB",
+      "specifications": {
+        "screen_inches": 14,
+        "ram_gb": 16,
+        "storage_gb": 512
+      },
+      "spec_label": "14인치 16GB 512GB",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          500000,
+          1500000
+        ],
+        "USD": [
+          45000,
+          130000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-01-01-02",
+      "legacy_category": "laptop",
+      "brands": [
+        "SYNTHETIC-노바컴",
+        "SYNTHETIC-노바컴플러스"
+      ],
+      "model_prefix": "GN",
+      "specifications": {
+        "screen_inches": 16,
+        "ram_gb": 32,
+        "storage_gb": 1024
+      },
+      "spec_label": "16인치 32GB 1TB",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          1200000,
+          3000000
+        ],
+        "USD": [
+          90000,
+          250000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-01-02-01",
+      "legacy_category": "phone",
+      "brands": [
+        "SYNTHETIC-노바컴",
+        "SYNTHETIC-노바컴플러스"
+      ],
+      "model_prefix": "SP",
+      "specifications": {
+        "screen_inches": 6.1,
+        "storage_gb": 128,
+        "network": "5G"
+      },
+      "spec_label": "6.1인치 128GB 5G",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          200000,
+          1200000
+        ],
+        "USD": [
+          20000,
+          100000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-01-02-02",
+      "legacy_category": "phone",
+      "brands": [
+        "SYNTHETIC-노바컴",
+        "SYNTHETIC-노바컴플러스"
+      ],
+      "model_prefix": "FP",
+      "specifications": {
+        "screen_inches": 6.7,
+        "storage_gb": 256,
+        "foldable": true
+      },
+      "spec_label": "6.7인치 256GB 폴더블",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          900000,
+          2000000
+        ],
+        "USD": [
+          80000,
+          170000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-02-01-01",
+      "legacy_category": "clothing",
+      "brands": [
+        "SYNTHETIC-데일리핏",
+        "SYNTHETIC-데일리핏플러스"
+      ],
+      "model_prefix": "TS",
+      "specifications": {
+        "size": "M",
+        "material": "면",
+        "sleeve": "반팔"
+      },
+      "spec_label": "M 면 반팔",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          10000,
+          60000
+        ],
+        "USD": [
+          1000,
+          5000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-02-01-02",
+      "legacy_category": "clothing",
+      "brands": [
+        "SYNTHETIC-데일리핏",
+        "SYNTHETIC-데일리핏플러스"
+      ],
+      "model_prefix": "JK",
+      "specifications": {
+        "size": "L",
+        "material": "폴리에스터",
+        "season": "봄·가을"
+      },
+      "spec_label": "L 봄·가을",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          40000,
+          250000
+        ],
+        "USD": [
+          3500,
+          22000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-02-02-01",
+      "legacy_category": "clothing",
+      "brands": [
+        "SYNTHETIC-데일리핏",
+        "SYNTHETIC-데일리핏플러스"
+      ],
+      "model_prefix": "SN",
+      "specifications": {
+        "size_mm": 260,
+        "upper": "메시"
+      },
+      "spec_label": "260mm 메시",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          30000,
+          180000
+        ],
+        "USD": [
+          2500,
+          15000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-02-02-02",
+      "legacy_category": "clothing",
+      "brands": [
+        "SYNTHETIC-데일리핏",
+        "SYNTHETIC-데일리핏플러스"
+      ],
+      "model_prefix": "LF",
+      "specifications": {
+        "size_mm": 255,
+        "material": "합성피혁"
+      },
+      "spec_label": "255mm 합성피혁",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          30000,
+          150000
+        ],
+        "USD": [
+          2500,
+          13000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-03-01-01",
+      "legacy_category": "food",
+      "brands": [
+        "SYNTHETIC-그레인키친",
+        "SYNTHETIC-그레인키친플러스"
+      ],
+      "model_prefix": "CE",
+      "specifications": {
+        "net_weight_g": 500,
+        "pack_count": 1
+      },
+      "spec_label": "500g 1팩",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          4000,
+          18000
+        ],
+        "USD": [
+          400,
+          1500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-03-01-02",
+      "legacy_category": "food",
+      "brands": [
+        "SYNTHETIC-그레인키친",
+        "SYNTHETIC-그레인키친플러스"
+      ],
+      "model_prefix": "PA",
+      "specifications": {
+        "net_weight_g": 500,
+        "pack_count": 1
+      },
+      "spec_label": "500g 1팩",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          2000,
+          10000
+        ],
+        "USD": [
+          200,
+          900
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-03-02-01",
+      "legacy_category": "food",
+      "brands": [
+        "SYNTHETIC-그레인키친",
+        "SYNTHETIC-그레인키친플러스"
+      ],
+      "model_prefix": "TE",
+      "specifications": {
+        "tea_bags": 20,
+        "pack_count": 1
+      },
+      "spec_label": "20티백 1상자",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          30000
+        ],
+        "USD": [
+          500,
+          2500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-03-02-02",
+      "legacy_category": "food",
+      "brands": [
+        "SYNTHETIC-그레인키친",
+        "SYNTHETIC-그레인키친플러스"
+      ],
+      "model_prefix": "CO",
+      "specifications": {
+        "net_weight_g": 500,
+        "roast": "중배전"
+      },
+      "spec_label": "500g 중배전",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          6000,
+          35000
+        ],
+        "USD": [
+          600,
+          3000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-04-01-01",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-홈앤웨어",
+        "SYNTHETIC-홈앤웨어플러스"
+      ],
+      "model_prefix": "PN",
+      "specifications": {
+        "diameter_cm": 28,
+        "cooktop": "인덕션"
+      },
+      "spec_label": "28cm 인덕션",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          15000,
+          100000
+        ],
+        "USD": [
+          1500,
+          9000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-04-01-02",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-홈앤웨어",
+        "SYNTHETIC-홈앤웨어플러스"
+      ],
+      "model_prefix": "CT",
+      "specifications": {
+        "capacity_ml": 1000,
+        "set_count": 3
+      },
+      "spec_label": "1000ml 3개 세트",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          40000
+        ],
+        "USD": [
+          500,
+          3500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-04-02-01",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-홈앤웨어",
+        "SYNTHETIC-홈앤웨어플러스"
+      ],
+      "model_prefix": "DE",
+      "specifications": {
+        "capacity_ml": 2000,
+        "type": "액체형"
+      },
+      "spec_label": "2L 액체형",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          25000
+        ],
+        "USD": [
+          500,
+          2200
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-04-02-02",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-홈앤웨어",
+        "SYNTHETIC-홈앤웨어플러스"
+      ],
+      "model_prefix": "TW",
+      "specifications": {
+        "width_cm": 40,
+        "length_cm": 80,
+        "set_count": 5
+      },
+      "spec_label": "40x80cm 5장",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          8000,
+          45000
+        ],
+        "USD": [
+          800,
+          4000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-05-01-01",
+      "legacy_category": "furniture",
+      "brands": [
+        "SYNTHETIC-우드스페이스",
+        "SYNTHETIC-우드스페이스플러스"
+      ],
+      "model_prefix": "DK",
+      "specifications": {
+        "width_mm": 1200,
+        "depth_mm": 600,
+        "height_mm": 720
+      },
+      "spec_label": "1200x600x720mm",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          60000,
+          500000
+        ],
+        "USD": [
+          6000,
+          45000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-05-01-02",
+      "legacy_category": "furniture",
+      "brands": [
+        "SYNTHETIC-우드스페이스",
+        "SYNTHETIC-우드스페이스플러스"
+      ],
+      "model_prefix": "CH",
+      "specifications": {
+        "height_adjustable": true,
+        "armrests": true
+      },
+      "spec_label": "높이조절 팔걸이형",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          50000,
+          400000
+        ],
+        "USD": [
+          5000,
+          35000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-05-02-01",
+      "legacy_category": "furniture",
+      "brands": [
+        "SYNTHETIC-우드스페이스",
+        "SYNTHETIC-우드스페이스플러스"
+      ],
+      "model_prefix": "BC",
+      "specifications": {
+        "width_mm": 800,
+        "shelves": 5
+      },
+      "spec_label": "800mm 5단",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          30000,
+          250000
+        ],
+        "USD": [
+          3000,
+          22000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-05-02-02",
+      "legacy_category": "furniture",
+      "brands": [
+        "SYNTHETIC-우드스페이스",
+        "SYNTHETIC-우드스페이스플러스"
+      ],
+      "model_prefix": "DR",
+      "specifications": {
+        "width_mm": 600,
+        "drawers": 4
+      },
+      "spec_label": "600mm 4단",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          50000,
+          350000
+        ],
+        "USD": [
+          5000,
+          30000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-06-01-01",
+      "legacy_category": "cosmetics",
+      "brands": [
+        "SYNTHETIC-퓨어데이",
+        "SYNTHETIC-퓨어데이플러스"
+      ],
+      "model_prefix": "CR",
+      "specifications": {
+        "capacity_ml": 50,
+        "container": "단지형"
+      },
+      "spec_label": "50ml 단지형",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          80000
+        ],
+        "USD": [
+          500,
+          7000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-06-01-02",
+      "legacy_category": "cosmetics",
+      "brands": [
+        "SYNTHETIC-퓨어데이",
+        "SYNTHETIC-퓨어데이플러스"
+      ],
+      "model_prefix": "CL",
+      "specifications": {
+        "capacity_ml": 150,
+        "type": "폼"
+      },
+      "spec_label": "150ml 폼",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          4000,
+          40000
+        ],
+        "USD": [
+          400,
+          3500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-06-02-01",
+      "legacy_category": "cosmetics",
+      "brands": [
+        "SYNTHETIC-퓨어데이",
+        "SYNTHETIC-퓨어데이플러스"
+      ],
+      "model_prefix": "LI",
+      "specifications": {
+        "net_weight_g": 3.5,
+        "color": "로즈"
+      },
+      "spec_label": "3.5g 로즈",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          6000,
+          50000
+        ],
+        "USD": [
+          600,
+          4500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-06-02-02",
+      "legacy_category": "cosmetics",
+      "brands": [
+        "SYNTHETIC-퓨어데이",
+        "SYNTHETIC-퓨어데이플러스"
+      ],
+      "model_prefix": "CU",
+      "specifications": {
+        "net_weight_g": 15,
+        "shade": "21호"
+      },
+      "spec_label": "15g 21호",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          10000,
+          80000
+        ],
+        "USD": [
+          1000,
+          7000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-07-01-01",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-액티브웨이",
+        "SYNTHETIC-액티브웨이플러스"
+      ],
+      "model_prefix": "YM",
+      "specifications": {
+        "thickness_mm": 8,
+        "length_cm": 183
+      },
+      "spec_label": "8mm 183cm",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          10000,
+          70000
+        ],
+        "USD": [
+          1000,
+          6000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-07-01-02",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-액티브웨이",
+        "SYNTHETIC-액티브웨이플러스"
+      ],
+      "model_prefix": "DB",
+      "specifications": {
+        "weight_kg_each": 5,
+        "set_count": 2
+      },
+      "spec_label": "5kg 2개 세트",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          10000,
+          120000
+        ],
+        "USD": [
+          1000,
+          10000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-07-02-01",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-액티브웨이",
+        "SYNTHETIC-액티브웨이플러스"
+      ],
+      "model_prefix": "TN",
+      "specifications": {
+        "capacity_people": 4,
+        "type": "돔형"
+      },
+      "spec_label": "4인용 돔형",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          60000,
+          700000
+        ],
+        "USD": [
+          6000,
+          60000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-07-02-02",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-액티브웨이",
+        "SYNTHETIC-액티브웨이플러스"
+      ],
+      "model_prefix": "TR",
+      "specifications": {
+        "max_length_cm": 120,
+        "set_count": 2
+      },
+      "spec_label": "120cm 2개 세트",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          15000,
+          150000
+        ],
+        "USD": [
+          1500,
+          13000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-08-01-01",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-오토케어",
+        "SYNTHETIC-오토케어플러스"
+      ],
+      "model_prefix": "AW",
+      "specifications": {
+        "capacity_ml": 500,
+        "type": "외장용"
+      },
+      "spec_label": "500ml 외장용",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          30000
+        ],
+        "USD": [
+          500,
+          2500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-08-01-02",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-오토케어",
+        "SYNTHETIC-오토케어플러스"
+      ],
+      "model_prefix": "AT",
+      "specifications": {
+        "width_cm": 40,
+        "length_cm": 60,
+        "set_count": 3
+      },
+      "spec_label": "40x60cm 3장",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          25000
+        ],
+        "USD": [
+          500,
+          2200
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-08-02-01",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-오토케어",
+        "SYNTHETIC-오토케어플러스"
+      ],
+      "model_prefix": "AH",
+      "specifications": {
+        "mount": "대시보드",
+        "rotation_degrees": 360
+      },
+      "spec_label": "대시보드 360도",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          8000,
+          50000
+        ],
+        "USD": [
+          800,
+          4500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-08-02-02",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-오토케어",
+        "SYNTHETIC-오토케어플러스"
+      ],
+      "model_prefix": "AC",
+      "specifications": {
+        "power_w": 65,
+        "ports": "USB-C"
+      },
+      "spec_label": "65W USB-C",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          7000,
+          60000
+        ],
+        "USD": [
+          700,
+          5500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-09-01-01",
+      "legacy_category": "book",
+      "brands": [
+        "SYNTHETIC-북라이트",
+        "SYNTHETIC-북라이트플러스"
+      ],
+      "model_prefix": "NV",
+      "specifications": {
+        "pages": 320,
+        "binding": "무선제본"
+      },
+      "spec_label": "320쪽 무선제본",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          8000,
+          30000
+        ],
+        "USD": [
+          800,
+          2600
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-09-01-02",
+      "legacy_category": "book",
+      "brands": [
+        "SYNTHETIC-북라이트",
+        "SYNTHETIC-북라이트플러스"
+      ],
+      "model_prefix": "ES",
+      "specifications": {
+        "pages": 280,
+        "binding": "무선제본"
+      },
+      "spec_label": "280쪽 무선제본",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          8000,
+          25000
+        ],
+        "USD": [
+          800,
+          2200
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-09-02-01",
+      "legacy_category": "book",
+      "brands": [
+        "SYNTHETIC-북라이트",
+        "SYNTHETIC-북라이트플러스"
+      ],
+      "model_prefix": "CB",
+      "specifications": {
+        "pages": 320,
+        "binding": "무선제본"
+      },
+      "spec_label": "320쪽 무선제본",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          12000,
+          45000
+        ],
+        "USD": [
+          1200,
+          4000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-09-02-02",
+      "legacy_category": "book",
+      "brands": [
+        "SYNTHETIC-북라이트",
+        "SYNTHETIC-북라이트플러스"
+      ],
+      "model_prefix": "PB",
+      "specifications": {
+        "pages": 480,
+        "binding": "무선제본"
+      },
+      "spec_label": "480쪽 무선제본",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          15000,
+          70000
+        ],
+        "USD": [
+          1500,
+          6000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-10-01-01",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-펫프렌즈랩",
+        "SYNTHETIC-펫프렌즈랩플러스"
+      ],
+      "model_prefix": "PH",
+      "specifications": {
+        "size": "M",
+        "chest_cm": "40~50"
+      },
+      "spec_label": "M 가슴둘레 40~50cm",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          8000,
+          50000
+        ],
+        "USD": [
+          800,
+          4500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-10-01-02",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-펫프렌즈랩",
+        "SYNTHETIC-펫프렌즈랩플러스"
+      ],
+      "model_prefix": "BW",
+      "specifications": {
+        "capacity_ml": 300,
+        "set_count": 2
+      },
+      "spec_label": "300ml 2개 세트",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          40000
+        ],
+        "USD": [
+          500,
+          3500
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-10-02-01",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-펫프렌즈랩",
+        "SYNTHETIC-펫프렌즈랩플러스"
+      ],
+      "model_prefix": "PF",
+      "specifications": {
+        "net_weight_g": 2000,
+        "target": "성견"
+      },
+      "spec_label": "2kg 성견용",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          10000,
+          80000
+        ],
+        "USD": [
+          1000,
+          7000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-10-02-02",
+      "legacy_category": null,
+      "brands": [
+        "SYNTHETIC-펫프렌즈랩",
+        "SYNTHETIC-펫프렌즈랩플러스"
+      ],
+      "model_prefix": "PS",
+      "specifications": {
+        "net_weight_g": 100,
+        "target": "반려견"
+      },
+      "spec_label": "100g 반려견용",
+      "used_allowed": false,
+      "price_ranges_minor_units": {
+        "KRW": [
+          3000,
+          25000
+        ],
+        "USD": [
+          300,
+          2200
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-11-01-01",
+      "legacy_category": "toys",
+      "brands": [
+        "SYNTHETIC-플레이팩토리",
+        "SYNTHETIC-플레이팩토리플러스"
+      ],
+      "model_prefix": "BL",
+      "specifications": {
+        "pieces": 600,
+        "recommended_age_min": 8
+      },
+      "spec_label": "600피스 8세 이상",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          10000,
+          150000
+        ],
+        "USD": [
+          1000,
+          13000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-11-01-02",
+      "legacy_category": "toys",
+      "brands": [
+        "SYNTHETIC-플레이팩토리",
+        "SYNTHETIC-플레이팩토리플러스"
+      ],
+      "model_prefix": "PL",
+      "specifications": {
+        "height_cm": 30,
+        "material": "폴리에스터"
+      },
+      "spec_label": "30cm 폴리에스터",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          80000
+        ],
+        "USD": [
+          500,
+          7000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-11-02-01",
+      "legacy_category": "toys",
+      "brands": [
+        "SYNTHETIC-플레이팩토리",
+        "SYNTHETIC-플레이팩토리플러스"
+      ],
+      "model_prefix": "BG",
+      "specifications": {
+        "players": "2~4",
+        "recommended_age_min": 8
+      },
+      "spec_label": "2~4인 8세 이상",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          10000,
+          100000
+        ],
+        "USD": [
+          1000,
+          9000
+        ]
+      }
+    },
+    {
+      "leaf_id": "SYN-CAT-11-02-02",
+      "legacy_category": "toys",
+      "brands": [
+        "SYNTHETIC-플레이팩토리",
+        "SYNTHETIC-플레이팩토리플러스"
+      ],
+      "model_prefix": "PZ",
+      "specifications": {
+        "pieces": 1000,
+        "recommended_age_min": 12
+      },
+      "spec_label": "1000피스 12세 이상",
+      "used_allowed": true,
+      "price_ranges_minor_units": {
+        "KRW": [
+          5000,
+          50000
+        ],
+        "USD": [
+          500,
+          4500
+        ]
+      }
+    }
+  ]
+}

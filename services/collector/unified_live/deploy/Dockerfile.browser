@@ -1,0 +1,7 @@
+ARG COLLECTOR_BASE_IMAGE=kkulpick-unified-collector:local-review
+FROM ${COLLECTOR_BASE_IMAGE}
+USER root
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN apt-get update && apt-get install -y --no-install-recommends libatomic1 && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir playwright==1.65.2 && python -m playwright install --with-deps chromium && chmod -R a+rX /ms-playwright
+USER 10001:10001

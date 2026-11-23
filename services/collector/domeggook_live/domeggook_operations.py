@@ -162,7 +162,7 @@ def main(argv=None):
     mode.add_argument('--refresh-once',action='store_true');mode.add_argument('--status',action='store_true')
     parser.add_argument('--source',choices=['domeggook'],default='domeggook');parser.add_argument('--dry-run',action='store_true')
     parser.add_argument('--detail',action='store_true');parser.add_argument('--interval',type=float)
-    parser.add_argument('--cycles',type=int);parser.add_argument('--limit',type=int);parser.add_argument('--backend-config');args=parser.parse_args(argv)
+    parser.add_argument('--cycles',type=int);parser.add_argument('--limit',type=int);parser.add_argument('--backend-config',default=os.environ.get('KKULPICK_BACKEND_CONFIG'));args=parser.parse_args(argv)
     try:
         cfg=configuration()
         if args.backend_config:

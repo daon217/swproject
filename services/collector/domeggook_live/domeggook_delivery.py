@@ -44,6 +44,8 @@ class DeliveryPipeline:
             body=entry['body'];return body['source']=='domeggook_test' and body['source_listing_id'].startswith('TEST-') and body.get('url','').startswith('https://store.example.test/')
         if not self.cfg.get('price_semantics_confirmed'):return False
         grants=self.cfg.get('storage_grants',{})
+        if not all(grant_valid(grants,f,self.clock()) and grants[f].get('reuse') is True for f in ('product_name','unit_price','currency','availability','product_url')):return False
+        grants=self.cfg.get('storage_grants',{})
         return all(grant_valid(grants,FIELD_MAP[k],self.clock()) and grants[FIELD_MAP[k]].get('reuse') is True
                    for k in entry['body']['field_presence'] if k in FIELD_MAP and entry['body'].get(k) is not None)
     def prune(self):
@@ -71,13 +73,14 @@ class DeliveryPipeline:
                'source':body['source'],'source_listing_id':body['source_listing_id'],'variant_key':body['variant_key']}
         self.state['entries'][key]=entry;self.count('staged');self.save()
         return {'status':'pending','observation_key':key}
-    def flush(self):
+    def flush(self,stop=None):
         if not self.enabled:return self.report()
         self.prune()
         if not self.ready:self.save();return self.report()
         if self.state['hold']:self.save();return self.report()
         sent=0
         for key,entry in self.state['entries'].items():
+            if stop is not None and stop.is_set():break
             if sent>=self.settings.get('max_requests_per_flush',10):break
             if entry['status'] not in ('pending','retry_wait','sending') or 'body' not in entry:continue
             if entry.get('next_attempt_at') and parsed(entry['next_attempt_at'])>self.clock():continue
@@ -102,6 +105,12 @@ class DeliveryPipeline:
             self.save()
             if self.state['hold']:break
         self.save();return self.report()
+    def retry_delay(self):
+        if not self.ready or self.state['hold']:return 30
+        delays=[max(1,(parsed(e['next_attempt_at'])-self.clock()).total_seconds()) if e.get('next_attempt_at') else 1
+                for e in self.state['entries'].values() if e['status'] in ('pending','retry_wait','sending') and 'body' in e]
+        return min(delays,default=30)
+
     def report(self):return {'enabled':self.enabled,'ready':self.ready,'mode':self.settings.get('mode','disabled'),'pending':self.pending_count(),
         'hold':self.state['hold'],'skipped_disabled':self.skipped,'totals':copy.deepcopy(self.state['totals']),
         'states':{name:sum(e['status']==name for e in self.state['entries'].values()) for name in ('pending','retry_wait','delivered','quarantine','held','exhausted','rejected','revoked')}}

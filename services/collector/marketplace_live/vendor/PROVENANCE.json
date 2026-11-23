@@ -1,0 +1,13 @@
+{
+  "sources": [
+    {
+      "original": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\collection_engine\\korean_marketplaces.py",
+      "sha256": "7826cb39e6a957252d9f22b91dfc5d2dc0ff6aa00e0af6744c3ce5bb60b675cb"
+    },
+    {
+      "original": "C:\\Users\\junse\\Python\\ai-shopping-search-unified\\backend\\collectors\\ebay.py",
+      "sha256": "e4d14497e0c24579ac4880710c3b9558c0d767f4b41c1b206913a7dd85ddeaf6"
+    }
+  ],
+  "reuse": "YES24 native_observation body unchanged; eBay three OAuth method bodies unchanged; constructors/imports adapted; no source originals modified"
+}

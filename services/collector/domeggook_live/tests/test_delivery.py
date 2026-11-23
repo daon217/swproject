@@ -80,7 +80,8 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(callback.call_args.args[1],'stage_failed')
     def test_watch_cycle_flushes_before_and_after_collection(self):
         from ..domeggook_watch_delivery import DeliveryDiscoveryRun
-        worker=object.__new__(DeliveryDiscoveryRun);worker.delivery=Mock();worker.delivery.backpressure.return_value=False
+        import threading
+        worker=object.__new__(DeliveryDiscoveryRun);worker.stop=threading.Event();worker.delivery=Mock();worker.delivery.backpressure.return_value=False
         with patch(PKG+'.domeggook_discovery.DiscoveryRun.cycle',return_value={'source_checkpoint':'preserved'}) as collect:
             for _ in range(3):self.assertEqual(worker.cycle()['source_checkpoint'],'preserved')
         self.assertEqual(collect.call_count,3);self.assertEqual(worker.delivery.flush.call_count,6)

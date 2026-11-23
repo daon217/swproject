@@ -28,7 +28,8 @@ def main():
         try:
             data = result.get(timeout=60)
             assert data['correlation_id'] == ident and data['service'] == role
-            assert data['business_ready'] is (role == 'recommendation')
+            expected_ready = role == 'recommendation' and data.get('embedder') != 'hash'
+            assert data['business_ready'] is expected_ready
         finally:
             result.forget()
         print('OK real Celery queue ->', role, 'HTTP scaffold')

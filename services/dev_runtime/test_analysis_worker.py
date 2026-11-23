@@ -17,9 +17,28 @@ OFFER={'offer_id':'11111111-1111-1111-1111-111111111111','source':'demo','source
 def env(monkeypatch):
     monkeypatch.setenv('WORKSPACE_TOKEN',TOKEN);monkeypatch.setenv('ANALYSIS_WORKER_TOKEN',TOKEN)
     monkeypatch.setenv('RECO_EMBEDDER','hash');monkeypatch.setenv('RECO_RANKER','rule')
+    # HTTP/profile unit tests use a pre-built index. The real PostgreSQL path has separate integration tests.
+    from contextlib import nullcontext
+    from services.recommendation import http_service as service
+    from services.recommendation.adapters.offers_api import offer_to_product
+    from services.recommendation.adapters.local import InMemoryVectorIndex
+    from services.recommendation.embedders import HashEmbedder
+    encoder=HashEmbedder()
+    index=InMemoryVectorIndex(None,encoder.name)
+    class Catalog:
+        def __init__(self,conn,kind):self.product=offer_to_product(OFFER,kind)
+        def get_many(self,ids):return {self.product.product_id:self.product} if self.product.product_id in ids else {}
+        def offer_ids(self,ids):return {p:OFFER['offer_id'] for p in ids}
+    product=offer_to_product(OFFER,'product')
+    index.upsert([(product.product_id,encoder.embed_query('주전자'))])
+    monkeypatch.setattr(service.config,'connect',lambda: nullcontext(None))
+    monkeypatch.setattr(service.config,'validate',lambda conn,kind: 'unit-test')
+    monkeypatch.setattr(service.config,'embedder',lambda:encoder)
+    monkeypatch.setattr(service,'PgCatalog',Catalog)
+    monkeypatch.setattr(service,'PgVectorIndex',lambda conn,model:index)
 
 def test_recommendation_http_auth_domain_and_allergens():
-    c=TestClient(app);body={'query':'주전자','selected_domain':'product','offers':[OFFER],
+    c=TestClient(app);body={'query':'주전자','selected_domain':'product',
         'profile':{'user_id':'test','allergens':['milk','fragrance']}}
     assert c.post('/internal/process',json=body).status_code==401
     result=c.post('/internal/process',json=body,headers={'Authorization':'Bearer '+TOKEN})
@@ -45,14 +64,14 @@ def test_worker_claim_image_8100_rank_complete(vision):
         if path.endswith('/claim'):payload={'analysis_id':'job','lease_token':'lease','page_url':OFFER['current_url'],
             'selected_domain':'product','image_url':'/internal/image' if vision else None,
             'profile':{'user_id':'u','allergens':['milk']}}
-        elif path=='/v2/offers':return httpx.Response(200,json={'items':[OFFER] if req.url.params['selected_domain']=='product' else [],'next_cursor':None})
+        elif path=='/internal/catalog-context':return httpx.Response(200,json={'match':{'kind':'product','name':OFFER['name']}})
         elif path=='/internal/image':
             assert req.headers['X-Worker-Lease']=='lease';return httpx.Response(200,content=b'image')
         elif path.startswith('/api/v1/vision/'):
             assert req.url.port==8100 and req.headers['Authorization']=='Bearer '+TOKEN
             return httpx.Response(200,json={'status':'success','ingredients':['우유']})
         elif path=='/internal/process':
-            body=json.loads(req.content);assert body['profile']['allergens']==['milk']
+            body=json.loads(req.content);assert body['profile']['allergens']==['milk'];assert 'offers' not in body
             return httpx.Response(200,json={'offer_ids':[OFFER['offer_id']],'reasons':{},'ranker':'rule'})
         elif path.endswith('/complete'):
             assert json.loads(req.content)['offer_ids']==[OFFER['offer_id']];payload={'state':'completed'}
@@ -60,6 +79,7 @@ def test_worker_claim_image_8100_rank_complete(vision):
         return httpx.Response(200,json={'data':payload})
     assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
     assert calls[-1].url.path.endswith('/complete')
+    assert not any(r.url.path=='/v2/offers' for r in calls)
     assert all(r.url.host in {'api','vision-api','recommendation'} for r in calls)
 
 def test_worker_unknown_page_fails_without_arbitrary_fetch():
@@ -67,7 +87,7 @@ def test_worker_unknown_page_fails_without_arbitrary_fetch():
     def handle(req):
         paths.append(req.url.path)
         if req.url.path.endswith('/claim'):return httpx.Response(200,json={'data':{'analysis_id':'x','lease_token':'l','page_url':'http://169.254.169.254/latest/','selected_domain':'food'}})
-        if req.url.path=='/v2/offers':return httpx.Response(200,json={'items':[],'next_cursor':None})
+        if req.url.path=='/internal/catalog-context':return httpx.Response(200,json={'match':None})
         assert req.url.path.endswith('/fail') and json.loads(req.content)['code']=='OCR_FAILED'
         return httpx.Response(200,json={'data':{}})
     assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
@@ -81,7 +101,7 @@ def test_worker_capture_only_job_uses_ocr_title_and_client_domain():
         calls.append(req);path=req.url.path
         if path.endswith('/claim'):payload={'analysis_id':'cap','lease_token':'lease','page_url':None,
             'selected_domain':'product','image_url':'/internal/image','profile':{'user_id':'u','allergens':[]}}
-        elif path=='/v2/offers':return httpx.Response(200,json={'items':[OFFER] if req.url.params['selected_domain']=='product' else [],'next_cursor':None})
+        elif path=='/internal/catalog-context':return httpx.Response(200,json={'match':{'kind':'product','name':OFFER['name']}})
         elif path=='/internal/image':return httpx.Response(200,content=b'image')
         elif path.startswith('/api/v1/vision/'):
             if path.endswith('/init'):assert json.loads(req.content)['product_name'] is None # URL 매칭이 없으니 OCR에 맡긴다
@@ -95,12 +115,13 @@ def test_worker_capture_only_job_uses_ocr_title_and_client_domain():
         return httpx.Response(200,json={'data':payload})
     assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
     assert calls[-1].url.path.endswith('/complete')
+    assert not any(r.url.path=='/v2/offers' for r in calls)
 
 
 def test_food_avoid_filter_does_not_assume_missing_ingredients_safe():
     c=TestClient(app)
     r=c.post('/internal/process',headers={'Authorization':'Bearer '+TOKEN},json={
-        'query':'간식','selected_domain':'food','offers':[OFFER],
+        'query':'간식','selected_domain':'food',
         'profile':{'user_id':'u','avoid_ingredients':['설탕']}})
     assert r.status_code==200 and r.json()['offer_ids']==[]
 

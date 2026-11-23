@@ -71,30 +71,22 @@ class Worker:
         r.raise_for_status()
         return r.json().get('data')
 
-    def offers(self,kind):
-        rows=[];after=None
-        for _ in range(10):
-            params={'selected_domain':kind,'limit':100,'condition':'all','availability':'available'}
-            if after:params['after']=after
-            r=self.http.get(self.api+'/v2/offers',params=params);r.raise_for_status()
-            page=r.json();rows.extend(page['items']);after=page.get('next_cursor')
-            if not after:break
-        return rows
-
     def once(self):
         job=self.request('POST','/internal/v2/analyses/claim',json={'worker_id':'team-integration'})
         if not job:return False
         path='/internal/v2/analyses/'+job['analysis_id'];lease={'lease_token':job['lease_token']}
         try:
-            groups={kind:self.offers(kind) for kind in ('product','food')}
             # 캡처 전용 분석은 page_url이 없다. 그때는 클라이언트가 보낸 selected_domain과 OCR 상품명만 사용한다.
             page=job.get('page_url')
-            matches=[(kind,o) for kind,rows in groups.items() for o in rows
-                     if page and context_url(o['current_url'])==context_url(page)]
+            match=None
+            if page:
+                r=self.http.post(self.reco+'/internal/catalog-context',headers=self.service_auth,
+                    json={'page_url':page,'selected_domain':job.get('selected_domain')})
+                r.raise_for_status();match=r.json()['match']
             log.info('analysis %s: page_url=%s selected_domain=%s catalog_match=%s',
-                     job['analysis_id'],'yes' if page else 'none',job.get('selected_domain'),bool(matches))
-            kind=job.get('selected_domain') or (matches[0][0] if matches else None)
-            title=matches[0][1]['name'] if matches else None
+                     job['analysis_id'],'yes' if page else 'none',job.get('selected_domain'),bool(match))
+            kind=job.get('selected_domain') or (match['kind'] if match else None)
+            title=match['name'] if match else None
             ingredients=[]
             if job.get('image_url'):
                 image=self.http.get(self.api+job['image_url'],headers=self.auth|{'X-Worker-Lease':job['lease_token']})
@@ -123,13 +115,13 @@ class Worker:
                 self.request('POST',path+'/fail',json=lease|{'code':'OCR_FAILED','retryable':False});return True
             # A generic cosmetics ingredient list must not automatically classify a page as food.
             if not kind:
-                # Vision 성분표·상품명으로 식품을 먼저 판별하고, 근거가 없으면 카탈로그 이름 겹침으로 정한다.
+                # Vision 성분표·상품명으로 판별. 전체 카탈로그를 매번 내려받지 않는다.
                 evidence=food_evidence(title,ingredients)
-                kind='food' if evidence else infer_domain(title,groups)
+                kind='food' if evidence else 'product'
                 log.info('analysis %s: selected_domain 미지정 → 자동 판단 %s (근거=%s, vision 성분 %d개)',
-                         job['analysis_id'],kind,evidence or 'catalog_overlap',len(ingredients))
+                         job['analysis_id'],kind,evidence or 'default_product',len(ingredients))
             r=self.http.post(self.reco+'/internal/process',headers=self.service_auth,json={
-                'query':title[:1000],'selected_domain':kind,'offers':groups[kind],
+                'query':title[:1000],'selected_domain':kind,
                 'ingredients':[str(i)[:500] for i in ingredients[:100]],
                 'profile':job.get('profile',{'user_id':'worker'})})
             r.raise_for_status();result=r.json()

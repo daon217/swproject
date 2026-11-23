@@ -1,0 +1,68 @@
+name: Persistent embedding pipeline
+on:
+  push:
+    branches: [main, maintest]
+    paths: ['services/api/**', 'services/recommendation/**', 'services/dev_runtime/**', 'infra/**', 'tools/workspace.py', '.github/workflows/embedding-pipeline.yml']
+  pull_request:
+    paths: ['services/api/**', 'services/recommendation/**', 'services/dev_runtime/**', 'infra/**', 'tools/workspace.py', '.github/workflows/embedding-pipeline.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: embedding-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      RECO_EMBEDDER: hash
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install tests and initialize disposable database
+        run: |
+          pip install -r services/api/requirements-dev.txt anthropic==2.5.0 toon-format
+          python tools/workspace.py init
+          python services/api/dev.py up
+      - name: Real PostgreSQL outbox, concurrency, backfill and HTTP tests
+        shell: bash
+        run: |
+          set -a
+          source infra/db/.env
+          source services/api/.env
+          set +a
+          export CATALOG_PASSWORD="$CATALOG_APP_PASSWORD"
+          EMBEDDING_INTEGRATION=1 python -m pytest -q services/recommendation/tests services/dev_runtime/test_analysis_worker.py
+          python -m unittest discover -s tools -p 'test_*.py' -q
+      - name: Existing ingestion and database regression tests
+        shell: bash
+        run: |
+          set -a
+          source infra/db/.env
+          source services/api/.env
+          set +a
+          cd services/api
+          CATALOG_INTEGRATION=1 CATALOG_PASSWORD="$CATALOG_APP_PASSWORD" python -m pytest -q --ignore=tests/test_sample_mutations.py
+      - name: Build and run real recommendation and embedding worker containers
+        run: |
+          docker compose --env-file infra/db/.env --env-file services/api/.env --env-file infra/workspace/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/integration/embeddings.compose.yaml up -d --build --wait
+          python services/api/dev.py seed
+          docker compose --env-file infra/db/.env --env-file services/api/.env --env-file infra/workspace/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/integration/embeddings.compose.yaml exec -T recommendation python -c "import os,httpx; r=httpx.post('http://localhost:8000/internal/process',headers={'Authorization':'Bearer '+os.environ['WORKSPACE_TOKEN']},json={'query':'주전자','selected_domain':'product'}); assert r.status_code==200,r.text; print(r.json())"
+      - name: Diagnose disposable services
+        if: failure()
+        run: docker compose --env-file infra/db/.env --env-file services/api/.env --env-file infra/workspace/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/integration/embeddings.compose.yaml logs --tail 80
+      - if: always()
+        run: docker compose --env-file infra/db/.env --env-file services/api/.env --env-file infra/workspace/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/integration/embeddings.compose.yaml down -v
+  semantic-model:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Build pinned CPU model and verify offline query/document compatibility
+        run: |
+          docker build -f services/recommendation/Dockerfile -t kkulpick-embedding:semantic .
+          docker run --rm --network none kkulpick-embedding:semantic python -c "from services.recommendation.embedding_config import embedder,snapshot_text; e=embedder(); texts=[snapshot_text({'name':'무선 블루투스 헤드폰','kind':'product'}),snapshot_text({'name':'감자 양파 채소','kind':'food'})]; v=e.embed_documents(texts); q=e.embed_query('무선 헤드셋'); scores=[sum(a*b for a,b in zip(q,x)) for x in v]; assert e.dimensions==384 and scores[0]>scores[1],scores; print({'dimensions':e.dimensions,'scores':scores,'offline':True})"

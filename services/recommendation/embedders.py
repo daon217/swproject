@@ -43,10 +43,10 @@ class HashEmbedder:
 
 
 class SentenceTransformerEmbedder:
-    def __init__(self, model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"):
+    def __init__(self, model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", revision: str | None = None):
         from sentence_transformers import SentenceTransformer  # 무거운 import 는 필요할 때만
 
-        self._model = SentenceTransformer(model_name, device="cpu")
+        self._model = SentenceTransformer(model_name, device="cpu", revision=revision, trust_remote_code=False)
         self.name = model_name
         self.dimensions = int(self._model.get_sentence_embedding_dimension())
 

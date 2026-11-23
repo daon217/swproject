@@ -29,6 +29,8 @@ def compose_command(scope='full', shared=False):
         files.append('infra/ui/compose.yaml')
     if scope == 'integrated':
         files.append('infra/integration/compose.yaml')
+    if scope in ('full', 'integrated'):
+        files.append('infra/integration/embeddings.compose.yaml')
     files.append('infra/workspace/local.compose.yaml')
     for relative in files:
         command += ['-f', str(ROOT / relative)]

@@ -88,14 +88,14 @@ class PgVectorIndex:
             self._v.put(self.conn, self.model_id, item_id, version, vec)
 
     def search(self, vector: list[float], limit: int) -> list[Candidate]:
-        rows = self._v.candidates(self.conn, self.model_id, vector, limit)
+        rows = self._v.candidates(self.conn, self.model_id, vector, limit, available_only=True)
         if not rows:
             return []
         # item 하나에 판매처(offer)가 여럿일 수 있음 -> 판매 중인 것 중 가장 싼 offer 로 대표
         reps = {iid: join_product_id(src, l, v) for iid, src, l, v in self.conn.execute(
             """SELECT DISTINCT ON (item_id) item_id::text, source, source_listing_id, variant_key
-               FROM app.offers WHERE item_id = ANY(%s::uuid[])
-               ORDER BY item_id, (availability='available') DESC, price, offer_id""",
+               FROM app.offers WHERE item_id = ANY(%s::uuid[]) AND availability='available'
+               ORDER BY item_id, price, offer_id""",
             ([str(r[0]) for r in rows],)).fetchall()}
         return [Candidate(reps[str(iid)], round(1.0 - float(dist), 6)) for iid, dist in rows if str(iid) in reps]
 
@@ -118,6 +118,17 @@ class PgCatalog:
                                  "ORDER BY offer_id", (self.kind,)).fetchall()
         return [join_product_id(*r) for r in rows]
 
+    def offer_ids(self, product_ids: Sequence[str]) -> dict[str, str]:
+        keys = [split_product_id(p) for p in product_ids]
+        if not keys:
+            return {}
+        rows = self.conn.execute('''SELECT source,source_listing_id,variant_key,offer_id::text
+            FROM app.offers WHERE kind=%s AND availability='available'
+            AND (source,source_listing_id,variant_key) IN
+              (SELECT * FROM unnest(%s::text[],%s::text[],%s::text[]))''',
+            (self.kind, [k[0] for k in keys], [k[1] for k in keys], [k[2] or 'default' for k in keys])).fetchall()
+        return {join_product_id(s, l, v): oid for s, l, v, oid in rows}
+
     def get_many(self, product_ids: Sequence[str]) -> dict[str, CollectedProduct]:
         keys = [split_product_id(p) for p in product_ids]
         if not keys:
@@ -127,7 +138,7 @@ class PgCatalog:
                       o.currency, o.current_url, o.price_observed_at,
                       o.condition, o.availability, o.last_checked_at
                FROM app.offers o JOIN app.catalog_items i USING(item_id)
-               WHERE o.kind=%s AND (o.source, o.source_listing_id, o.variant_key) IN
+               WHERE o.kind=%s AND o.availability='available' AND (o.source, o.source_listing_id, o.variant_key) IN
                      (SELECT * FROM unnest(%s::text[], %s::text[], %s::text[]))""",
             (self.kind, [k[0] for k in keys], [k[1] for k in keys], [k[2] or "default" for k in keys])).fetchall()
         out = {}

@@ -1,0 +1,244 @@
+"""Run on a disposable migrated PostgreSQL/pgvector database only (CI and local dev)."""
+import os
+from concurrent.futures import ThreadPoolExecutor
+from uuid import uuid4
+
+import psycopg
+import pytest
+from fastapi.testclient import TestClient
+
+from services.recommendation import embedding_config as config
+from services.recommendation import embedding_worker as worker
+from services.recommendation.adapters.postgres import PgVectorIndex, _vectors
+from services.recommendation.embedders import HashEmbedder
+from services.recommendation.http_service import app
+
+pytestmark = pytest.mark.skipif(os.getenv('EMBEDDING_INTEGRATION') != '1', reason='requires disposable migrated PostgreSQL')
+TOKEN = 'embedding-test-' + 'x' * 40
+
+
+def pg(role='app'):
+    return psycopg.connect(host=os.getenv('DB_HOST', '127.0.0.1'), port=os.getenv('DB_PORT', '5433'),
+        dbname='kkulpick_catalog', user='kkulpick_catalog_' + role,
+        password=os.environ['CATALOG_' + role.upper() + '_PASSWORD'], autocommit=True)
+
+
+@pytest.fixture
+def db(monkeypatch):
+    monkeypatch.setenv('RECO_EMBEDDER', 'hash')
+    monkeypatch.setenv('RECO_RANKER', 'rule')
+    monkeypatch.setenv('WORKSPACE_TOKEN', TOKEN)
+    monkeypatch.setenv('CATALOG_PASSWORD', os.environ['CATALOG_APP_PASSWORD'])
+    cached_embedder = config.embedder
+    cached_embedder.cache_clear()
+    with pg('owner') as owner, pg() as runtime:
+        config.bootstrap(owner)
+        source = 'embedding_test_' + uuid4().hex
+        yield owner, runtime, source
+        ids = [r[0] for r in owner.execute('SELECT item_id FROM app.offers WHERE source=%s', (source,))]
+        owner.execute('DELETE FROM app.offers WHERE source=%s', (source,))
+        owner.execute('DELETE FROM app.catalog_items WHERE item_id=ANY(%s::uuid[])', (ids,))
+    cached_embedder.cache_clear()
+
+
+def seed(conn, source, name='전기 주전자', kind='product', availability='available', listing=None):
+    listing = listing or uuid4().hex
+    with conn.transaction():
+        item = conn.execute('INSERT INTO app.catalog_items(kind,name) VALUES(%s,%s) RETURNING item_id', (kind,name)).fetchone()[0]
+        table = {'product':'products','food':'foods'}[kind]
+        conn.execute(f'INSERT INTO app.{table}(item_id) VALUES(%s)', (item,))
+        offer = conn.execute('''INSERT INTO app.offers(item_id,kind,source,source_listing_id,variant_key,condition,
+          price,currency,current_url,availability,price_observed_at,status_observed_at,url_observed_at,
+          content_observed_at,last_seen_at,last_checked_at,condition_observed_at,last_changed_at)
+          VALUES(%s,%s,%s,%s,'default','new',1000,'KRW',%s,%s,now(),now(),now(),now(),now(),now(),now(),now())
+          RETURNING offer_id''', (item,kind,source,listing,'https://store.example.test/'+listing,availability)).fetchone()[0]
+    return item, str(offer), f'{source}:{listing}#default'
+
+
+def drain(conn):
+    while worker.once(conn, HashEmbedder()):
+        pass
+
+
+def job_for(conn, item):
+    # Drain unrelated jobs first so tests never rely on table iteration order.
+    while True:
+        job = worker.claim(conn)
+        assert job is not None
+        if job['item_id'] == item:
+            return job
+        worker.finish(conn, job, HashEmbedder().embed_query(config.snapshot_text(job['snapshot'])))
+
+
+def request(client, **extra):
+    return client.post('/internal/process', headers={'Authorization':'Bearer '+TOKEN},
+        json={'query':'전기 주전자','selected_domain':'product',**extra})
+
+
+def test_bootstrap_idempotent_and_backfills_existing_demo(db):
+    owner, conn, source = db
+    model = config.contract('product').model_id
+    owner.execute('UPDATE app.embedding_models SET is_serving=false WHERE model_id=%s', (model,))
+    item, _, _ = seed(conn, source)
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()
+    config.bootstrap(owner)
+    assert conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()
+    drain(conn)
+    config.bootstrap(owner)
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()
+    assert owner.execute("SELECT count(*) FROM pg_indexes WHERE schemaname='app' AND indexdef LIKE %s", ('%'+model+'%',)).fetchone()[0] == 1
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        conn.execute("UPDATE app.embedding_models SET is_serving=false WHERE model_id=%s", (model,))
+
+
+def test_http_reads_persistent_vectors_and_embeds_only_query(db, monkeypatch):
+    owner, conn, source = db
+    item, offer, _ = seed(conn, source)
+    drain(conn)
+    before = conn.execute('SELECT created_at FROM app.product_embeddings WHERE product_id=%s', (item,)).fetchone()
+    class QueryOnly(HashEmbedder):
+        calls = 0
+        def embed_documents(self, texts):
+            raise AssertionError('HTTP must not rebuild the catalog')
+        def embed_query(self, text):
+            self.calls += 1
+            return super().embed_query(text)
+    encoder = QueryOnly()
+    monkeypatch.setattr(config, 'embedder', lambda: encoder)
+    with TestClient(app) as client:
+        for _ in range(2):
+            response = request(client)
+            assert response.status_code == 200, response.text
+            assert offer in response.json()['offer_ids']
+        assert request(client, offers=[]).status_code == 422
+        assert client.post('/internal/process', json={'query':'q','selected_domain':'product'}).status_code == 401
+    assert encoder.calls == 2
+    assert conn.execute('SELECT created_at FROM app.product_embeddings WHERE product_id=%s', (item,)).fetchone() == before
+
+
+def test_update_invalidates_old_vector_and_refreshes_snapshot(db):
+    _, conn, source = db
+    item, _, pid = seed(conn, source)
+    drain(conn)
+    model = config.contract('product').model_id
+    conn.execute("UPDATE app.catalog_items SET name='무선 이어폰' WHERE item_id=%s", (item,))
+    assert conn.execute('SELECT content_version FROM app.catalog_items WHERE item_id=%s',(item,)).fetchone()[0] == 2
+    assert pid not in [c.product_id for c in PgVectorIndex(conn,model).search(HashEmbedder().embed_query('주전자'),100)]
+    drain(conn)
+    assert conn.execute('SELECT content_version FROM app.product_embeddings WHERE product_id=%s AND model_id=%s',(item,model)).fetchone()[0] == 2
+    assert pid in [c.product_id for c in PgVectorIndex(conn,model).search(HashEmbedder().embed_query('무선 이어폰'),100)]
+
+
+def test_stale_inflight_result_does_not_ack_new_job(db):
+    _, conn, source = db
+    item, _, _ = seed(conn, source)
+    job = job_for(conn, item)
+    conn.execute("UPDATE app.catalog_items SET description='새 설명' WHERE item_id=%s", (item,))
+    assert worker.finish(conn,job,HashEmbedder().embed_query('old')) is False
+    worker.retry(conn,job,ValueError('old error'))
+    row = conn.execute('SELECT content_version,attempts,last_error FROM app.embedding_jobs WHERE item_id=%s',(item,)).fetchone()
+    assert row == (2,0,None)
+    drain(conn)
+    assert conn.execute('SELECT content_version FROM app.product_embeddings WHERE product_id=%s',(item,)).fetchone()[0] == 2
+
+
+def test_lease_recovery_and_concurrent_claims(db):
+    _, conn, source = db
+    drain(conn)
+    items = {seed(conn,source)[0] for _ in range(2)}
+    def take(_):
+        with pg() as other:
+            return worker.claim(other)
+    with ThreadPoolExecutor(2) as pool:
+        jobs = list(pool.map(take,range(2)))
+    assert {j['item_id'] for j in jobs} == items
+    old = jobs[0]
+    conn.execute("UPDATE app.embedding_jobs SET lease_until=now()-interval '1 second' WHERE item_id=%s", (old['item_id'],))
+    new = worker.claim(conn)
+    assert new['item_id'] == old['item_id'] and new['lease_token'] != old['lease_token']
+    assert not worker.finish(conn,old,HashEmbedder().embed_query('stale'))
+    assert worker.finish(conn,new,HashEmbedder().embed_query('valid'))
+
+
+def test_failed_inference_retries_without_losing_job(db):
+    _, conn, source = db
+    drain(conn)
+    item, _, _ = seed(conn,source)
+    class Broken:
+        def embed_documents(self,texts):raise RuntimeError('do not store private error content')
+    assert worker.once(conn,Broken())
+    row = conn.execute('SELECT attempts,last_error,lease_token,available_at>now() FROM app.embedding_jobs WHERE item_id=%s',(item,)).fetchone()
+    assert row == (1,'RuntimeError',None,True)
+    conn.execute('UPDATE app.embedding_jobs SET available_at=now() WHERE item_id=%s',(item,))
+    drain(conn)
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s',(item,)).fetchone()
+
+
+def test_price_only_change_and_transaction_rollback_do_not_enqueue(db):
+    _, conn, source = db
+    item, offer, _ = seed(conn,source)
+    drain(conn)
+    conn.execute('UPDATE app.offers SET price=2000 WHERE offer_id=%s',(offer,))
+    with pytest.raises(RuntimeError), conn.transaction():
+        conn.execute("UPDATE app.catalog_items SET name='rolled back' WHERE item_id=%s",(item,))
+        raise RuntimeError()
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s',(item,)).fetchone()
+    assert conn.execute('SELECT name,content_version FROM app.catalog_items WHERE item_id=%s',(item,)).fetchone() == ('전기 주전자',1)
+
+
+def test_domains_availability_and_missing_food_ingredients(db):
+    _, conn, source = db
+    ids = [seed(conn,source,availability=status)[1] for status in ('ended','suspect','out_of_stock')]
+    food = seed(conn,source,name='우유 쿠키',kind='food')[1]
+    visible = seed(conn,source)[1]
+    drain(conn)
+    with TestClient(app) as client:
+        data = request(client).json()
+        assert visible in data['offer_ids'] and not set(ids+[food]) & set(data['offer_ids'])
+        response = request(client,selected_domain='food',profile={'user_id':'test','allergens':['milk']},ingredients=['우유'])
+        assert response.status_code == 200
+        assert food not in response.json()['offer_ids']
+        assert response.json()['warnings'][0]['allergen'] == 'milk'
+
+
+def test_missing_contract_returns_503_not_memory_fallback(db):
+    owner, conn, _ = db
+    model = config.contract('product').model_id
+    owner.execute('UPDATE app.embedding_models SET is_serving=false WHERE model_id=%s',(model,))
+    try:
+        with TestClient(app) as client:
+            assert request(client).status_code == 503
+            assert client.get('/health').status_code == 503
+    finally:
+        config.bootstrap(owner)
+
+
+def test_model_contract_mismatch_and_zero_vector_rejected(db):
+    owner, conn, source = db
+    item, _, _ = seed(conn,source)
+    model = config.contract('product')
+    with pytest.raises(psycopg.Error):
+        owner.execute('UPDATE app.embedding_models SET revision=%s WHERE model_id=%s',('different',model.model_id))
+    for vector in ([0]*384,[1,0],[float('nan')]*384):
+        with pytest.raises(ValueError):
+            _vectors().put(conn,model.model_id,item,1,vector)
+    assert conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s',(item,)).fetchone()
+
+
+def test_context_lookup_is_exact_and_not_first_thousand_limited(db):
+    _, conn, source = db
+    # More than the old API cap, committed together; no application pagination involved.
+    with conn.transaction():
+        for n in range(1001):
+            seed(conn,source,name=f'가상 상품 {n}',listing=str(n))
+    with TestClient(app) as client:
+        for listing, found in [('1000',True),('1000?different=1',False)]:
+            response = client.post('/internal/catalog-context',headers={'Authorization':'Bearer '+TOKEN},
+                json={'page_url':'https://store.example.test/'+listing})
+            assert response.status_code == 200
+            assert bool(response.json()['match']) is found
+    # Backfill processes all 1001 items, not just one API page.
+    drain(conn)
+    count = conn.execute('''SELECT count(*) FROM app.product_embeddings e JOIN app.offers o ON o.item_id=e.product_id
+                           WHERE o.source=%s''',(source,)).fetchone()[0]
+    assert count == 1001

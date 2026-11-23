@@ -57,27 +57,30 @@ def put(conn, model, parent_id, version, values):
             (parent_id,model,version,vec))
 
 
-def candidates(conn, model, values, limit=20):
+def candidates(conn, model, values, limit=20, available_only=False):
     """Returns candidate identities, not a price, an allergy verdict or a final recommendation."""
     if not 1<=limit<=100:
         raise ValueError("invalid limit")
     with conn.transaction():
         t,dim,vec=_space(conn,model,values)
         _,parent,pk=TARGETS[t]
+        available = sql.SQL('')
+        if available_only and t in ('product', 'food'):
+            available = sql.SQL(" AND EXISTS (SELECT 1 FROM app.offers o WHERE o.item_id=p.item_id AND o.availability='available')")
         conn.execute("SET LOCAL hnsw.ef_search=40")
         conn.execute("SET LOCAL hnsw.iterative_scan=strict_order")
         distance=sql.SQL("e.embedding::vector({}) <=> %s::vector({})").format(sql.Literal(dim),sql.Literal(dim))
         stmt=sql.SQL("SELECT e.{},{} AS distance FROM app.{} e JOIN app.{} p ON e.{}=p.{} "
-                     "AND e.content_version=p.content_version WHERE e.model_id={} ORDER BY distance LIMIT %s").format(
+                     "AND e.content_version=p.content_version WHERE e.model_id={}{} ORDER BY distance LIMIT %s").format(
                      sql.Identifier(t+"_id"),distance,sql.Identifier(t+"_embeddings"),sql.Identifier(parent),
-                     sql.Identifier(t+"_id"),sql.Identifier(pk),sql.Literal(model))
+                     sql.Identifier(t+"_id"),sql.Identifier(pk),sql.Literal(model),available)
         rows=conn.execute(stmt,(vec,limit)).fetchall()
         if len(rows)<limit:
             # Exact fallback for stale/filtered candidates on sparse domains.
             exact=sql.SQL("SELECT * FROM ({}) q ORDER BY distance LIMIT %s").format(
                 sql.SQL("SELECT e.{},{} AS distance FROM app.{} e JOIN app.{} p ON e.{}=p.{} AND "
-                        "e.content_version=p.content_version WHERE e.model_id={} OFFSET 0").format(
+                        "e.content_version=p.content_version WHERE e.model_id={}{} OFFSET 0").format(
                     sql.Identifier(t+"_id"),distance,sql.Identifier(t+"_embeddings"),sql.Identifier(parent),
-                    sql.Identifier(t+"_id"),sql.Identifier(pk),sql.Literal(model)))
+                    sql.Identifier(t+"_id"),sql.Identifier(pk),sql.Literal(model),available))
             rows=conn.execute(exact,(vec,limit)).fetchall()
         return rows

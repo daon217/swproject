@@ -8,7 +8,7 @@ for f in infra/db/.env services/api/.env infra/nas/.env; do
 done
 VISION_FILE=""
 if grep -Eq '^NAS_VISION=1[[:space:]]*$' infra/nas/.env; then
-  VISION_FILE="-f infra/nas/vision.compose.yaml"
+  VISION_FILE="-f infra/nas/vision.compose.yaml -f infra/integration/embeddings.compose.yaml"
 fi
 compose() {
   # shellcheck disable=SC2086

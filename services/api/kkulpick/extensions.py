@@ -95,13 +95,15 @@ class MatchingProfile(BaseModel):
     @field_validator("image_urls")
     @classmethod
     def valid_image_list(cls, values):
-        seen = []
+        seen_urls: set[str] = set()
+        deduped: list[HttpUrl] = []
         for v in values:
             check_image_url(v)
             s = str(v)
-            if s not in seen:
-                seen.append(v)
-        return seen
+            if s not in seen_urls:
+                seen_urls.add(s)
+                deduped.append(v)
+        return deduped
 
     @field_validator("options")
     @classmethod
@@ -424,6 +426,20 @@ async def offer_matches(
         if not target:
             raise HTTPException(404, "OFFER_NOT_FOUND")
 
+        t_gtin = target["gtin"]
+        t_brand = (target["brand"] or "").strip().casefold() or None
+        t_model_num = (target["model_number"] or "").strip().casefold() or None
+        t_mpn = (target["mpn"] or "").strip().casefold() or None
+        t_model_name = (target["model_name"] or "").strip().casefold() or None
+        t_cat = (target["category"] or "").strip().casefold() or None
+
+        if not any((t_gtin, t_brand, t_model_num, t_mpn, t_model_name)):
+            return {
+                "offer_id": offer_id,
+                "exact_candidates": [],
+                "similar_candidates": [],
+            }
+
         from sqlalchemy import text
         rows = (await c.execute(text("""SELECT o.offer_id,o.source,o.source_listing_id,o.variant_key,
             o.condition,o.price::text AS price,o.currency,o.shipping_fee::text AS shipping_fee,
@@ -435,17 +451,34 @@ async def offer_matches(
             LEFT JOIN app.products p USING(item_id)
             WHERE o.kind=:kind AND o.offer_id<>:id AND o.availability='available'
               AND (:include_used OR o.condition='new')
-            ORDER BY o.price ASC, o.offer_id ASC LIMIT 200"""),
-            {"kind": target["kind"], "id": offer_id, "include_used": include_used})).mappings().all()
+              AND (
+                (:gtin IS NOT NULL AND p.gtin = :gtin)
+                OR (:brand IS NOT NULL AND lower(i.brand) = :brand)
+                OR (:model_num IS NOT NULL AND lower(p.model_number) = :model_num)
+                OR (:mpn IS NOT NULL AND lower(p.mpn) = :mpn)
+              )
+            ORDER BY
+              CASE
+                WHEN (:gtin IS NOT NULL AND p.gtin = :gtin) THEN 0
+                WHEN (:brand IS NOT NULL AND lower(i.brand) = :brand AND :model_num IS NOT NULL AND lower(p.model_number) = :model_num) THEN 0
+                WHEN (:brand IS NOT NULL AND lower(i.brand) = :brand AND :mpn IS NOT NULL AND lower(p.mpn) = :mpn) THEN 0
+                ELSE 1
+              END ASC,
+              o.price ASC, o.offer_id ASC
+            LIMIT :candidate_cap"""),
+            {
+                "kind": target["kind"],
+                "id": offer_id,
+                "include_used": include_used,
+                "gtin": t_gtin,
+                "brand": t_brand,
+                "model_num": t_model_num,
+                "mpn": t_mpn,
+                "candidate_cap": max(200, limit * 10),
+            })).mappings().all()
 
     exact_candidates = []
     similar_candidates = []
-    t_gtin = target["gtin"]
-    t_brand = (target["brand"] or "").strip().casefold()
-    t_model_num = (target["model_number"] or "").strip().casefold()
-    t_mpn = (target["mpn"] or "").strip().casefold()
-    t_model_name = (target["model_name"] or "").strip().casefold()
-    t_cat = (target["category"] or "").strip().casefold()
 
     for r in rows:
         c_gtin = r["gtin"]

@@ -33,12 +33,21 @@ def claim(conn):
 def finish(conn, job, vector):
     with conn.transaction():
         # Catalog -> queue lock order matches the catalog trigger. Ingest may proceed during inference.
-        current = conn.execute('SELECT content_version FROM app.catalog_items WHERE item_id=%s FOR SHARE',
+        current = conn.execute('SELECT content_version, kind FROM app.catalog_items WHERE item_id=%s FOR SHARE',
                                (job['item_id'],)).fetchone()
-        lease = conn.execute('''SELECT content_version FROM app.embedding_jobs
-            WHERE item_id=%s AND model_id=%s AND lease_token=%s AND lease_until>now() FOR UPDATE''',
+        lease = conn.execute('''SELECT j.content_version, m.target
+            FROM app.embedding_jobs j
+            JOIN app.embedding_models m USING(model_id)
+            WHERE j.item_id=%s AND j.model_id=%s AND j.lease_token=%s AND j.lease_until>now() FOR UPDATE OF j''',
             (job['item_id'], job['model_id'], job['lease_token'])).fetchone()
-        if not current or not lease or current[0] != job['content_version'] or lease[0] != job['content_version']:
+        if not lease:
+            return False
+        if not current or current[1] != lease[1]:
+            # Item was deleted or switched domain (product <-> food); discard the obsolete domain job.
+            conn.execute('DELETE FROM app.embedding_jobs WHERE item_id=%s AND model_id=%s AND lease_token=%s',
+                         (job['item_id'], job['model_id'], job['lease_token']))
+            return False
+        if current[0] != job['content_version'] or lease[0] != job['content_version']:
             return False
         _vectors().put(conn, job['model_id'], job['item_id'], job['content_version'], vector)
         conn.execute('DELETE FROM app.embedding_jobs WHERE item_id=%s AND model_id=%s AND lease_token=%s',

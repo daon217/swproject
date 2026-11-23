@@ -87,10 +87,20 @@ def test_listing_extension_validation_gtin_and_images():
             "model_number": "KP-100",
             "gtin": "8801043014809",
             "image_url": "https://store.example.test/img/1.jpg",
+            "image_urls": [
+                "https://store.example.test/img/1.jpg",
+                "https://store.example.test/img/1.jpg",
+                "https://store.example.test/img/2.jpg",
+                "https://store.example.test/img/2.jpg",
+            ],
             "options": {"color": "silver", "capacity": "1.7L"},
         },
     )
     assert ext.matching_profile.gtin == "08801043014809"
+    assert [str(u) for u in ext.matching_profile.image_urls] == [
+        "https://store.example.test/img/1.jpg",
+        "https://store.example.test/img/2.jpg",
+    ]
 
     for invalid in (
         {"matching_profile": None, "food_evidence": None},

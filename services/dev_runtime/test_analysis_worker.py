@@ -55,6 +55,47 @@ def test_recommendation_http_auth_domain_and_allergens():
 def test_product_query_ids_are_not_collapsed():
     assert context_url('https://shop.test/p?id=1')!=context_url('https://shop.test/p?id=2')
 
+
+def test_normalized_url_candidates_and_process_422_vs_503(monkeypatch):
+    from services.recommendation import http_service as service
+    candidates, host, suffix = service._normalized_url_candidates('http://WWW.11st.co.kr:80/products/12345?opt=1#review')
+    assert host == 'www.11st.co.kr'
+    assert suffix == '/products/12345?opt=1'
+    assert 'https://www.11st.co.kr/products/12345?opt=1' in candidates
+    assert 'http://www.11st.co.kr/products/12345?opt=1' in candidates
+
+    c = TestClient(app)
+    # Invalid profile inputs (empty user_id, non-list allergens, unknown profile fields) must return 422, not 503
+    for bad_profile in (
+        {'user_id': ''},
+        {'user_id': 'u', 'allergens': 'milk'},
+        {'user_id': 'u', 'unknown_field': 123},
+    ):
+        resp = c.post('/internal/process', headers={'Authorization': 'Bearer ' + TOKEN}, json={
+            'query': '주전자',
+            'selected_domain': 'product',
+            'profile': bad_profile,
+        })
+        assert resp.status_code == 422, (bad_profile, resp.status_code, resp.text)
+
+    # If UserProfile.from_dict or downstream input validation raises KeyError, it must still return 422
+    with monkeypatch.context() as m:
+        m.setattr(service.UserProfile, 'from_dict', staticmethod(lambda _: (_ for _ in ()).throw(KeyError('missing_key'))))
+        resp_key = c.post('/internal/process', headers={'Authorization': 'Bearer ' + TOKEN}, json={
+            'query': '주전자',
+            'selected_domain': 'product',
+        })
+        assert resp_key.status_code == 422
+
+    # Dependency failure (e.g. DB connection OSError) must return 503
+    with monkeypatch.context() as m:
+        m.setattr(service.config, 'connect', lambda: (_ for _ in ()).throw(OSError('db down')))
+        resp_dep = c.post('/internal/process', headers={'Authorization': 'Bearer ' + TOKEN}, json={
+            'query': '주전자',
+            'selected_domain': 'product',
+        })
+        assert resp_dep.status_code == 503
+
 @pytest.mark.parametrize('vision', [False,True])
 def test_worker_claim_image_8100_rank_complete(vision):
     calls=[]

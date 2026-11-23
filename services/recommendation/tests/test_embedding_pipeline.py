@@ -251,13 +251,49 @@ def test_context_lookup_is_exact_and_not_first_thousand_limited(db):
         for n in range(1001):
             seed(conn,source,name=f'가상 상품 {n}',listing=str(n))
     with TestClient(app) as client:
-        for listing, found in [('1000',True),('1000?different=1',False)]:
+        for listing, found in [
+            ('1000',True),
+            ('1000#review',True),
+            ('1000?different=1',False),
+        ]:
             response = client.post('/internal/catalog-context',headers={'Authorization':'Bearer '+TOKEN},
                 json={'page_url':'https://store.example.test/'+listing})
             assert response.status_code == 200
             assert bool(response.json()['match']) is found
+        # Uppercase host, http vs https, and URL fragment still match the stored canonical URL
+        for variant_url in [
+            'https://STORE.EXAMPLE.TEST/1000#review',
+            'http://store.example.test/1000#detail',
+            'https://store.example.test:443/1000',
+        ]:
+            response = client.post('/internal/catalog-context',headers={'Authorization':'Bearer '+TOKEN},
+                json={'page_url':variant_url})
+            assert response.status_code == 200
+            assert response.json()['match']['name'] == '가상 상품 1000'
     # Backfill processes all 1001 items, not just one API page.
     drain(conn)
     count = conn.execute('''SELECT count(*) FROM app.product_embeddings e JOIN app.offers o ON o.item_id=e.product_id
                            WHERE o.source=%s''',(source,)).fetchone()[0]
     assert count == 1001
+
+
+def test_domain_switch_cleans_up_stale_embedding_jobs(db):
+    owner, conn, source = db
+    drain(conn)
+    item, offer, _ = seed(conn, source, name='도메인 전환 테스트 상품', kind='product')
+    product_model = config.contract('product').model_id
+    food_model = config.contract('food').model_id
+    assert conn.execute('SELECT count(*) FROM app.embedding_jobs WHERE item_id=%s AND model_id=%s', (item, product_model)).fetchone()[0] == 1
+
+    # Switch item from product -> food inside a transaction (satisfying deferred subtype constraint)
+    with owner.transaction():
+        owner.execute('DELETE FROM app.offers WHERE offer_id=%s', (offer,))
+        owner.execute('DELETE FROM app.products WHERE item_id=%s', (item,))
+        owner.execute('INSERT INTO app.foods(item_id) VALUES(%s)', (item,))
+        owner.execute("UPDATE app.catalog_items SET kind='food', name='도메인 전환 식품' WHERE item_id=%s", (item,))
+
+    # The trigger removes the old product embedding job and enqueues only the food embedding job
+    jobs = conn.execute('SELECT model_id FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchall()
+    assert [r[0] for r in jobs] == [food_model]
+    drain(conn)
+    assert conn.execute('SELECT count(*) FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()[0] == 0

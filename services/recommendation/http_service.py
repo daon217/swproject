@@ -2,6 +2,7 @@
 import os
 import secrets
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit, urlunsplit
 try:
     import psycopg
     PG_ERRORS = (psycopg.Error,)
@@ -68,18 +69,70 @@ def probe(body:dict,authorization:str=Header(default='')):
     return body|health()
 
 
+def _normalized_url_candidates(raw_url: str) -> tuple[list[str], str, str]:
+    """Return index-friendly normalized URL candidates (http/https, lowercase host, no #fragment)
+    plus (host, path_and_query) for case-insensitive host fallback."""
+    stripped = raw_url.strip()
+    u = urlsplit(stripped)
+    base_no_frag = urlunsplit((u.scheme, u.netloc, u.path, u.query, ''))
+    host = (u.hostname or '').lower()
+    if not host:
+        return [stripped, base_no_frag], '', ''
+    try:
+        port = u.port
+    except ValueError:
+        port = None
+    netloc_default = f'{host}:{port}' if port and port not in (80, 443) else host
+    path_variants = [u.path] if u.path else ['', '/']
+    if u.path and u.path != '/' and u.path.endswith('/'):
+        path_variants = [u.path, u.path.rstrip('/')]
+    candidates = []
+    for candidate in (
+        stripped,
+        base_no_frag,
+        *[
+            urlunsplit((scheme, netloc, p, u.query, ''))
+            for scheme in ('https', 'http')
+            for netloc in ({netloc_default, f'{host}:{port}'} if port else {netloc_default})
+            for p in path_variants
+        ],
+    ):
+        if candidate and candidate not in candidates:
+            candidates.append(candidate)
+    suffix = f'{u.path}?{u.query}' if u.query else u.path
+    return candidates, host, suffix
+
+
 @app.post('/internal/catalog-context')
 def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
     authorize(authorization)
+    candidates, host, suffix = _normalized_url_candidates(body.page_url)
     try:
         with config.connect() as conn:
             row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw
                 FROM app.offers o
                 JOIN app.catalog_items i USING(item_id)
                 LEFT JOIN app.foods f USING(item_id)
-                WHERE o.current_url=%s AND (%s::text IS NULL OR o.kind=%s)
-                ORDER BY (o.availability='available') DESC,o.offer_id LIMIT 1''',
-                (body.page_url,body.selected_domain,body.selected_domain)).fetchone()
+                WHERE o.current_url = ANY(%s) AND (%s::text IS NULL OR o.kind=%s)
+                ORDER BY (o.current_url=%s) DESC,(o.availability='available') DESC,o.offer_id LIMIT 1''',
+                (candidates,body.selected_domain,body.selected_domain,body.page_url)).fetchone()
+            if not row and host:
+                row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw,o.current_url
+                    FROM app.offers o
+                    JOIN app.catalog_items i USING(item_id)
+                    LEFT JOIN app.foods f USING(item_id)
+                    WHERE lower(substring(o.current_url from '^[a-zA-Z]+://([^/:?#]+)')) = %s
+                      AND (%s::text IS NULL OR o.kind=%s)
+                    ORDER BY (o.availability='available') DESC,o.offer_id LIMIT 50''',
+                    (host,body.selected_domain,body.selected_domain)).fetchall()
+                matched = None
+                for cand in row:
+                    cu = urlsplit(cand[4])
+                    csuffix = f'{cu.path}?{cu.query}' if cu.query else cu.path
+                    if (cu.hostname or '').lower() == host and csuffix == suffix:
+                        matched = cand[:4]
+                        break
+                row = matched
         if not row:
             return {'match':None}
         from .allergens import split_ingredients
@@ -88,7 +141,7 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
         if ing:
             match['ingredients']=ing
         return {'match':match}
-    except PG_ERRORS + (OSError,) as error:
+    except PG_ERRORS + (KeyError, OSError) as error:
         raise HTTPException(503,'CATALOG_UNAVAILABLE') from error
 
 @app.post('/internal/process')
@@ -97,6 +150,8 @@ def process(body:Input,authorization:str=Header(default='')):
     try:
         raw=dict(body.profile)
         requested=raw.get('allergens',[])
+        if not isinstance(requested, (list, tuple)):
+            raise ValueError('allergens must be a list')
         normalized=['soy' if a=='soybean' else a for a in requested]
         unsupported=[a for a in normalized if a not in ALLERGENS]
         raw['allergens']=[a for a in normalized if a in ALLERGENS] if body.selected_domain=='food' else []
@@ -113,6 +168,9 @@ def process(body:Input,authorization:str=Header(default='')):
             'message':'이 알레르기 항목의 자동 검증은 지원하지 않습니다. 상품 표시를 직접 확인해 주세요.'} for a in unchecked]
         if body.selected_domain=='food' and raw['allergens'] and not body.ingredients:
             warnings += [{'type':'allergy','allergen':a,'evidence':'unknown','message':'페이지 성분을 확인하지 못했습니다.'} for a in raw['allergens']]
+    except (ValueError,TypeError,KeyError,ContractError) as error:
+        raise HTTPException(422,'INVALID_RECOMMENDATION_INPUT') from error
+    try:
         with config.connect() as conn:
             try:
                 model_id=config.validate(conn,body.selected_domain)
@@ -126,7 +184,9 @@ def process(body:Input,authorization:str=Header(default='')):
         return {'offer_ids':[ids[p.product_id] for p in result.picks if p.product_id in ids],
                 'reasons':{ids[p.product_id]:p.reason for p in result.picks if p.product_id in ids},
                 'ranker':result.ranker,'selected_domain':body.selected_domain,'warnings':warnings}
+    except HTTPException:
+        raise
     except PG_ERRORS + (KeyError, OSError) as error:
         raise HTTPException(503,'RECOMMENDATION_DEPENDENCY_UNAVAILABLE') from error
-    except (ValueError,KeyError,ContractError) as error:
+    except (ValueError,ContractError) as error:
         raise HTTPException(422,'INVALID_RECOMMENDATION_INPUT') from error

@@ -20,7 +20,7 @@ test('admin real login, affiliate save, support reply, settings persistence and 
  await page.goto('http://127.0.0.1:3000/console/index.html#/counseling/detail/'+conv);
  await expect(page.getByText('실제 상담 연결 테스트',{exact:true})).toBeVisible();
  await page.locator('#chat-reply-input').fill('DB 저장된 관리자 답변');
- await page.getByRole('button',{name:'답변 추가',exact:true}).click();
+ await page.getByRole('button',{name:'답변 보내기',exact:true}).click();
  await expect(page.getByText('DB 저장된 관리자 답변',{exact:true})).toBeVisible();
  await page.reload();await expect(page.getByText('DB 저장된 관리자 답변',{exact:true})).toBeVisible();
  await page.goto('http://127.0.0.1:3000/console/index.html#/counseling/settings');

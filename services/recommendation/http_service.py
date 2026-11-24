@@ -103,6 +103,15 @@ def _normalized_url_candidates(raw_url: str) -> tuple[list[str], str, str]:
     return candidates, host, suffix
 
 
+def _suffix_variants(suffix: str) -> list[str]:
+    """Path/query forms treated as the same page: empty path == '/', optional trailing slash."""
+    path, sep, query = suffix.partition('?')
+    paths = {path or '/', '' if path in ('', '/') else path}
+    if path not in ('', '/'):
+        paths.add(path.rstrip('/') if path.endswith('/') else path)
+    return sorted({p + sep + query for p in paths})
+
+
 @app.post('/internal/catalog-context')
 def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
     authorize(authorization)
@@ -117,22 +126,18 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
                 ORDER BY (o.current_url=%s) DESC,(o.availability='available') DESC,o.offer_id LIMIT 1''',
                 (candidates,body.selected_domain,body.selected_domain,body.page_url)).fetchone()
             if not row and host:
-                row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw,o.current_url
+                # Host-case fallback. The host expression matches the offers_url_host index (0010)
+                # and the exact path/query comparison runs in SQL, so a busy host cannot push the
+                # matching offer past an arbitrary row limit.
+                row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw
                     FROM app.offers o
                     JOIN app.catalog_items i USING(item_id)
                     LEFT JOIN app.foods f USING(item_id)
                     WHERE lower(substring(o.current_url from '^[a-zA-Z]+://([^/:?#]+)')) = %s
+                      AND coalesce(substring(o.current_url from '^[a-zA-Z]+://[^/?#]+([^#]*)'), '') = ANY(%s)
                       AND (%s::text IS NULL OR o.kind=%s)
-                    ORDER BY (o.availability='available') DESC,o.offer_id LIMIT 50''',
-                    (host,body.selected_domain,body.selected_domain)).fetchall()
-                matched = None
-                for cand in row:
-                    cu = urlsplit(cand[4])
-                    csuffix = f'{cu.path}?{cu.query}' if cu.query else cu.path
-                    if (cu.hostname or '').lower() == host and csuffix == suffix:
-                        matched = cand[:4]
-                        break
-                row = matched
+                    ORDER BY (o.availability='available') DESC,o.offer_id LIMIT 1''',
+                    (host,_suffix_variants(suffix),body.selected_domain,body.selected_domain)).fetchone()
         if not row:
             return {'match':None}
         from .allergens import split_ingredients

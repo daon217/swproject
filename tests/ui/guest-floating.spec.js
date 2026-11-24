@@ -25,10 +25,15 @@ for (const platform of ['extension', 'mobile']) {
     expect(cards.length).toBeGreaterThan(0); // real DB seed, no fabricated UI fixture
     await page.goto(base+(platform==='extension'?'/preview.html':'/'));
     await expect(page.getByText(cards[0].name, {exact:true})).toBeVisible();
-    await page.getByRole('button',{name:'식품',exact:true}).click();
-    await expect(page.getByText(/현재 표시할 상품이 없어요/)).toBeVisible();
-    await page.getByRole('button',{name:'상품',exact:true}).click();
-    await expect(page.getByText(cards[0].name,{exact:true})).toBeVisible();
+    if (platform === 'extension') {
+      await page.getByRole('button',{name:'식품',exact:true}).click();
+      await expect(page.getByText(/현재 표시할 상품이 없어요/)).toBeVisible();
+      await page.getByRole('button',{name:'상품',exact:true}).click();
+      await expect(page.getByText(cards[0].name,{exact:true})).toBeVisible();
+    } else {
+      // 모바일 비회원 추천은 상품/식품 구분 없이 상품 목록만 보여준다(e7f7007).
+      await expect(page.getByRole('button',{name:'식품',exact:true})).toHaveCount(0);
+    }
     if(platform==='extension') await page.getByRole('tab',{name:'바로가기',exact:true}).click();
     else await page.goto(base+'/browser');
     await expect(page.getByText('쇼핑몰 바로가기',{exact:true})).toBeVisible();

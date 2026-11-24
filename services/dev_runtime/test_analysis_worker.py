@@ -167,15 +167,6 @@ def test_food_avoid_filter_does_not_assume_missing_ingredients_safe():
     assert r.status_code==200 and r.json()['offer_ids']==[]
 
 
-def test_infer_domain_without_client_choice():
-    """클라이언트가 분석 종류를 보내지 않으면 OCR 상품명과 카탈로그 이름 겹침으로 판단하고, 애매하면 product."""
-    from services.dev_runtime.analysis_worker import infer_domain
-    groups={'product':[{'name':'전기 주전자 1.7L'}],'food':[{'name':'초코 쿠키 200g'},{'name':'버터 쿠키'}]}
-    assert infer_domain('버터 쿠키 선물세트',groups)=='food'
-    assert infer_domain('스테인리스 주전자',groups)=='product'
-    assert infer_domain('알 수 없는 이름',groups)=='product'
-
-
 @pytest.mark.parametrize('title,ingredients,expected',[
     # 식품: 상품명 또는 Vision이 읽은 성분표로 판별(카탈로그에 식품이 없어도)
     ('오뚜기 진라면 매운맛 5개입',[],'title_keyword'),
@@ -298,3 +289,58 @@ def test_elevenst_offline_backend_adapter_observation_and_extension():
     ])
     res=ElevenstBackendAdapter(cfg,tx).send('00000000-0000-0000-0000-000000000001',row)
     assert res['applied'] is True and res['extension_applied'] is True
+
+
+def _worker_with(vision_status=None, process=None, page_url=None, domain=None, allergens=()):
+    """Mock backend/vision/recommender; returns (worker, captured fail/complete bodies)."""
+    sent={}
+    def handle(req):
+        path=req.url.path
+        if path.endswith('/claim'):
+            return httpx.Response(200,json={'data':{'analysis_id':'a1','lease_token':'lease','page_url':page_url,
+                'selected_domain':domain,'image_url':'/internal/image','profile':{'user_id':'u','allergens':list(allergens)}}})
+        if path=='/internal/image':return httpx.Response(200,content=b'image')
+        if path.startswith('/api/v1/vision/'):
+            if vision_status and path.startswith('/api/v1/vision/status'):return vision_status(req)
+            return httpx.Response(200,json={'status':'success','product_name':'무지 상품','ingredients':[]})
+        if path=='/internal/process':
+            return process(req) if process else httpx.Response(200,json={'offer_ids':[],'reasons':{},'ranker':'rule','warnings':[]})
+        if path.endswith(('/fail','/complete')):
+            sent[path.rsplit('/',1)[1]]=json.loads(req.content);return httpx.Response(200,json={'data':{}})
+        raise AssertionError(str(req.url))
+    return Worker(httpx.Client(transport=httpx.MockTransport(handle))),sent
+
+
+def test_vision_404_is_reported_not_mistaken_for_lost_lease():
+    worker,sent=_worker_with(vision_status=lambda req:httpx.Response(404,json={'detail':'session gone'}))
+    assert worker.once()
+    assert sent['fail']=={'lease_token':'lease','code':'DEPENDENCY_UNAVAILABLE','retryable':False}
+    assert 'complete' not in sent
+
+
+def test_transient_dependency_errors_are_retryable():
+    def down(req):raise httpx.ConnectError('refused',request=req)
+    worker,sent=_worker_with(process=down)
+    assert worker.once()
+    assert sent['fail']=={'lease_token':'lease','code':'DEPENDENCY_UNAVAILABLE','retryable':True}
+    worker,sent=_worker_with(process=lambda req:httpx.Response(503))
+    assert worker.once() and sent['fail']['retryable'] is True
+    worker,sent=_worker_with(process=lambda req:httpx.Response(422))
+    assert worker.once() and sent['fail']['retryable'] is False
+
+
+def test_malformed_dependency_payload_fails_job_immediately():
+    worker,sent=_worker_with(process=lambda req:httpx.Response(200,json={'unexpected':True}))
+    assert worker.once()
+    assert sent['fail']['code']=='RECOMMENDATION_FAILED' and sent['fail']['retryable'] is False
+
+
+def test_inferred_product_with_allergy_profile_warns_instead_of_hiding():
+    worker,sent=_worker_with(allergens=['milk','peanut'])
+    assert worker.once()
+    warnings=sent['complete']['metadata']['warnings']
+    assert sent['complete']['selected_domain']=='product'
+    assert {w['allergen'] for w in warnings}=={'milk','peanut'} and all(w['evidence']=='unknown' for w in warnings)
+    # The client explicitly chose product: no extra warning.
+    worker,sent=_worker_with(allergens=['milk'],domain='product')
+    assert worker.once() and sent['complete']['metadata']['warnings']==[]

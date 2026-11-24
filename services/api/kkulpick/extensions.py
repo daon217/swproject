@@ -474,11 +474,15 @@ async def offer_matches(
             }
 
         where_filter = " OR ".join(match_clauses)
-        order_priority = (
-            f"CASE WHEN ({' OR '.join(exact_rank_clauses)}) THEN 0 ELSE 1 END ASC,"
-            if exact_rank_clauses
-            else ""
-        )
+        # Rank before the candidate cap: exact identifiers, then brand+model name, then the rest by price.
+        # Without this a brand with many cheap listings pushes real similar items past LIMIT.
+        rank_cases = []
+        if exact_rank_clauses:
+            rank_cases.append(f"WHEN ({' OR '.join(exact_rank_clauses)}) THEN 0")
+        if t_brand and t_model_name:
+            rank_cases.append("WHEN lower(i.brand) = :brand AND lower(p.model_name) = :model_name THEN 1")
+            query_params["model_name"] = t_model_name
+        order_priority = f"CASE {' '.join(rank_cases)} ELSE 2 END ASC," if rank_cases else ""
 
         from sqlalchemy import text
         rows = (await c.execute(text(f"""SELECT o.offer_id,o.source,o.source_listing_id,o.variant_key,

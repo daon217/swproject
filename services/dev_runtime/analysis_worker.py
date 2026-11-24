@@ -19,9 +19,6 @@ def context_url(value):
     u=urlsplit(value)
     return (u.hostname or '').lower(),u.path,u.query
 
-def tokens(text):
-    return {w for w in re.findall(r'[0-9A-Za-z가-힣]+',(text or '').lower()) if len(w)>=2}
-
 # 식품 판별 신호. Vision이 원재료명·영양정보 아래에서 성분을 읽었거나, 상품명이 식품일 때 food로 본다.
 # 카탈로그에 식품이 없어도 판별되도록 카탈로그 겹침보다 먼저 확인한다.
 FOOD_TITLE=re.compile(r'라면|과자|스낵|쿠키|비스킷|초콜릿|초코|젤리|사탕|캔디|껌|아이스크림|빵|케이크|떡|만두|국수|파스타|우동|냉면|짜장|짬뽕|'
@@ -49,15 +46,6 @@ def food_evidence(title,ingredients):
     if ingredients and FOOD_INGREDIENT.search(' '.join(str(i) for i in ingredients)):return 'vision_ingredients'
     if FOOD_TITLE.search(title or ''):return 'title_keyword'
     return None
-
-def infer_domain(title,groups):
-    """분석 종류를 클라이언트가 고르지 않으면 OCR 상품명과 카탈로그 상품명의 단어 겹침으로 상품/식품을 정한다.
-    겹침이 같거나 없으면 product(식품으로 잘못 판정해 성분을 안전하다고 보이게 하지 않기 위해)."""
-    words=tokens(title)
-    def score(kind):
-        hits=[len(words&tokens(o.get('name'))) for o in groups.get(kind,[])]
-        return (sum(1 for h in hits if h),max(hits,default=0))
-    return 'food' if score('food')>score('product') else 'product'
 
 class Worker:
     def __init__(self,client=None,*,worker_id='team-integration',max_concurrency=None,poll_interval=0.5):
@@ -124,6 +112,7 @@ class Worker:
             if not title:
                 self.request('POST',path+'/fail',json=lease|{'code':'OCR_FAILED','retryable':False});return True
             # A generic cosmetics ingredient list must not automatically classify a page as food.
+            inferred=not kind
             if not kind:
                 # Vision 성분표·상품명으로 판별. 전체 카탈로그를 매번 내려받지 않는다.
                 evidence=food_evidence(title,ingredients)
@@ -135,17 +124,34 @@ class Worker:
                 'ingredients':[str(i)[:500] for i in ingredients[:100]],
                 'profile':job.get('profile',{'user_id':'worker'})})
             r.raise_for_status();result=r.json()
+            warnings=list(result.get('warnings',[]))
+            allergens=(job.get('profile') or {}).get('allergens') or []
+            if inferred and kind=='product' and allergens:
+                # 식품 근거를 찾지 못해 상품으로 처리했다. 실제 식품이면 알레르기 검사가 빠졌으므로 숨기지 않고 알린다.
+                warnings+=[{'type':'allergy','allergen':str(a)[:100],'evidence':'unknown',
+                    'message':'식품인지 확인하지 못해 알레르기 성분을 검사하지 않았습니다. 식품이라면 상품 표시를 직접 확인해 주세요.'}
+                    for a in allergens[:50]]
             self.request('POST',path+'/complete',json=lease|{
                 'selected_domain':kind,'offer_ids':result['offer_ids'],
                 'metadata':{'ingredients':[str(i)[:500] for i in ingredients[:100]] if kind=='food' else [],
-                    'reasons':result.get('reasons',{}),'ranker':result.get('ranker',''),'warnings':result.get('warnings',[])}})
+                    'reasons':result.get('reasons',{}),'ranker':result.get('ranker',''),'warnings':warnings}})
             return True
         except httpx.HTTPStatusError as error:
-            if error.response.status_code not in (404,409):
-                self.fail(path,lease)
+            status=error.response.status_code
+            # Backend 404/409 means the lease is gone (cancelled, expired, already completed): nothing to report.
+            # A 404 from Vision (session evicted) or the recommender is a dependency failure and must be reported.
+            lease_gone=status in (404,409) and str(error.request.url).startswith(self.api)
+            if not lease_gone:
+                self.fail(path,lease,retryable=status==429 or status>=500)
             return True
-        except (httpx.HTTPError,KeyError,ValueError):
-            self.fail(path,lease);return True
+        except httpx.TransportError as error:
+            # Timeouts and refused connections are transient; the backend caps retries at 3 attempts.
+            log.warning('analysis %s: dependency unreachable (%s)',job['analysis_id'],type(error).__name__)
+            self.fail(path,lease,retryable=True);return True
+        except Exception as error:
+            # Malformed dependency payloads or bugs: fail now instead of holding the lease until it expires.
+            log.exception('analysis %s: unexpected worker error (%s)',job['analysis_id'],type(error).__name__)
+            self.fail(path,lease,code='RECOMMENDATION_FAILED');return True
 
     def once(self):
         job=self.claim_job()
@@ -172,9 +178,11 @@ class Worker:
                         completed+=1
         return completed
 
-    def fail(self,path,lease):
-        try:self.request('POST',path+'/fail',json=lease|{'code':'DEPENDENCY_UNAVAILABLE','retryable':False})
-        except httpx.HTTPError:pass
+    def fail(self,path,lease,*,retryable=False,code='DEPENDENCY_UNAVAILABLE'):
+        try:self.request('POST',path+'/fail',json=lease|{'code':code,'retryable':retryable})
+        except httpx.HTTPError as error:
+            # The lease expires on its own and the backend requeues or fails the job.
+            log.warning('could not report analysis failure (%s)',type(error).__name__)
 
 def main():
     logging.basicConfig(level=logging.INFO)

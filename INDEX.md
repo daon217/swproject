@@ -27,5 +27,11 @@
 | 21 | Vision 캐시 키가 이미지 앞 4KB만 비교 | kkulpick_vision | 미해결 | - | Claude Opus 5.5 | [미해결](logs/2026-11-24-open-issues-claude-opus-5.5.md#21) |
 | 22 | 추천 서비스 요청마다 DB 연결 새로 생성 | recommendation | 미해결 | - | Claude Opus 5.5 | [미해결](logs/2026-11-24-open-issues-claude-opus-5.5.md#22) |
 | 23 | 실제 수집 원본 300건이 저장소에 커밋됨 | collector | 확인 필요 | - | Claude Opus 5.5 | [미해결](logs/2026-11-24-open-issues-claude-opus-5.5.md#23) |
+| 24 | v2 임베딩 전환 직후 추천 0건 (재임베딩 끝날 때까지) | recommendation | 미해결 | - | Claude Opus 5.5 | [시뮬](logs/2026-11-24-runtime-simulation-claude-opus-5.5.md#24) |
+| 25 | 분석 재시도에 대기 시간 없음 (2초 만에 3회 소진) | api/analyses | 미해결 | - | Claude Opus 5.5 | [시뮬](logs/2026-11-24-runtime-simulation-claude-opus-5.5.md#25) |
+| 26 | 이미지 없는 미매칭 분석이 OCR_FAILED·retryable=true | dev_runtime/api | 미해결 | - | Claude Opus 5.5 | [시뮬](logs/2026-11-24-runtime-simulation-claude-opus-5.5.md#26) |
+| 27 | 알레르기 사용자의 식품 추천 항상 0건 (성분 데이터 없음) | data/collector | 확인 필요 | - | Claude Opus 5.5 | [시뮬](logs/2026-11-24-runtime-simulation-claude-opus-5.5.md#27) |
+
+실제 구동 시뮬레이션: [logs/2026-11-24-runtime-simulation-claude-opus-5.5.md](logs/2026-11-24-runtime-simulation-claude-opus-5.5.md)
 
 현황 조사(브랜치·Actions·구조): [logs/2026-11-24-initial-survey-claude-opus-5.5.md](logs/2026-11-24-initial-survey-claude-opus-5.5.md)

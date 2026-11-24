@@ -175,11 +175,22 @@ async def preferences(c, uid, kind, values):
         await execute(c, 'INSERT INTO app.member_preferences VALUES(:u,:k,:v)', u=uid, k=kind, v=value)
 
 
+async def login_id_taken(c, login_id):
+    """Members and staff share one login namespace. The transaction-scoped lock serializes
+    concurrent signups for the same ID across both tables (each table alone has a unique index)."""
+    await execute(c, "SELECT pg_advisory_xact_lock(hashtextextended('login-id:' || lower(:l), 0))", l=login_id)
+    r = await row(c, """SELECT 1 AS taken WHERE EXISTS(SELECT 1 FROM app.members WHERE lower(login_id)=lower(:l))
+        OR EXISTS(SELECT 1 FROM app.admin_identities WHERE lower(login_id)=lower(:l))""", l=login_id)
+    return r is not None
+
+
 @router.post('/v2/auth/signup', status_code=201)
 async def signup(data: Signup, req: Request):
     await throttle(req, 'signup')
     encoded = await run_in_threadpool(hash_password, data.password.get_secret_value())
     async with req.app.state.member_engine.begin() as c:
+        if await login_id_taken(c, data.login_id):
+            fail(409, 'LOGIN_ID_TAKEN')
         r = await row(c, """INSERT INTO app.members(login_id,password_hash,gender,birth_date,consent_version)
             VALUES(:l,:p,:g,:b,:v) ON CONFLICT DO NOTHING RETURNING user_id""",
             l=data.login_id, p=encoded, g=data.gender, b=data.birth_date, v=data.consent_version)
@@ -193,7 +204,8 @@ async def signup(data: Signup, req: Request):
 async def login_available(req: Request, login_id: str = Query(pattern=r'^[A-Za-z0-9]{4,16}$')):
     await throttle(req, 'availability')
     async with req.app.state.member_engine.connect() as c:
-        r = await row(c, 'SELECT user_id FROM app.members WHERE lower(login_id)=lower(:l)', l=login_id)
+        r = await row(c, '''SELECT 1 AS taken WHERE EXISTS(SELECT 1 FROM app.members WHERE lower(login_id)=lower(:l))
+            OR EXISTS(SELECT 1 FROM app.admin_identities WHERE lower(login_id)=lower(:l))''', l=login_id)
     return wrap({'available': r is None}, req)
 
 

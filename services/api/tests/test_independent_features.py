@@ -462,3 +462,19 @@ def test_console_aggregates_settings_and_public_basic(client):
     assert client.get(path,headers=admin).json()['data']['startTime']=='10:00'
     assert client.get('/v2/recommendations/basic').status_code==200
     assert client.get('/v2/recommendations/basic?selected_domain=invalid').status_code==422
+
+
+def test_member_and_staff_share_one_login_namespace(client):
+    password = 'Test-pass-427!'
+    staff_id = 's' + uuid4().hex[:12]
+    staff = {'login_id': staff_id, 'password': password, 'password_confirmation': password,
+             'consent_version': 'provisional-v1', 'consent_accepted': True}
+    assert client.post('/v2/admin/auth/signup', json=staff).status_code == 201
+    member = dict(login_id=staff_id.upper(), password=password, password_confirmation=password,
+                  consent_accepted=True, consent_version='provisional-v1', birth_date='2000-01-01', gender='male')
+    taken = client.post('/v2/auth/signup', json=member)
+    assert taken.status_code == 409 and taken.json()['error']['code'] == 'LOGIN_ID_TAKEN'
+    assert client.get('/v2/auth/login-id-availability', params={'login_id': staff_id}).json()['data']['available'] is False
+    # And the other direction: an existing member ID cannot become a staff ID.
+    _, payload, _ = account(client)
+    assert client.post('/v2/admin/auth/signup', json=staff | {'login_id': payload['login_id']}).status_code == 409

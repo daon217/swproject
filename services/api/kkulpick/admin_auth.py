@@ -11,7 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from .access import access, admin_member
 from .members import (
     Login, LoginId, Password, Strict, check_password, execute, fail,
-    hash_password, row, throttle, wrap,
+    hash_password, login_id_taken, row, throttle, wrap,
 )
 
 router = APIRouter(prefix='/v2/admin/auth')
@@ -40,9 +40,7 @@ async def signup(data: AdminSignup, req: Request):
     await throttle(req, 'signup')
     encoded = await run_in_threadpool(hash_password, data.password.get_secret_value())
     async with req.app.state.member_engine.begin() as conn:
-        existing = await row(conn, 'SELECT user_id FROM app.members WHERE lower(login_id)=lower(:id)',
-                             id=data.login_id)
-        if existing:
+        if await login_id_taken(conn, data.login_id):
             fail(409, 'LOGIN_ID_TAKEN')
         identity = await row(conn, '''INSERT INTO app.admin_identities(login_id,password_hash,consent_version)
             VALUES (:id,:p,:v) ON CONFLICT DO NOTHING RETURNING user_id''',

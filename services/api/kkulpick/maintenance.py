@@ -75,7 +75,14 @@ async def cleanup(c, policy=Policy(), apply=False, now=None):
         '''DELETE FROM app.crawl_observations WHERE observation_id IN (SELECT observation_id FROM app.crawl_observations o
            WHERE received_at<:history AND NOT EXISTS(SELECT 1 FROM app.price_history p WHERE p.observation_id=o.observation_id)
            AND NOT EXISTS(SELECT 1 FROM app.offer_changes h WHERE h.observation_id=o.observation_id) LIMIT :n)''',
-        'DELETE FROM app.crawl_runs WHERE run_id IN (SELECT run_id FROM app.crawl_runs r WHERE started_at<:history AND NOT EXISTS(SELECT 1 FROM app.crawl_observations o WHERE o.run_id=r.run_id) LIMIT :n)',
+        # Extensions also reference crawl_runs; ignoring them raised an FK error that aborted the whole cleanup.
+        '''DELETE FROM app.crawl_runs WHERE run_id IN (SELECT run_id FROM app.crawl_runs r WHERE started_at<:history
+           AND NOT EXISTS(SELECT 1 FROM app.crawl_observations o WHERE o.run_id=r.run_id)
+           AND NOT EXISTS(SELECT 1 FROM app.listing_extensions e WHERE e.run_id=r.run_id) LIMIT :n)''',
+        # Details held for a listing that was never observed within a week are not applied later.
+        '''UPDATE app.listing_extensions SET state='quarantine',change_kind='quarantined',error_code='OFFER_NEVER_OBSERVED'
+           WHERE extension_id IN (SELECT extension_id FROM app.listing_extensions
+           WHERE state='pending' AND received_at<now()-interval '7 days' LIMIT :n)''',
         'DELETE FROM app.offer_tombstones WHERE (source,source_listing_id,variant_key) IN (SELECT source,source_listing_id,variant_key FROM app.offer_tombstones WHERE deleted_at<:tombstone LIMIT :n)',
     ]
     for statement in statements:

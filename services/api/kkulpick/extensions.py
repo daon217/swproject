@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
+from sqlalchemy import text
+
 from .ingest import encode, one, run
 from .models import Key
 
@@ -76,7 +78,8 @@ class MatchingProfile(BaseModel):
     image_urls: list[HttpUrl] = Field(default_factory=list, max_length=8)
     color: Annotated[str, Field(min_length=1, max_length=100)] | None = None
     size: Annotated[str, Field(min_length=1, max_length=100)] | None = None
-    options: dict[str, str] = Field(default_factory=dict)
+    # A null value removes that option (e.g. a listing that dropped its 'engraving' choice).
+    options: dict[str, str | None] = Field(default_factory=dict)
     category: Annotated[str, Field(min_length=1, max_length=200)] | None = None
     seller_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     seller_name: Annotated[str, Field(min_length=1, max_length=200)] | None = None
@@ -113,9 +116,14 @@ class MatchingProfile(BaseModel):
         cleaned = {}
         for k, v in value.items():
             key = str(k).strip()
+            if not key or len(key) > 64:
+                raise ValueError("invalid option key length")
+            if v is None:
+                cleaned[key] = None
+                continue
             val = str(v).strip()
-            if not key or len(key) > 64 or not val or len(val) > 200:
-                raise ValueError("invalid option key or value length")
+            if not val or len(val) > 200:
+                raise ValueError("invalid option value length")
             cleaned[key] = val
         return cleaned
 
@@ -184,17 +192,23 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
             raise HTTPException(409, "RUN_SOURCE_CONFLICT")
 
     row = await one(c, """INSERT INTO app.listing_extensions
-        (run_id,source,observation_key,schema_version,payload_hash,observed_at,normalized_payload,state,change_kind)
-        VALUES(:r,:s,:k,:sv,:h,:t,CAST(:p AS jsonb),'received','pending')
+        (run_id,source,observation_key,schema_version,payload_hash,observed_at,normalized_payload,state,change_kind,
+         source_listing_id,variant_key)
+        VALUES(:r,:s,:k,:sv,:h,:t,CAST(:p AS jsonb),'received','pending',:l,:v)
         ON CONFLICT(source,observation_key) DO NOTHING RETURNING extension_id""",
-        r=run_id, s=source, k=key, sv=ext.schema_version, h=digest, t=at, p=raw)
+        r=run_id, s=source, k=key, sv=ext.schema_version, h=digest, t=at, p=raw,
+        l=ext.source_listing_id, v=ext.variant_key)
 
+    created = row is not None
     if not row:
         old = await one(c, """SELECT extension_id,offer_id,state,error_code,payload_hash,change_kind,changed_fields
             FROM app.listing_extensions WHERE source=:s AND observation_key=:k""", s=source, k=key)
         if old["payload_hash"] != digest:
             raise HTTPException(409, "EXTENSION_PAYLOAD_CONFLICT")
-        return {k: v for k, v in old.items() if k != "payload_hash"}, False
+        if old["state"] != "pending":
+            return {k: v for k, v in old.items() if k != "payload_hash"}, False
+        # Held earlier because the offer did not exist yet: try again (resend or first observation).
+        row = old
 
     eid = row["extension_id"]
 
@@ -208,7 +222,7 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
             RETURNING extension_id,offer_id,state,error_code,change_kind,changed_fields""",
             s=state, f=offer, e=reason, k=kind,
             fields=encode(changed), b=encode(before or {}), a=encode(after or {}), id=eid)
-        return dict(result), True
+        return dict(result), created
 
     if at < datetime.now(UTC) - timedelta(days=30):
         return await finish("quarantine", reason="OBSERVATION_TOO_OLD", kind="quarantined")
@@ -226,7 +240,9 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
         FROM app.offers o JOIN app.catalog_items i USING(item_id)
         WHERE o.source=:s AND o.source_listing_id=:l AND o.variant_key=:v FOR UPDATE OF o,i""", **ident)
     if not current:
-        raise HTTPException(404, "OFFER_NOT_FOUND")
+        # The collector may send details before the listing's first observation (separate queues).
+        # Keep it; the first observation for this identity applies it. Maintenance expires stale ones.
+        return await finish("pending", reason="OFFER_NOT_YET_OBSERVED", kind="pending")
 
     offer_id = current["offer_id"]
     item_id = current["item_id"]
@@ -293,7 +309,11 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
                     ident_list.insert(0, {"type": "gtin", "value": gtin_val})
 
                 merged_options = dict(prod["options"] or {})
-                merged_options.update(mp.options or {})
+                for opt_key, opt_val in (mp.options or {}).items():
+                    if opt_val is None:
+                        merged_options.pop(opt_key, None)
+                    else:
+                        merged_options[opt_key] = opt_val
                 color_val = mp.color if mp.color is not None else prod["color"]
                 size_val = mp.size if mp.size is not None else prod["size"]
                 sig = compute_variant_signature(color_val, size_val, merged_options)
@@ -316,7 +336,7 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
                     before["identifiers"] = prod["identifiers"]
                     after["identifiers"] = ident_list
                     prod_updates["identifiers"] = encode(ident_list)
-                if merged_options and dict(prod["options"] or {}) != merged_options:
+                if dict(prod["options"] or {}) != merged_options:
                     before["options"] = prod["options"]
                     after["options"] = merged_options
                     prod_updates["options"] = encode(merged_options)
@@ -366,11 +386,36 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
     return await finish(state, offer=offer_id, reason=reason, kind=change_kind, before=before, after=after)
 
 
+async def apply_pending_extensions(c, source: str, listing_id: str, variant_key: str) -> int:
+    """Apply extensions held for an identity whose offer now exists. Runs inside the observation's
+    transaction (same identity lock). Each one gets a savepoint, so a held extension that no longer
+    validates (e.g. CATALOG_IMAGE_HOSTS changed) is quarantined instead of failing the observation."""
+    held = (await c.execute(text("""SELECT extension_id,run_id,normalized_payload FROM app.listing_extensions
+        WHERE state='pending' AND source=:s AND source_listing_id=:l AND variant_key=:v
+        ORDER BY observed_at,extension_id"""), dict(s=source, l=listing_id, v=variant_key))).mappings().all()
+    applied = 0
+    for item in held:
+        try:
+            async with c.begin_nested():
+                await accept_extension(c, item["run_id"], ListingExtension.model_validate(item["normalized_payload"]))
+            applied += 1
+        except (ValueError, HTTPException):
+            await run(c, """UPDATE app.listing_extensions SET state='quarantine',change_kind='quarantined',
+                error_code='INVALID_PENDING_EXTENSION' WHERE extension_id=:id""", id=item["extension_id"])
+    return applied
+
+
+def _status(result, created):
+    if result.get("state") == "pending":
+        return 202
+    return 201 if created else 200
+
+
 @router.post("/internal/v2/crawl-runs/{run_id}/extensions", dependencies=[Depends(collector_auth)])
 async def ingest_run_extension(run_id: UUID, ext: ListingExtension, response: Response, req: Request):
     async with req.app.state.engine.begin() as c:
         result, created = await accept_extension(c, run_id, ext)
-    response.status_code = 201 if created else 200
+    response.status_code = _status(result, created)
     return result
 
 
@@ -378,7 +423,7 @@ async def ingest_run_extension(run_id: UUID, ext: ListingExtension, response: Re
 async def ingest_listing_extension(ext: ListingExtension, response: Response, req: Request):
     async with req.app.state.engine.begin() as c:
         result, created = await accept_extension(c, None, ext)
-    response.status_code = 201 if created else 200
+    response.status_code = _status(result, created)
     return result
 
 
@@ -484,7 +529,6 @@ async def offer_matches(
             query_params["model_name"] = t_model_name
         order_priority = f"CASE {' '.join(rank_cases)} ELSE 2 END ASC," if rank_cases else ""
 
-        from sqlalchemy import text
         rows = (await c.execute(text(f"""SELECT o.offer_id,o.source,o.source_listing_id,o.variant_key,
             o.condition,o.price::text AS price,o.currency,o.shipping_fee::text AS shipping_fee,
             o.current_url,o.availability,o.price_observed_at,o.last_seen_at,o.last_checked_at,o.seller_name,

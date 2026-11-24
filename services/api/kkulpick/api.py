@@ -17,7 +17,7 @@ from .support import router as support_router
 from .affiliates import router as affiliate_router
 from .analyses import router as analysis_router
 from .console import router as console_router
-from .extensions import router as extension_router
+from .extensions import apply_pending_extensions, router as extension_router
 from .adpick import router as adpick_router
 
 from .db import url
@@ -77,6 +77,8 @@ async def health(req: Request):
 async def ingest(run_id: UUID, obs: Observation, response: Response, req: Request):
     async with req.app.state.engine.begin() as c:
         result, created = await accept(c,run_id,obs)
+        if result.get('state') == 'applied' and result.get('change_kind') == 'created':
+            await apply_pending_extensions(c, obs.source, obs.source_listing_id, obs.variant_key)
     response.status_code = 201 if created else 200
     return result
 

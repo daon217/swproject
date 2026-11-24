@@ -1,4 +1,4 @@
-# [Claude Opus 5.5] 2026-11-24 세션 1 — part/소병선-backend-test 1차 작업
+# [Claude Opus 5.5] 개발일지 · 2026-11-24 세션 1 — part/소병선-backend-test 1차 작업
 
 - 작성: Claude (Opus 5.5)
 - 브랜치: `part/소병선-backend-test` (`origin/maintest` 2c65ccd에서 생성, 로컬·미push)

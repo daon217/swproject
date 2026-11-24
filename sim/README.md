@@ -1,6 +1,6 @@
 # 실제 구동 시뮬레이션 스크립트
 
-[logs/2026-11-24-runtime-simulation-claude-opus-5.5.md](../logs/2026-11-24-runtime-simulation-claude-opus-5.5.md)에서 사용한 드라이버.
+[journal/2026-11-24-runtime-simulation-claude-opus-5.5.md](../journal/2026-11-24-runtime-simulation-claude-opus-5.5.md)에서 사용한 드라이버.
 compose 네트워크 안에서 실행한다(`python:3.12-slim` + `httpx==0.28.1` + `psycopg[binary]==3.2.12`).
 
 - `sim.py stage1|gap|after`: 실제 수집 원본 적재, 임베딩 대기열 확인, 추천 호출

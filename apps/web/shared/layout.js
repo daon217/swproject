@@ -10,6 +10,7 @@ const consoleLayout = {
     window.addEventListener('hashchange', () => this.renderRoute());
     this.renderRoute();
     this.setupAdminLogin();
+    window.setInterval(() => this.pollCounselingList(), 5000);
   },
 
   // 모든 활성 차트 안전하게 파기
@@ -44,7 +45,7 @@ const consoleLayout = {
     if (!this.renderAdminAccess()) return;
     let [page, subView = 'list', id] = window.location.hash.slice(2).split('/');
     if (!window.location.hash.startsWith('#/') ||
-        !['main', 'crawling', 'affiliate', 'customers', 'counseling', 'stats', 'admin-requests'].includes(page)) {
+      !['main', 'crawling', 'affiliate', 'customers', 'counseling', 'stats', 'admin-requests'].includes(page)) {
       page = 'main';
     }
     if (this.adminSession.role === 'support' && page !== 'counseling') {
@@ -97,7 +98,7 @@ const consoleLayout = {
         this.refreshLiveCounselingSettings();
       }
       if (page === 'main' || page === 'stats' || page === 'customers' ||
-          (page === 'counseling' && this.adminSession.role === 'admin')) {
+        (page === 'counseling' && this.adminSession.role === 'admin')) {
         this.refreshLiveCustomers();
       }
       if (page === 'main' || page === 'stats' || page === 'crawling') {
@@ -120,32 +121,34 @@ const consoleLayout = {
     return new Date(utc + 9 * 60 * 60 * 1000).toISOString().slice(0, 16).replaceAll('-', '.').replace('T', ' ');
   },
 
-  async fetchAllCatalogOffers() {
+  async fetchAllCatalogOffers(maxPagesPerDomain = 5) {
     const offers = new Map();
-    for (const domain of ['product', 'food']) {
-      try {
-        const url = new URL('/v2/offers', this.getApiBase());
-        url.search = new URLSearchParams({
-          selected_domain: domain, condition: 'all', availability: 'all', limit: '100',
-        });
-        const cursors = new Set();
-        for (let page = 0; page < 5; page++) {
-          const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
-          if (!response.ok) break;
-          const data = await response.json();
-          if (!Array.isArray(data?.items)) break;
-          for (const item of data.items) {
-            offers.set(item.offer_id, { ...item, selected_domain: item.selected_domain || domain });
+    await Promise.allSettled(
+      ['product', 'food'].map(async (domain) => {
+        try {
+          const url = new URL('/v2/offers', this.getApiBase());
+          url.search = new URLSearchParams({
+            selected_domain: domain, condition: 'all', availability: 'all', limit: '100',
+          });
+          const cursors = new Set();
+          for (let page = 0; page < maxPagesPerDomain; page++) {
+            const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+            if (!response.ok) break;
+            const data = await response.json();
+            if (!Array.isArray(data?.items)) break;
+            for (const item of data.items) {
+              offers.set(item.offer_id, { ...item, selected_domain: item.selected_domain || domain });
+            }
+            const cursor = data.next_cursor;
+            if (!cursor || cursors.has(cursor)) break;
+            cursors.add(cursor);
+            url.searchParams.set('after', cursor);
           }
-          const cursor = data.next_cursor;
-          if (!cursor || cursors.has(cursor)) break;
-          cursors.add(cursor);
-          url.searchParams.set('after', cursor);
+        } catch {
+          // 개별 도메인 조회 실패 시 수집된 목록까지만 반환한다.
         }
-      } catch {
-        // 개별 도메인 조회 실패 시 수집된 목록까지만 반환한다.
-      }
-    }
+      })
+    );
     return [...offers.values()];
   },
 
@@ -309,7 +312,7 @@ const consoleLayout = {
       container.innerHTML = this.getAffiliateHtml();
       const sub = this.state.affiliateSubView;
       if ((sub === 'create' || sub === 'edit') &&
-          document.getElementById('aff-offer-search')) this.loadOfferCatalog();
+        document.getElementById('aff-offer-search')) this.loadOfferCatalog();
     } else if (p === 'customers') {
       container.innerHTML = this.getCustomersHtml();
     } else if (p === 'admin-requests') {

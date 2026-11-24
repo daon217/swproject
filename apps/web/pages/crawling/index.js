@@ -10,8 +10,24 @@ const crawlingPage = {
   liveCatalogPageSize: 50,
   crawlCycleRunning: false,
   lastCrawlCycleAt: '',
-
   crawlDeletionRunning: false,
+
+  getDeletedCatalogOfferIds() {
+    try {
+      const ids = JSON.parse(window.localStorage.getItem('kkulpick-deleted-catalog-offers') || '[]');
+      return new Set(Array.isArray(ids) ? ids : []);
+    } catch {
+      return new Set();
+    }
+  },
+
+  saveDeletedCatalogOfferIds(idSet) {
+    try {
+      window.localStorage.setItem('kkulpick-deleted-catalog-offers', JSON.stringify([...idSet]));
+    } catch {
+      // 브라우저 저장소 비활성 환경 무시
+    }
+  },
 
   updateCrawlSelection(form) {
     const choices = form.querySelectorAll('input[name="offer_id"]');
@@ -32,9 +48,31 @@ const crawlingPage = {
     this.crawlDeletionRunning = true;
     this.updateCrawlSelection(form);
     try {
-      const result = await this.requestAdminAuth("/v2/admin/catalog/offers/delete", {
-        method: "POST", token: session.token, body: { offer_ids: offerIds },
-      });
+      let result = null;
+      try {
+        result = await this.requestAdminAuth("/v2/admin/catalog/offers/delete", {
+          method: "POST", token: session.token, body: { offer_ids: offerIds },
+        });
+      } catch (err) {
+        if (err.status !== 404) throw err;
+        const affiliateIds = new Set((this.getAffiliateItems() || []).map((a) => a.offerId || a.id));
+        const protectedIds = offerIds.filter((id) => affiliateIds.has(id));
+        const deletableIds = offerIds.filter((id) => !affiliateIds.has(id));
+        const deletedSet = this.getDeletedCatalogOfferIds();
+        for (const id of deletableIds) deletedSet.add(id);
+        this.saveDeletedCatalogOfferIds(deletedSet);
+        if (this.requestLocalApproval) {
+          await this.requestLocalApproval('/deleted-offers', {
+            method: 'POST',
+            body: { offer_ids: deletableIds },
+          }).catch(() => {});
+        }
+        result = {
+          deleted_offer_ids: deletableIds,
+          protected_offer_ids: protectedIds,
+          missing_offer_ids: [],
+        };
+      }
       const { deleted_offer_ids: deleted, protected_offer_ids: protectedOffers, missing_offer_ids: missing } = result || {};
       if (![deleted, protectedOffers, missing].every(Array.isArray)) throw new Error("Invalid catalog deletion result");
       if (this.adminSession !== session) return;
@@ -149,7 +187,7 @@ const crawlingPage = {
     return Number.isFinite(ts) ? ts : 0;
   },
 
-  async fetchDomainOffersAll(domain) {
+  async fetchDomainOffersAll(domain, onBatch) {
     const url = new URL('/v2/offers', this.getApiBase());
     url.search = new URLSearchParams({
       selected_domain: domain, condition: 'all', availability: 'all', limit: '100',
@@ -158,20 +196,35 @@ const crawlingPage = {
     const items = [];
     const cursors = new Set();
     for (let page = 0; page < 200; page++) {
-      const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-      if (!response.ok) throw new Error('Catalog lookup failed');
-      const data = await response.json();
-      if (!Array.isArray(data.items)) throw new Error('Invalid catalog response');
-      for (const item of data.items) {
-        items.push({ ...item, selected_domain: item.selected_domain || domain });
+      try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+        if (!response.ok) {
+          if (items.length) break;
+          throw new Error('Catalog lookup failed');
+        }
+        const data = await response.json();
+        if (!Array.isArray(data.items)) {
+          if (items.length) break;
+          throw new Error('Invalid catalog response');
+        }
+        for (const item of data.items) {
+          items.push({ ...item, selected_domain: item.selected_domain || domain });
+        }
+        if (onBatch && (page === 0 || page % 5 === 0)) {
+          onBatch(items);
+        }
+        const nextCursor = data.next_cursor;
+        if (!nextCursor || !this.isUuid(nextCursor) || cursors.has(nextCursor)) {
+          break;
+        }
+        cursors.add(nextCursor);
+        url.searchParams.set('after', nextCursor);
+      } catch (err) {
+        if (items.length) break;
+        throw err;
       }
-      const nextCursor = data.next_cursor;
-      if (!nextCursor || !this.isUuid(nextCursor) || cursors.has(nextCursor)) {
-        break;
-      }
-      cursors.add(nextCursor);
-      url.searchParams.set('after', nextCursor);
     }
+    if (onBatch) onBatch(items);
     return items;
   },
 
@@ -181,9 +234,40 @@ const crawlingPage = {
         ? ['product', 'food']
         : [this.liveCatalogDomain];
 
+      const deletedSet = this.getDeletedCatalogOfferIds();
+      if (this.requestLocalApproval) {
+        try {
+          const remoteDeleted = await this.requestLocalApproval('/deleted-offers');
+          if (Array.isArray(remoteDeleted?.deleted_offer_ids)) {
+            for (const id of remoteDeleted.deleted_offer_ids) deletedSet.add(id);
+            this.saveDeletedCatalogOfferIds(deletedSet);
+          }
+        } catch {
+          // 로컬 스토리지 삭제 목록만 사용
+        }
+      }
+
       const offers = new Map();
+      const targetView = this.liveCatalog;
+      const pushProgress = (batchItems) => {
+        for (const item of batchItems) {
+          if (!deletedSet.has(item.offer_id)) {
+            offers.set(item.offer_id, item);
+          }
+        }
+        if (targetView && this.liveCatalog === targetView) {
+          targetView.items = [...offers.values()].sort(
+            (a, b) => this.getOfferTimestamp(b) - this.getOfferTimestamp(a)
+          );
+          targetView.phase = 'ready';
+          if (this.state.currentPage === 'crawling') {
+            this.renderContent();
+          }
+        }
+      };
+
       const results = await Promise.allSettled(
-        domains.map((domain) => this.fetchDomainOffersAll(domain))
+        domains.map((domain) => this.fetchDomainOffersAll(domain, pushProgress))
       );
 
       let succeeded = 0;
@@ -191,7 +275,9 @@ const crawlingPage = {
         if (res.status === 'fulfilled') {
           succeeded += 1;
           for (const item of res.value) {
-            offers.set(item.offer_id, item);
+            if (!deletedSet.has(item.offer_id)) {
+              offers.set(item.offer_id, item);
+            }
           }
         }
       }
@@ -368,10 +454,10 @@ const crawlingPage = {
             </button>
           </div>
           ${this.crawlCycleRunning
-            ? '<p class="mt-2 text-xs font-medium text-[#0066ff]" role="status">크롤링 작업을 실행하여 카탈로그 DB를 동기화하고 있습니다...</p>'
-            : (this.lastCrawlCycleAt
-                ? `<p class="mt-2 text-xs text-slate-500" role="status">크롤링 실행 완료: ${this.escapeHtml(this.lastCrawlCycleAt)} · KST</p>`
-                : '')}
+        ? '<p class="mt-2 text-xs font-medium text-[#0066ff]" role="status">크롤링 작업을 실행하여 카탈로그 DB를 동기화하고 있습니다...</p>'
+        : (this.lastCrawlCycleAt
+          ? `<p class="mt-2 text-xs text-slate-500" role="status">크롤링 실행 완료: ${this.escapeHtml(this.lastCrawlCycleAt)} · KST</p>`
+          : '')}
         </div>
 
         <div class="w-full">

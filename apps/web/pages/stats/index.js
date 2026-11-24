@@ -34,15 +34,23 @@ const statsPage = {
     this.renderContent();
 
     try {
-      const [overviewRes, catalogRes] = await Promise.allSettled([
-        this.requestAdminAuth('/v2/admin/overview', { token: session.token }),
-        this.fetchAllCatalogOffers(),
-      ]);
+      let overview = null;
+      try {
+        overview = await this.requestAdminAuth('/v2/admin/overview', { token: session.token });
+      } catch {
+        overview = null;
+      }
 
-      const overview = overviewRes.status === 'fulfilled' ? overviewRes.value : null;
-      const catalogOffers = catalogRes.status === 'fulfilled' ? catalogRes.value : [];
-      if (catalogOffers.length) {
-        this.state.offerCatalog = catalogOffers;
+      let catalogOffers = this.state.offerCatalog || [];
+      if (overview?.offers == null && !catalogOffers.length) {
+        catalogOffers = await this.fetchAllCatalogOffers(2);
+        if (catalogOffers.length) {
+          this.state.offerCatalog = catalogOffers;
+        }
+      }
+
+      if (!overview && !catalogOffers.length) {
+        throw new Error('Overview lookup failed');
       }
 
       Object.assign(view, {
@@ -81,17 +89,26 @@ const statsPage = {
       (this.state.offerCatalog || []).filter((o) => o.availability === 'available').length;
 
     const memberCount = overview?.members ?? members.length;
-    const subscriberCount = overview?.subscribers ?? members.filter((m) => m.subscribed).length;
+    const memberSubscribers = members.filter((m) =>
+      this.isMemberSubscribed ? this.isMemberSubscribed(m) : Boolean(m.subscribed || m.subscription_started_at)
+    ).length;
+    const subscriberCount = Math.max(Number(overview?.subscribers ?? 0), memberSubscribers);
+
+    const memberTodaySubscribers = members.filter((member) =>
+      this.formatKstDateTime(member.subscription_started_at).slice(0, 10) === todayKst
+    ).length;
     let todaySubscriberCount = null;
     if (overview?.today_subscribers_date === todayKst.replaceAll('.', '-')) {
-      todaySubscriberCount = overview.today_subscribers;
+      todaySubscriberCount = Math.max(Number(overview.today_subscribers ?? 0), memberTodaySubscribers);
     } else if (this.liveCustomers?.phase === 'ready' &&
       (members.length < 100 || members.length === overview?.members)) {
-      todaySubscriberCount = members.filter((member) =>
-        this.formatKstDateTime(member.subscription_started_at).slice(0, 10) === todayKst
-      ).length;
+      todaySubscriberCount = memberTodaySubscribers;
     }
+
     const mockRevenue = overview?.mock_revenue_krw != null ? Number(overview.mock_revenue_krw) : 0;
+    const todayRevenue = (todaySubscriberCount && subscriberCount > 0 && mockRevenue > 0)
+      ? Math.round((mockRevenue / subscriberCount) * todaySubscriberCount)
+      : 0;
 
     return {
       todayKst,
@@ -105,6 +122,7 @@ const statsPage = {
       counselingCount: counseling.length,
       resolvedCounselingCount: resolvedCounseling.length,
       mockRevenue,
+      todayRevenue,
     };
   },
 
@@ -166,8 +184,8 @@ const statsPage = {
           subJoinCounts.set(startPrefix, subJoinCounts.get(startPrefix) + 1);
         }
       }
-      if (!m.subscribed && m.subscription_started_at) {
-        const endSource = m.subscription_ended_at || m.subscription_canceled_at || m.subscription_started_at;
+      const endSource = m.subscription_ended_at || m.subscription_canceled_at;
+      if (endSource) {
         const endKst = this.formatKstDateTime(endSource);
         const endPrefix = endKst.slice(0, keyLength);
         if (subLeaveCounts.has(endPrefix)) {

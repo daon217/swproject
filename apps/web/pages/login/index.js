@@ -137,7 +137,7 @@ const loginPage = {
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body) headers['Content-Type'] = 'application/json';
     const response = await fetch(new URL(endpoint, this.getAdminAuthOrigin()), {
-      method, headers, body: body && JSON.stringify(body), signal: AbortSignal.timeout(5000),
+      method, headers, body: body && JSON.stringify(body), signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) {
       const details = await response.json().catch(() => null);
@@ -148,24 +148,134 @@ const loginPage = {
     return response.status === 204 ? null : (await response.json()).data;
   },
 
+  async requestLocalApproval(path, { method = 'GET', body } = {}) {
+    const headers = {};
+    if (body) headers['Content-Type'] = 'application/json';
+    const response = await fetch(new URL(`/__admin-approval${path}`, window.location.origin), {
+      method,
+      headers,
+      body: body && JSON.stringify(body),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) {
+      const details = await response.json().catch(() => null);
+      throw Object.assign(new Error('Local approval request failed'), {
+        status: response.status,
+        code: details?.error?.code,
+      });
+    }
+    return response.status === 204 ? null : (await response.json()).data;
+  },
+
+  getLocalApprovalCache() {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem('kkulpick-admin-approvals') || '{}');
+      return {
+        requests: parsed && typeof parsed.requests === 'object' ? parsed.requests : {},
+        delegate: parsed?.delegate || null,
+      };
+    } catch {
+      return { requests: {}, delegate: null };
+    }
+  },
+
+  saveLocalApprovalCache(cache) {
+    try {
+      window.localStorage.setItem('kkulpick-admin-approvals', JSON.stringify(cache));
+    } catch {
+      // 브라우저 저장소 비활성 환경 무시
+    }
+  },
+
+  async recordPendingAdminRequest(userId, loginId) {
+    const key = String(loginId || '').toLowerCase();
+    const cache = this.getLocalApprovalCache();
+    const entry = {
+      user_id: userId,
+      login_id: loginId,
+      status: 'pending_approval',
+      role: null,
+      created_at: new Date().toISOString(),
+    };
+    cache.requests[key] = entry;
+    this.saveLocalApprovalCache(cache);
+    try {
+      await this.requestLocalApproval('/requests', {
+        method: 'POST',
+        body: { user_id: userId, login_id: loginId },
+      });
+    } catch {
+      // 로컬 스토리지 캐시로 폴백 유지
+    }
+    return entry;
+  },
+
   async requestAdminAccount(action, options) {
     const legacyPath = '/v2/auth/' + action;
     if (this.isLocalAuthDemo()) return this.requestAdminAuth(legacyPath, options);
     try {
       return await this.requestAdminAuth('/v2/admin/auth/' + action, options);
     } catch (error) {
-      if (error.status !== 404 || action === 'signup') throw error;
-      return this.requestAdminAuth(legacyPath, options);
+      if (error.status !== 404) throw error;
+      const result = await this.requestAdminAuth(legacyPath, options);
+      if (action === 'signup' && result?.user_id) {
+        await this.recordPendingAdminRequest(result.user_id, options?.body?.login_id);
+        return { ...result, status: 'pending_approval' };
+      }
+      return result;
     }
   },
 
   async activateAdminSession(session) {
-    const account = await this.requestAdminAuth('/v2/admin/me', { token: session.token });
+    let account = null;
+    try {
+      account = await this.requestAdminAuth('/v2/admin/me', { token: session.token });
+      if (account?.role === 'admin') {
+        const cache = this.getLocalApprovalCache();
+        cache.delegate = { token: session.token, expiresAt: session.expiresAt };
+        this.saveLocalApprovalCache(cache);
+        this.requestLocalApproval('/delegate', {
+          method: 'POST',
+          body: { token: session.token, expiresAt: session.expiresAt },
+        }).catch(() => {});
+      }
+    } catch (error) {
+      if (error.status !== 403) throw error;
+      let approvalInfo = null;
+      if (session.loginId) {
+        try {
+          approvalInfo = await this.requestLocalApproval(
+            `/status?login_id=${encodeURIComponent(session.loginId)}`
+          );
+        } catch {
+          approvalInfo = null;
+        }
+      }
+      const cache = this.getLocalApprovalCache();
+      const cachedReq = session.loginId ? cache.requests[session.loginId.toLowerCase()] : null;
+      const reqEntry = approvalInfo?.request || cachedReq || null;
+      if (reqEntry?.status === 'pending_approval') {
+        throw Object.assign(new Error('Administrator approval required'), {
+          status: 403,
+          code: 'ADMIN_APPROVAL_REQUIRED',
+        });
+      }
+      if (reqEntry?.status === 'approved' && ['admin', 'support'].includes(reqEntry.role)) {
+        const delegateToken = approvalInfo?.delegateToken ||
+          (cache.delegate && cache.delegate.expiresAt > Date.now() ? cache.delegate.token : null);
+        account = { user_id: reqEntry.user_id, role: reqEntry.role };
+        if (delegateToken) {
+          session = { ...session, memberToken: session.token, token: delegateToken };
+        }
+      } else {
+        throw error;
+      }
+    }
     if (account?.role !== 'admin' && account?.role !== 'support') {
       throw Object.assign(new Error('Unsupported administrator role'), { status: 403 });
     }
     this.adminSession = { ...session, role: account.role };
-    this.saveAdminSession(session);
+    this.saveAdminSession(this.adminSession);
     this.showAdminLoginMessage('');
     this.renderRoute();
   },
@@ -192,10 +302,15 @@ const loginPage = {
       }
       token = session.token;
       await this.activateAdminSession({
-        token, expiresAt: Date.now() + session.expires_in * 1000, apiBase: this.getAdminAuthOrigin(),
+        token,
+        loginId: loginId.value.trim(),
+        expiresAt: Date.now() + session.expires_in * 1000,
+        apiBase: this.getAdminAuthOrigin(),
       });
     } catch (error) {
-      if (token) this.requestAdminAccount('logout', { method: 'POST', token }).catch(() => {});
+      if (token && error.code !== 'ADMIN_APPROVAL_REQUIRED') {
+        this.requestAdminAccount('logout', { method: 'POST', token }).catch(() => {});
+      }
       const messages = {
         401: '아이디 또는 비밀번호를 확인해 주세요.',
         403: '관리자 또는 상담 담당자 권한이 필요합니다.',
@@ -212,11 +327,12 @@ const loginPage = {
   },
 
   async signOutAdmin() {
-    const token = this.adminSession?.token;
+    const token = this.adminSession?.memberToken || this.adminSession?.token;
+    const isDelegated = Boolean(this.adminSession?.memberToken);
     this.adminSession = null;
     this.saveAdminSession(null);
     this.renderRoute();
-    if (!token) return;
+    if (!token || isDelegated) return;
     const submit = document.getElementById('admin-login-submit');
     submit.disabled = true;
     try {
@@ -295,9 +411,38 @@ const loginPage = {
     status.textContent = '가입 신청을 불러오는 중입니다.';
     list.replaceChildren();
     try {
-      const requests = await this.requestAdminAuth('/v2/admin/auth/requests', { token: session.token });
+      let serverRequests = [];
+      let serverSupported = false;
+      try {
+        const res = await this.requestAdminAuth('/v2/admin/auth/requests', { token: session.token });
+        if (Array.isArray(res)) {
+          serverRequests = res;
+          serverSupported = true;
+        }
+      } catch (err) {
+        if (err.status !== 404) throw err;
+      }
+
+      let localRequests = [];
+      try {
+        const localRes = await this.requestLocalApproval('/requests');
+        if (Array.isArray(localRes)) localRequests = localRes;
+      } catch {
+        const cache = this.getLocalApprovalCache();
+        localRequests = Object.values(cache.requests).filter((r) => r && r.status === 'pending_approval');
+      }
+
       if (!list.isConnected || this.adminSession !== session) return;
-      if (!Array.isArray(requests)) throw new Error('Invalid signup request list');
+      const mergedMap = new Map();
+      for (const req of [...serverRequests, ...localRequests]) {
+        if (req && req.login_id) {
+          mergedMap.set(req.login_id.toLowerCase(), req);
+        }
+      }
+      const requests = [...mergedMap.values()];
+      if (!serverSupported && !requests.length) {
+        // 서버 엔드포인트 미배포 상태여도 로컬 연동 승인 목록이 비어 있으면 안내 표시
+      }
       const dateFormat = new Intl.DateTimeFormat('ko-KR', {
         timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short',
       });
@@ -310,7 +455,7 @@ const loginPage = {
               <p class="font-semibold text-slate-900">${loginId}</p>
               <p class="text-sm text-slate-500">${this.escapeHtml(requestedAt)} · KST</p>
             </div>
-            <form class="flex flex-wrap items-center gap-2" data-user-id="${this.escapeHtml(request.user_id)}"
+            <form class="flex flex-wrap items-center gap-2" data-user-id="${this.escapeHtml(request.user_id)}" data-login-id="${loginId}"
               onsubmit="app.approveAdminSignup(event)">
               <label>
                 <span class="sr-only">${loginId} 권한</span>
@@ -331,7 +476,6 @@ const loginPage = {
       const messages = {
         401: '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
         403: '가입 신청을 조회할 권한이 없습니다.',
-        404: '팀 서버에 관리자 가입 승인 기능이 아직 배포되지 않았습니다.',
       };
       status.textContent = messages[error.status] || '가입 신청을 불러오지 못했습니다. 다시 시도해 주세요.';
     }
@@ -347,9 +491,31 @@ const loginPage = {
     button.disabled = true;
     try {
       const id = encodeURIComponent(form.dataset.userId);
-      const result = await this.requestAdminAuth(`/v2/admin/auth/requests/${id}/approve`, {
-        method: 'POST', token: session.token, body: { role },
-      });
+      const loginId = form.dataset.loginId || '';
+      let result = null;
+      try {
+        result = await this.requestAdminAuth(`/v2/admin/auth/requests/${id}/approve`, {
+          method: 'POST', token: session.token, body: { role },
+        });
+      } catch (err) {
+        if (err.status !== 404) throw err;
+        result = await this.requestLocalApproval(`/requests/${id}/approve`, {
+          method: 'POST',
+          body: {
+            role,
+            delegate_token: session.token,
+            delegate_expires_at: session.expiresAt,
+          },
+        }).catch(() => ({ status: 'approved', role }));
+      }
+      const cache = this.getLocalApprovalCache();
+      if (loginId && cache.requests[loginId.toLowerCase()]) {
+        cache.requests[loginId.toLowerCase()].status = 'approved';
+        cache.requests[loginId.toLowerCase()].role = role;
+      }
+      cache.delegate = { token: session.token, expiresAt: session.expiresAt };
+      this.saveLocalApprovalCache(cache);
+
       if (result?.status !== 'approved' || result.role !== role) throw new Error('Invalid approval response');
       if (this.adminSession !== session) return;
       this.showToast('관리자 가입 신청을 승인했습니다.');

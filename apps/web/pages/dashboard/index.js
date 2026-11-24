@@ -95,7 +95,7 @@ const dashboardPage = {
           </div>
           <div class="bg-slate-50 border border-slate-200/80 rounded-lg p-5">
             <div class="text-xs font-bold text-slate-500">금일 누적 매출금액</div>
-            <div class="text-2xl tabular-nums font-bold text-[#0066ff] mt-2">₩0</div>
+            <div class="text-2xl tabular-nums font-bold text-[#0066ff] mt-2">₩${(metrics.todayRevenue || 0).toLocaleString()}</div>
             <div class="mt-2 text-xs text-slate-500">${metrics.todayKst}</div>
           </div>
         </div>

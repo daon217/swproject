@@ -1,17 +1,23 @@
 # 고객센터·제휴·관리자·탈퇴·분석 작업 임시 API
 
-기존 회원 세션과 `{data,request_id}` / `{error:{code,message,retryable},request_id}` 형태를 사용한다.
+회원 세션 또는 관리자 세션과 `{data,request_id}` / `{error:{code,message,retryable},request_id}` 형태를 사용한다.
 서지웅 프론트 참고본의 경로를 가능한 유지했지만 프론트는 미완성이며 확정 계약이 아니다. 다른 팀원 브랜치는 수정하지 않는다.
 실제 OCR·추천·임베딩·외부 결제 호출 없이 작업 상태와 DB 연결을 먼저 구현했다.
 
 ## 관리자
 
-회원가입으로 생성된 회원에게 DB owner 전용 CLI로 admin 또는 support 역할을 부여한다.
-별도 관리자 기본 비밀번호나 공개 권한 승격 API는 없다. API 실행 계정에는 admin_accounts 쓰기 권한이 없다.
-관리자도 일반 로그인 세션으로 인증하되 매 요청마다 활성 역할을 DB에서 재검사한다.
+관리자 화면에서 신청한 신규 계정은 회원 DB의 `app.admin_identities`에 승인 대기로 생성한다. 일반 회원 정보는 `app.members`에 저장한다.
+활성 `admin` 계정은 관리자 화면에서 대기 중인 신청에 `admin` 또는 `support` 역할을 부여한다. 승인한 계정과 역할을 감사 로그에 기록한다. 최초 관리자 설정과 기존 권한 변경·회수는 DB 소유자용 CLI가 담당한다. 기존 회원 기반 관리자 계정도 관리자 로그인과 화면 승인을 지원한다.
+신규 관리자 계정의 세션은 `app.admin_sessions`에 저장한다. 승인 전 로그인은 `403 ADMIN_APPROVAL_REQUIRED`, 이미 사용 중인 아이디는 가입 시 `409 LOGIN_ID_TAKEN`이다. 권한 변경 및 취소는 해당 신규 계정의 기존 세션을 무효화한다.
 
 | 경로 | 역할 / 설명 |
 |---|---|
+| POST `/v2/admin/auth/signup` | 신청. `{login_id,password,password_confirmation,consent_version,consent_accepted:true}` → `201 {data:{user_id,status:"pending_approval"},request_id}` |
+| POST `/v2/admin/auth/login` | 승인된 관리자 또는 상담 담당자 로그인. `{login_id,password}` → `{data:{token,expires_in},request_id}` |
+| POST `/v2/admin/auth/logout` | 관리자 로그인 세션 종료. Bearer 토큰 → 204 |
+| GET `/v2/admin/auth/requests` | admin, 승인 대기 목록. 신청 시각 오름차순, 최대 100건 |
+| POST `/v2/admin/auth/requests/{user_id}/approve` | admin, `{role:"admin"}` 또는 `{role:"support"}`로 대기 신청 승인. 이미 처리된 신청은 409 |
+| POST `/v2/admin/catalog/offers/delete` | admin, `{offer_ids:[UUID]}`로 최대 50개 카탈로그 판매 정보를 삭제. `deleted_offer_ids`, `protected_offer_ids`, `missing_offer_ids` 반환 |
 | GET `/v2/admin/me` | admin/support, 본인 역할 |
 | GET `/v2/admin/members?limit=20` | admin, 활성 회원 ID·로그인 ID·가입 시각만 최대 100명 |
 | GET `/v2/admin/support/conversations` | admin/support, 상담방 목록. limit, after(UUID) |

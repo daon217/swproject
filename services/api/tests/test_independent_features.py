@@ -7,8 +7,10 @@ import os
 from uuid import uuid4
 import psycopg
 import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import create_async_engine
 from kkulpick.accounts import process_deletions
+from kkulpick.admin_cli import change_access
 from kkulpick.db import url
 from kkulpick.images import image_path
 from test_members_billing import client,account,pay
@@ -80,11 +82,99 @@ def test_support_ownership_idempotency_and_sequence(client):
     assert [m['sequence_no'] for m in client.get(path+'?after_sequence=2',headers=h).json()['data']]==[3,4]
 
 
+def test_admin_signup_requires_approval_and_stays_out_of_members(client):
+    login_id = 'a' + uuid4().hex[:12]
+    password = 'Test-pass-427!'
+    credentials = {'login_id': login_id, 'password': password}
+    application = credentials | {
+        'password_confirmation': password, 'consent_version': 'provisional-v1', 'consent_accepted': True,
+    }
+    path = '/v2/admin/auth'
+    assert client.post(path+'/signup', json=application|{'role':'admin'}).status_code==422
+    response = client.post(path+'/signup', json=application)
+    assert response.status_code == 201, response.text
+    assert response.json()['data']['status'] == 'pending_approval'
+    user_id = response.json()['data']['user_id']
+    requests_path = path+'/requests'
+    approve_path = f'{requests_path}/{user_id}/approve'
+    assert client.post(path+'/signup', json=application).status_code==409
+    with db('member') as conn:
+        assert conn.execute('SELECT count(*) FROM app.members WHERE login_id=%s',(login_id,)).fetchone()[0]==0
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            conn.execute("UPDATE app.admin_identities SET role='admin',enabled=true WHERE login_id=%s",(login_id,))
+    pending=client.post(path+'/login', json=credentials)
+    assert pending.status_code==403 and pending.json()['error']['code']=='ADMIN_APPROVAL_REQUIRED'
+    assert client.post('/v2/auth/login',json=credentials).status_code==401
+
+    reviewer,_,reviewer_id=account(client)
+    ordinary,_,ordinary_id=account(client)
+    assert client.get(requests_path).status_code==401
+    assert client.get(requests_path,headers=reviewer).status_code==403
+    assert client.post(approve_path,headers=ordinary,json={'role':'admin'}).status_code==403
+    grant(ordinary_id,'support')
+    assert client.post(approve_path,headers=ordinary,json={'role':'admin'}).status_code==403
+    grant(reviewer_id)
+    listed=client.get(requests_path,headers=reviewer)
+    assert listed.status_code==200,listed.text
+    request=next(item for item in listed.json()['data'] if item['user_id']==user_id)
+    assert request['login_id']==login_id and set(request)=={'user_id','login_id','created_at'}
+    assert client.post(approve_path,headers=reviewer,json={'role':'owner'}).status_code==422
+    with ThreadPoolExecutor(2) as pool:
+        results=list(pool.map(lambda _:client.post(approve_path,headers=reviewer,json={'role':'support'}), range(2)))
+    assert sorted(result.status_code for result in results)==[200,409], [result.text for result in results]
+    assert all(item['user_id']!=user_id for item in client.get(requests_path,headers=reviewer).json()['data'])
+    with db('member') as conn:
+        audit=conn.execute('SELECT actor_id,action FROM app.admin_audit WHERE target_id=%s',(user_id,)).fetchall()
+        assert [(str(actor),action) for actor,action in audit]==[(reviewer_id,'approve:support')]
+
+    engine=create_engine(url('owner','member'),hide_parameters=True)
+    try:
+        active=client.post(path+'/login',json=credentials)
+        assert active.status_code==200,active.text
+        token=active.json()['data']['token']
+        h={'Authorization':'Bearer '+token}
+        assert client.get('/v2/admin/me',headers=h).json()['data']['role']=='support'
+        customer,_,_=account(client)
+        conversation=client.post('/v2/support/conversations',headers=customer)
+        assert conversation.status_code==201,conversation.text
+        cid=conversation.json()['data']['conversation_id']
+        reply=client.post(f'/v2/admin/support/conversations/{cid}/messages',headers=h,
+                          json={'body':'답변입니다','client_message_id':str(uuid4())})
+        assert reply.status_code==200,reply.text
+        conversations=client.get('/v2/admin/support/conversations?limit=100',headers=h)
+        assert conversations.status_code==200,conversations.text
+        assert any(item['conversation_id']==cid and item['agent_name']==login_id
+                   for item in conversations.json()['data'])
+        assert client.get('/v2/admin/members',headers=h).status_code==403
+        assert client.get('/v2/me',headers=h).status_code==401
+
+        with engine.begin() as conn:
+            change_access(conn,'revoke',login_id,'support')
+            change_access(conn,'grant',login_id,'admin')
+        assert client.get('/v2/admin/me',headers=h).status_code==401
+        approved=client.post(path+'/login',json=credentials)
+        assert approved.status_code==200,approved.text
+        h={'Authorization':'Bearer '+approved.json()['data']['token']}
+        assert client.get('/v2/admin/members',headers=h).status_code==200
+        another=client.post(path+'/signup',json=application|{'login_id':'b'+uuid4().hex[:12]})
+        nested_path=f"{requests_path}/{another.json()['data']['user_id']}/approve"
+        assert client.post(nested_path,headers=h,json={'role':'support'}).status_code==200
+        assert client.post(path+'/logout',headers=h).status_code==204
+        assert client.get('/v2/admin/me',headers=h).status_code==401
+    finally:
+        engine.dispose()
+
+
 def test_support_admin_reply_close_and_revocation(client):
     h,_,_=account(client);admin,profile,uid=account(client)
     other_admin,other_profile,other_uid=account(client)
     grant(uid,'support')
     grant(other_uid)
+    legacy=client.post('/v2/admin/auth/login',json={k:profile[k] for k in ('login_id','password')})
+    assert legacy.status_code==200,legacy.text
+    legacy_headers={'Authorization':'Bearer '+legacy.json()['data']['token']}
+    assert client.get('/v2/admin/me',headers=legacy_headers).json()['data']['role']=='support'
+    assert client.post('/v2/admin/auth/logout',headers=legacy_headers).status_code==204
     cid=client.post('/v2/support/conversations',headers=h).json()['data']['conversation_id']
     path=f'/v2/admin/support/conversations/{cid}'
     assert client.get('/v2/admin/members',headers=admin).status_code==403
@@ -134,6 +224,44 @@ def test_affiliate_admin_only_periods_version_and_stock(client):
     assert client.put(path,headers=h,json=data|{'expected_version':2,'starts_at':(datetime.now(UTC)+timedelta(days=1)).isoformat()}).status_code==200
     with db('catalog') as c:c.execute("UPDATE app.offers SET availability='available' WHERE offer_id=%s",(offer,))
     assert all(c['offer_id']!=offer for c in client.get('/v2/recommendations/featured?limit=100').json()['data'])
+
+
+def test_admin_deletes_only_selected_unlinked_offers(client):
+    admin,_,admin_id=account(client);grant(admin_id)
+    support,_,support_id=account(client);grant(support_id,'support')
+    source='deleted_'+uuid4().hex
+    payload=fixture()|dict(source=source,source_listing_id=uuid4().hex,observation_key=uuid4().hex)
+    ingest_path='/internal/v2/crawl-runs/'+str(uuid4())+'/observations'
+    collector={'Authorization':'Bearer '+os.environ['COLLECTOR_TOKEN']}
+    created=client.post(ingest_path,headers=collector,json=payload)
+    assert created.status_code==201,created.text
+    selected=created.json()['offer_id']
+    other_selected,linked,unselected=new_offer(client),new_offer(client),new_offer(client)
+    r=client.put('/v2/admin/affiliate-offers/'+linked,headers=admin,json={
+        'partner_name':'제휴 테스트','affiliate_url':'https://store.example.test/affiliate',
+        'starts_at':datetime.now(UTC).isoformat(),'expected_version':0,
+    })
+    assert r.status_code==200,r.text
+
+    path='/v2/admin/catalog/offers/delete'
+    request={'offer_ids':[selected,linked,other_selected,selected]}
+    assert client.post(path,headers=support,json=request).status_code==403
+    assert client.post(path,headers=admin,json={'offer_ids':[]}).status_code==422
+    r=client.post(path,headers=admin,json=request)
+    assert r.status_code==200,r.text
+    result=r.json()['data']
+    assert set(result['deleted_offer_ids'])=={selected,other_selected}
+    assert result['protected_offer_ids']==[linked] and result['missing_offer_ids']==[]
+    assert client.post(path,headers=admin,json=request).json()['data']['missing_offer_ids']==[selected,other_selected]
+    with db('catalog') as conn:
+        ids=conn.execute('SELECT offer_id FROM app.offers WHERE offer_id=ANY(%s::uuid[])',
+                         ([selected,other_selected,linked,unselected],)).fetchall()
+        assert {str(item[0]) for item in ids}=={linked,unselected}
+        assert conn.execute('SELECT offer_id FROM app.crawl_observations WHERE source=%s',(source,)).fetchone()==(None,)
+        audit=conn.execute('SELECT actor_id,action FROM app.catalog_admin_audit WHERE offer_id=%s',(selected,)).fetchone()
+        assert (str(audit[0]),audit[1])==(admin_id,'catalog.offer.delete')
+    stale=client.post(ingest_path,headers=collector,json=payload|{'observation_key':uuid4().hex})
+    assert stale.status_code==201 and stale.json()['error_code']=='DELETED_STALE_OBSERVATION'
 
 
 def test_analysis_idempotency_limit_cancel_and_bola(client,worker_headers):
@@ -310,7 +438,20 @@ def test_console_aggregates_settings_and_public_basic(client):
     assert client.get('/v2/admin/overview',headers=ordinary).status_code==403
     r=client.get('/v2/admin/overview',headers=admin)
     assert r.status_code==200,r.text
-    assert r.json()['data']['members']>=2
+    baseline=r.json()['data']
+    assert baseline['members']>=2
+    older,_,_=account(client)
+    older_payment=pay(client,older)
+    assert older_payment.status_code==201,older_payment.text
+    with db('member') as c:
+        c.execute('''UPDATE app.invoices SET period_start=
+            date_trunc('day', now() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul' - interval '1 microsecond'
+            WHERE invoice_id=%s''',(older_payment.json()['data']['invoice_id'],))
+    payment=pay(client,ordinary)
+    assert payment.status_code==201,payment.text
+    r=client.get('/v2/admin/overview',headers=admin)
+    assert r.status_code==200,r.text
+    assert r.json()['data']['today_subscribers']==baseline['today_subscribers']+1
     path='/v2/admin/support/settings'
     r=client.get(path,headers=admin);assert r.status_code==200,r.text
     v=r.json()['data']['version']

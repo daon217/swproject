@@ -12,13 +12,15 @@ py tools/workspace.py up --scope core
 py tools/workspace.py check --scope core
 ```
 
-독립 DB 3개를 유지한다. catalog=0005_efficiency, member=member_0002, support=support_0001까지 자동 마이그레이션한다.
+독립 DB 3개를 유지한다. 각 DB에 최신 마이그레이션을 자동 적용한다. 관리자 가입 및 화면 승인에는 `member_0004`까지 필요하다.
 회원·상품·고객센터 중 하나의 마이그레이션이 실패하면 API가 정상 시작되지 않게 했다. Swagger: http://127.0.0.1:8000/docs.
 
 ## 관리자 계정
 
-먼저 회원가입으로 계정을 생성한다. 사용자 이름으로 자동 관리자 승격하거나 기본 관리자 비밀번호를 만들지 않는다.
-DB 소유자 자격증명이 있는 개발 PC에서만 실행한다.
+어드민 로그인 화면의 **관리자 가입 신청**으로 계정을 만든다. 신청은 기존 회원 DB의 `app.admin_identities`에 저장되며 승인 후 로그인할 수 있다.
+관리자 계정으로 로그인하고 **관리자 가입 승인**에서 신청 내용을 확인한 뒤 역할을 지정해 승인한다. 승인한 사람과 부여한 역할은 감사 로그에 기록한다.
+
+승인할 관리자 계정이 아직 없으면 DB 소유자가 처음 한 번 아래 명령으로 계정을 활성화한다. 운영 중 권한 회수에도 같은 명령을 사용한다.
 
 ```powershell
 py tools/workspace.py admin --scope core --login-id 본인아이디 --role admin
@@ -26,8 +28,8 @@ py tools/workspace.py admin --scope core --login-id 상담담당아이디 --role
 py tools/workspace.py admin --scope core --login-id 상담담당아이디 --revoke
 ```
 
-admin은 회원 목록·제휴·상담, support는 상담만 관리한다. API 실행 DB 계정은 관리자 역할 변경이 금지된다.
-권한 변경은 로그인 세션을 새로 만들지 않아도 다음 요청부터 반영된다. 팀원 모두에게 admin을 부여할 필요는 없다.
+`admin`은 회원 목록·제휴·상담과 가입 신청 승인을, `support`는 상담을 관리한다. 이미 부여한 역할 변경과 회수는 DB 소유자가 실행한다.
+신규 관리자 계정의 권한을 변경하거나 회수하면 해당 계정의 활성 세션이 종료된다. 기존 일반 회원에 연결된 관리자 계정도 계속 로그인할 수 있다.
 
 ## 고객센터·제휴상품
 

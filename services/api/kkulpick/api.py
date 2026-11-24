@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from .errors import install_errors
 from .members import router as member_router
 from .accounts import router as account_router
+from .admin_auth import router as admin_auth_router
 from .support import router as support_router
 from .affiliates import router as affiliate_router
 from .analyses import router as analysis_router
@@ -42,7 +43,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="꿀픽 카탈로그 개발 API", version="0.1", lifespan=lifespan)
-for router in (member_router, account_router, support_router, affiliate_router, analysis_router, console_router, extension_router):
+for router in (member_router, account_router, admin_auth_router, support_router, affiliate_router, analysis_router, console_router, extension_router):
     app.include_router(router)
 app.add_middleware(RequestBodyLimit)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DEV_ORIGINS","http://localhost:3000").split(","),
@@ -65,6 +66,7 @@ async def health(req: Request):
         await c.execute(text("SELECT offer_id FROM app.offers LIMIT 0"))
     async with req.app.state.member_engine.connect() as c:
         await c.execute(text("SELECT user_id FROM app.members LIMIT 0"))
+        await c.execute(text("SELECT user_id FROM app.admin_identities LIMIT 0"))
     async with req.app.state.support_engine.connect() as c:
         await c.execute(text("SELECT conversation_id FROM app.conversations LIMIT 0"))
     return {"status":"ok","database":"kkulpick_catalog"}

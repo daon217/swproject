@@ -9,6 +9,9 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 MESSAGES = {
     'INVALID_CREDENTIALS': '아이디 또는 비밀번호를 확인해 주세요.',
     'AUTH_REQUIRED': '로그인이 필요합니다.',
+    'ADMIN_APPROVAL_REQUIRED': '관리자 가입 승인이 필요합니다.',
+    'ADMIN_SIGNUP_NOT_FOUND': '가입 신청을 찾을 수 없습니다.',
+    'ADMIN_SIGNUP_ALREADY_PROCESSED': '이미 처리된 가입 신청입니다.',
     'LOGIN_ID_TAKEN': '이미 사용 중인 아이디입니다.',
     'VERSION_CONFLICT': '정보가 변경되었습니다. 새로고침 후 다시 저장해 주세요.',
     'PAYMENT_FAILED': '결제에 실패했습니다. 결제 내역을 확인해 주세요.',

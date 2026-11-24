@@ -56,17 +56,17 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 
 ## Gemini 작업 기록 — maintest 구현·검증 및 아키텍처/하드웨어 진단 (`4b1f5fc`~`2c65ccd`)
 
-작성 AI는 **Gemini 3.1 Pro**다. 기존 GPT 회고에서 원 작업 AI 미확인으로 제외해 두었던 `maintest`의 `4b1f5fc`~`2c65ccd` 구간(7개 커밋)과 11-19/11-23 전체 구조·CI 실패 규명·헤놀로지(`i5-6600`) 하드웨어/성능 분석을 기록한다. 전체 요청·커밋·CI 실행 대응표는 [GEMINI_COVERAGE.md](GEMINI_COVERAGE.md)를 함께 확인한다. 기존 `OPEN_ISSUES.md`의 미해결 상태는 그대로 유지한다.
+작성 AI는 **Gemini 4 Argon**다. 기존 GPT 회고에서 원 작업 AI 미확인으로 제외해 두었던 `maintest`의 `4b1f5fc`~`2c65ccd` 구간(7개 커밋)과 11-19/11-23 전체 구조·CI 실패 규명·헤놀로지(`i5-6600`) 하드웨어/성능 분석을 기록한다. 전체 요청·커밋·CI 실행 대응표는 [GEMINI_COVERAGE.md](GEMINI_COVERAGE.md)를 함께 확인한다. 기존 `OPEN_ISSUES.md`의 미해결 상태는 그대로 유지한다.
 
 | # | 제목 | 상태 | 근거 커밋 | 작성 AI | 개발일지 |
 | --- | --- | --- | --- | --- | --- |
-| 48 | 전체 브랜치·CI 실패 2건 원인 규명·헤놀로지(i5-6600) 하드웨어/성능 분석 및 16개 문제점 진단 | 해결(진단) | `32f08ba`, `2d444b0`(점검 대상) | Gemini 3.1 Pro | [기록](journal/2026-11-24-gemini-survey-hardware-diagnostics-gemini-3.1-pro.md) |
-| 49 | 카탈로그 DB(`0009_catalog_details`) 식품 원재료·알레르기 저장 및 추천 엔진(`PgCatalog`) 직결 | 부분 해결(수집기 주기 전송은 #27·#32) | `4b1f5fc`, `89948df` | Gemini 3.1 Pro | [기록](journal/2026-11-24-gemini-catalog-extensions-food-evidence-gemini-3.1-pro.md) |
-| 50 | 상품 상세·식별자(GTIN·모델번호·MPN·옵션·이미지) 확장 수집 API(`ListingExtension v1`) 및 후보 매칭 API | 부분 해결(후속 #13 보완·수집기 전송 #32) | `4b1f5fc` | Gemini 3.1 Pro | [기록](journal/2026-11-24-gemini-catalog-extensions-food-evidence-gemini-3.1-pro.md) |
-| 51 | 11번가 오프라인 수집기(`elevenst_offline`) 백엔드 전달 어댑터 및 도매꾹 `/extensions` 경로 허용 | 부분 해결(운영 수집기 연결은 #32) | `4b1f5fc`, `89948df` | Gemini 3.1 Pro | [기록](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-3.1-pro.md) |
-| 52 | 분석 워커(`analysis_worker.py`) `ThreadPoolExecutor` 병렬 처리·DB 원재료 폴백 및 단위 CI `psycopg` 가드 | 해결(예외 세분화는 후속 #05) | `4b1f5fc`, `3fd6f83`, `6180147`, `103070f` | Gemini 3.1 Pro | [기록](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-3.1-pro.md) |
-| 53 | `catalog-context` URL 정규화 매칭 복원 및 `/internal/process` 입력 오류(`422`) vs 의존성 장애(`503`) 분리 | 해결(호스트 식 인덱스는 후속 #02) | `3d7d6ed` | Gemini 3.1 Pro | [기록](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-3.1-pro.md) |
-| 54 | `image_urls` 중복 제거·`/v2/offers/{id}/matches` 200건 절단 및 `asyncpg` 동적 조건 수정·도메인 전환 시 잔류 임베딩 작업 자동 정리 | 해결(유사 후보 세부 정렬은 후속 #03) | `3d7d6ed`, `2c65ccd` | Gemini 3.1 Pro | [기록](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-3.1-pro.md) |
+| 48 | 전체 브랜치·CI 실패 2건 원인 규명·헤놀로지(i5-6600) 하드웨어/성능 분석 및 16개 문제점 진단 | 해결(진단) | `32f08ba`, `2d444b0`(점검 대상) | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-survey-hardware-diagnostics-gemini-4-argon.md) |
+| 49 | 카탈로그 DB(`0009_catalog_details`) 식품 원재료·알레르기 저장 및 추천 엔진(`PgCatalog`) 직결 | 부분 해결(수집기 주기 전송은 #27·#32) | `4b1f5fc`, `89948df` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-catalog-extensions-food-evidence-gemini-4-argon.md) |
+| 50 | 상품 상세·식별자(GTIN·모델번호·MPN·옵션·이미지) 확장 수집 API(`ListingExtension v1`) 및 후보 매칭 API | 부분 해결(후속 #13 보완·수집기 전송 #32) | `4b1f5fc` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-catalog-extensions-food-evidence-gemini-4-argon.md) |
+| 51 | 11번가 오프라인 수집기(`elevenst_offline`) 백엔드 전달 어댑터 및 도매꾹 `/extensions` 경로 허용 | 부분 해결(운영 수집기 연결은 #32) | `4b1f5fc`, `89948df` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-4-argon.md) |
+| 52 | 분석 워커(`analysis_worker.py`) `ThreadPoolExecutor` 병렬 처리·DB 원재료 폴백 및 단위 CI `psycopg` 가드 | 해결(예외 세분화는 후속 #05) | `4b1f5fc`, `3fd6f83`, `6180147`, `103070f` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-4-argon.md) |
+| 53 | `catalog-context` URL 정규화 매칭 복원 및 `/internal/process` 입력 오류(`422`) vs 의존성 장애(`503`) 분리 | 해결(호스트 식 인덱스는 후속 #02) | `3d7d6ed` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |
+| 54 | `image_urls` 중복 제거·`/v2/offers/{id}/matches` 200건 절단 및 `asyncpg` 동적 조건 수정·도메인 전환 시 잔류 임베딩 작업 자동 정리 | 해결(유사 후보 세부 정렬은 후속 #03) | `3d7d6ed`, `2c65ccd` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |
 
 ## 개발일지 목록
 
@@ -93,8 +93,8 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-24 | GPT-6 (Codex) | [#45 선택 공유 접속·독립 PC 전환·문서 정리 보완](journal/2026-11-24-gpt-onboarding-docs-supplement-gpt-6.md) |
 | 2026-11-24 | GPT-6 (Codex) | [#46 실제 수집 파일 가져오기·정리 정책·재생성 방지 보완](journal/2026-11-24-gpt-import-retention-supplement-gpt-6.md) |
 | 2026-11-24 | GPT-6 (Codex) | [#47 main 점검 이력과 개발일지 누락 재검토](journal/2026-11-24-gpt-readonly-review-supplement-gpt-6.md) |
-| 2026-11-24 | Gemini 3.1 Pro | [Gemini 개발 기록 대응표·누락 재검증](GEMINI_COVERAGE.md) — `4b1f5fc`~`2c65ccd` 및 전체 세션 대조 |
-| 2026-11-24 | Gemini 3.1 Pro | [#48 전체 구조·CI 실패 2건 규명·헤놀로지(i5-6600) 하드웨어/성능 분석 및 16개 문제점 진단](journal/2026-11-24-gemini-survey-hardware-diagnostics-gemini-3.1-pro.md) |
-| 2026-11-24 | Gemini 3.1 Pro | [#49·#50 카탈로그 DB 식품 원재료·추천 연동 및 상품 매칭 확장 API 구현](journal/2026-11-24-gemini-catalog-extensions-food-evidence-gemini-3.1-pro.md) |
-| 2026-11-24 | Gemini 3.1 Pro | [#51·#52 11번가 확장 어댑터·분석 워커 병렬화 및 단위 CI psycopg 가드](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-3.1-pro.md) |
-| 2026-11-24 | Gemini 3.1 Pro | [#53·#54 Claude 코드 리뷰 5건 해결 및 4중 검증](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-3.1-pro.md) |
+| 2026-11-24 | Gemini 4 Argon | [Gemini 개발 기록 대응표·누락 재검증](GEMINI_COVERAGE.md) — `4b1f5fc`~`2c65ccd` 및 전체 세션 대조 |
+| 2026-11-24 | Gemini 4 Argon | [#48 전체 구조·CI 실패 2건 규명·헤놀로지(i5-6600) 하드웨어/성능 분석 및 16개 문제점 진단](journal/2026-11-24-gemini-survey-hardware-diagnostics-gemini-4-argon.md) |
+| 2026-11-24 | Gemini 4 Argon | [#49·#50 카탈로그 DB 식품 원재료·추천 연동 및 상품 매칭 확장 API 구현](journal/2026-11-24-gemini-catalog-extensions-food-evidence-gemini-4-argon.md) |
+| 2026-11-24 | Gemini 4 Argon | [#51·#52 11번가 확장 어댑터·분석 워커 병렬화 및 단위 CI psycopg 가드](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-4-argon.md) |
+| 2026-11-24 | Gemini 4 Argon | [#53·#54 Claude 코드 리뷰 5건 해결 및 4중 검증](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |

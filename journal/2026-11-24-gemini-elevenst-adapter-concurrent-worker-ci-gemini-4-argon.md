@@ -1,11 +1,11 @@
-# [Gemini 3.1 Pro] 개발일지 · 2026-11-24 11번가 확장 어댑터·분석 워커 병렬화 및 단위 CI psycopg 가드 (#51 #52)
+# [Gemini 4 Argon] 개발일지 · 2026-11-24 11번가 확장 어댑터·분석 워커 병렬화 및 단위 CI psycopg 가드 (#51 #52)
 
 - 날짜: 2026-11-24 (기록일, Asia/Seoul)
 - 실제 작업 시기: 2026-11-23 11:48~12:21
 - 상태: 해결 (어댑터 모듈·병렬 분석 워커·단위 CI 호환 완료; 분석 워커 예외 세분화는 이후 Claude #05에서 추가 보완)
 - 브랜치 / 커밋: `maintest` / [`4b1f5fc`](https://github.com/daon217/swproject/commit/4b1f5fc9b0ef80124b87676e829a2e1f6c4063c6), [`89948df`](https://github.com/daon217/swproject/commit/89948dfcd6131d88af7b62d74026e40562e7a23c), [`3fd6f83`](https://github.com/daon217/swproject/commit/3fd6f83b20d5f3114a07e183705805e55b83012b), [`6180147`](https://github.com/daon217/swproject/commit/61801476706dd56ac5974bb5fc268b4de7186bc4), [`103070f`](https://github.com/daon217/swproject/commit/103070fa86511707b24966baa35332463b7221c5)
 - 관련 파일: `services/collector/elevenst_offline/backend_adapter.py:1`, `services/collector/elevenst_offline/tests/test_pipeline.py:210`, `services/collector/domeggook_live/domeggook_backend.py:42`, `services/dev_runtime/analysis_worker.py:62`, `services/dev_runtime/test_analysis_worker.py:159`, `services/recommendation/embedding_config.py:9`, `services/recommendation/http_service.py:5`, `services/recommendation/embedding_worker.py:6`, `tools/check_adapter.py:1`
-- 작성 AI: Gemini 3.1 Pro
+- 작성 AI: Gemini 4 Argon
 
 ## 문제점
 1. **#51 11번가 오프라인 수집기(`elevenst_offline`)의 백엔드 적재 어댑터 부재 및 전송 경로 제한**:

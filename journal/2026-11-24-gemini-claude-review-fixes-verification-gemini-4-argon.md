@@ -1,11 +1,11 @@
-# [Gemini 3.1 Pro] 개발일지 · 2026-11-24 Claude 코드 리뷰 5건(URL 정규화·이미지 중복·422/503·매칭 절단·임베딩 잔류) 해결 및 다중 검증 (#53 #54)
+# [Gemini 4 Argon] 개발일지 · 2026-11-24 Claude 코드 리뷰 5건(URL 정규화·이미지 중복·422/503·매칭 절단·임베딩 잔류) 해결 및 다중 검증 (#53 #54)
 
 - 날짜: 2026-11-24 (기록일, Asia/Seoul)
 - 실제 작업 시기: 2026-11-23 13:36~13:51
 - 상태: 해결 (5개 항목 모두 수정 및 4중 검증 완료; 이후 Claude 세션 1 #02·#03에서 호스트 식 인덱스 등 추가 고도화)
 - 브랜치 / 커밋: `maintest` / [`3d7d6ed`](https://github.com/daon217/swproject/commit/3d7d6ed6151067064af6a70fcb3bc459560bf1d1), [`2c65ccd`](https://github.com/daon217/swproject/commit/2c65ccd67b545bad8c14e4f229f14af898926b6b)
 - 관련 파일: `services/recommendation/http_service.py:72`, `services/api/kkulpick/extensions.py:95`, `services/api/kkulpick/extensions.py:429`, `services/recommendation/embedding_worker.py:33`, `services/api/migrations/versions/catalog_details.sql:60`, `services/api/tests/test_contract.py:79`, `services/api/tests/test_arrival_updates.py:212`, `services/dev_runtime/test_analysis_worker.py:59`, `services/recommendation/tests/test_embedding_pipeline.py:253`
-- 작성 AI: Gemini 3.1 Pro
+- 작성 AI: Gemini 4 Argon
 
 ## 문제점
 사용자가 Claude로 `maintest`(`103070f`)를 교차 검토하여 확인된 버그 3건과 주의사항 2건(총 5건)의 수정을 요청했다.

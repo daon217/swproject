@@ -1,11 +1,11 @@
-# [Gemini 3.1 Pro] 개발일지 · 2026-11-24 전체 구조·CI 실패 규명·헤놀로지(i5-6600) 하드웨어 분석 및 16개 문제점 진단 (#48)
+# [Gemini 4 Argon] 개발일지 · 2026-11-24 전체 구조·CI 실패 규명·헤놀로지(i5-6600) 하드웨어 분석 및 16개 문제점 진단 (#48)
 
 - 날짜: 2026-11-24 (기록일, Asia/Seoul)
 - 실제 작업 시기: 2026-11-19 (초기 구조 파악), 2026-11-23 10:06~11:25 및 13:14~13:17 (전수 조사·하드웨어/성능/도메인 분석)
 - 상태: 해결 (읽기 전용 진단 및 설계·운영 분석 완료; 발견된 코드 문제들의 실제 수정 여부는 개별 이슈 번호로 구분)
 - 브랜치 / 커밋: 문서는 `devlog`; 점검 대상 [`origin/main` `32f08ba`](https://github.com/daon217/swproject/commit/32f08ba), [`origin/maintest` `2d444b0`](https://github.com/daon217/swproject/commit/2d444b0ee4e1c181701c8491c77800b9c30f2e88), [`origin/part/최준서-collector` `b1f45f9`](https://github.com/daon217/swproject/commit/b1f45f9), [`origin/codex/separate-admin-signup` `52c486e`](https://github.com/daon217/swproject/commit/52c486e)
 - 관련 파일: `tests/ui/console.spec.js:23`, `tests/ui/guest-floating.spec.js:28`, `apps/web/pages/counseling/index.js:355`, `apps/web/pages/affiliate/index.js:919`, `apps/mobile/src/ui/BasicRecommendations.tsx:1`, `infra/nas/README.md:1`, `infra/nas/vision.compose.yaml:1`, `services/api/migrations/versions/catalog.sql:1`
-- 작성 AI: Gemini 3.1 Pro
+- 작성 AI: Gemini 4 Argon
 
 ## 문제점
 1. 병렬 AI 개발로 전환하기 위해 저장소 전체 아키텍처(3개 독립 PostgreSQL DB, FastAPI 백엔드, Vision 8100, pgvector 추천, 수집기, 확장/모바일/관리자 웹)와 원격 브랜치 20개·PR 14개·GitHub Actions 9종의 진행 상태를 코드 변경 없이 정확히 파악해야 했다.
@@ -53,5 +53,5 @@
 - 이 단계는 읽기 전용 조사·진단 작업이므로 저장소 파일을 수정하지 않았고, 사용자의 로컬 워킹트리(`C:\Users\user\swproject`)의 미커밋 변경 사항이 그대로 보존됨을 확인했다.
 
 ## 남은 과제 / 주의
-- 이 진단에서 도출한 16개 문제점 중 **「4. 수집기 ↔ 백엔드 데이터 계약 및 분석/추천 파이프라인 한계」 4개 항목**은 사용자의 후속 지시에 따라 Gemini가 `maintest`에서 직접 해결했다([#49·#50](2026-11-24-gemini-catalog-extensions-food-evidence-gemini-3.1-pro.md), [#51·#52](2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-3.1-pro.md)).
+- 이 진단에서 도출한 16개 문제점 중 **「4. 수집기 ↔ 백엔드 데이터 계약 및 분석/추천 파이프라인 한계」 4개 항목**은 사용자의 후속 지시에 따라 Gemini가 `maintest`에서 직접 해결했다([#49·#50](2026-11-24-gemini-catalog-extensions-food-evidence-gemini-4-argon.md), [#51·#52](2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-4-argon.md)).
 - 나머지 항목 중 UI 테스트(#01), 관리자 백엔드 병합(#08) 등은 이후 `part/소병선-backend-test`에서 처리되었고, 아직 남아 있는 운영·연동 과제는 [OPEN_ISSUES.md](../OPEN_ISSUES.md)에서 관리한다.

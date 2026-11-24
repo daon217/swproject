@@ -55,7 +55,25 @@ AFFILIATE_URL_HOSTS에 서버가 명시한 도메인만 허용한다. 로그인 
 
 GET `/v2/recommendations/featured?limit=10&selected_domain=product`는 현재 기간의 활성 제휴이면서 판매 중인 상품만 반환한다.
 OfferCard 형태의 제휴 목록이며 AI가 산출한 추천 순위가 아니다. affiliate=true 표시가 포함된다.
-제휴상품 표시·비활성화는 가능하지만 클릭 추적, 수수료 정산, 제휴사 API는 미연결이다.
+제휴상품 표시·비활성화는 가능하지만 클릭 추적, 수수료 정산은 미연결이다.
+
+### 애드픽 링크 변환
+
+POST `/v2/links/convert` `{"url": "https://쇼핑몰/상품"}` → `{"data": {"original_url", "affiliate_url", "cached"}}`.
+API 키는 서버 `services/api/.env`의 `ADPICK_API_KEY`에만 두고 응답·로그에 남기지 않는다. 변환 주소는 `ADPICK_API_URL`.
+
+| 상황 | 응답 |
+| --- | --- |
+| 성공 | 200, 같은 URL은 24시간 서버 캐시(`cached=true`) |
+| 애드픽 미지원 URL(애드픽 HTTP 400) | 400 `AFFILIATE_URL_UNSUPPORTED`, 1시간 캐시해 재호출하지 않음 |
+| http(s)가 아님, 계정정보 포함, 사설/로컬 주소 | 422 `INVALID_INPUT` (애드픽 호출 안 함) |
+| 클라이언트별 분당 한도 초과(기본 10) | 429 `AFFILIATE_LINK_RATE_LIMITED` + `Retry-After` |
+| 전체 분당 60회 한도 초과 또는 애드픽 429 | 429 `AFFILIATE_LINK_BUSY` + `Retry-After` |
+| 애드픽 장애·시간 초과·알 수 없는 응답 | 503 `AFFILIATE_LINK_UNAVAILABLE` |
+| 키 미설정 또는 애드픽 401/403 | 503 `AFFILIATE_LINK_NOT_CONFIGURED` |
+
+분당 한도는 DB 고정 1분 창으로 API 워커 전체가 공유한다. 캐시는 API 프로세스 메모리에 있어 재시작하면 비워진다.
+애드픽 요청 형식(인증 헤더, URL 필드명)은 `ADPICK_AUTH_HEADER`, `ADPICK_AUTH_SCHEME`, `ADPICK_URL_PARAM`으로 맞춘다.
 
 ## 회원 탈퇴
 

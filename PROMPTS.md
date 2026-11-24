@@ -56,7 +56,8 @@
 
 ```text
 저장소 daon217/swproject, 작업 브랜치 part/소병선-backend-test 에서 이어서 작업한다.
-먼저 devlog 브랜치의 INDEX.md와 logs/2026-11-24-open-issues-claude-opus-5.5.md 를 읽고 미해결 이슈를 파악해라.
+먼저 devlog 브랜치의 OPEN_ISSUES.md 와 INDEX.md 를 읽고 미해결 이슈를 파악해라.
+운영 전제: 크롤링 데이터는 서버에 미리 적재해 둔다.
 
 이번 작업: <예: #16 애드픽 API를 offer_id 기반으로 바꾸기>
 

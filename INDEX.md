@@ -1,6 +1,8 @@
-# [Claude Opus 5.5] 이슈 색인
+# 꿀픽 개발 이슈 색인
 
-작업 브랜치: `part/소병선-backend-test` (기준: `origin/maintest` 2c65ccd).
+기존 Claude 검토 기준: `part/소병선-backend-test` (기준: `origin/maintest` 2c65ccd).
+
+GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 기록은 현재 미해결 이슈의 종료 판정이 아니다.
 
 - **미해결 문제 → [OPEN_ISSUES.md](OPEN_ISSUES.md)** (현재 상태·주기 적재 시 영향·다음 행동)
 - **무엇을 언제 왜 했는지 → `journal/` 개발일지**
@@ -29,6 +31,23 @@
 
 04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33
 
+## GPT 작업 회고 — 당시 완료 범위
+
+작성 AI는 현재 회고 작성자 **GPT-6 (Codex)**이며, 원 작업의 상세 GPT 모델 버전은 미확인이다. 아래 번호는 기존 #33 이후로 부여했다. “부분 해결”은 기능 연결 등 일부 완료와 운영/후속 한계를 함께 뜻한다. 기존 미해결 이슈의 상태는 유지한다.
+
+| # | 제목 | 당시 상태 | 근거 커밋 | 작성 AI | 개발일지 |
+| --- | --- | --- | --- | --- | --- |
+| 34 | 초기 저장소·3개 DB·로컬 개발환경 | 부분 해결 | `0c2bff5` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-foundation-db-ci-gpt-6.md) |
+| 35 | 수집 API·상품 갱신·필드별 검증 | 부분 해결 | `0e6690b` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-catalog-ingestion-gpt-6.md) |
+| 36 | 회원·모의 구독·문의·관리·탈퇴·분석 API | 부분 해결 | `2c177dd` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-backend-business-apis-gpt-6.md) |
+| 37 | 성능 측정·조회 쿼리와 인덱스 개선 | 부분 해결 | `248d4c5` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-performance-efficiency-gpt-6.md) |
+| 38 | 설정 점검·자동 백업·복원 검증 | 부분 해결 | `39b081f` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-backup-operations-gpt-6.md) |
+| 39 | 화면과 실제 백엔드·DB 연결 | 부분 해결 | `41c1d1c` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-ui-backend-integration-gpt-6.md) |
+| 40 | 계정별 페이지 기억·입력 검증·전환 처리 | 부분 해결 | `f075797` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-account-isolation-validation-gpt-6.md) |
+| 41 | 모바일 날짜 입력 컴포넌트 순환 참조 제거 | 해결 | `d3ccb8a` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-mobile-import-cycle-gpt-6.md) |
+| 42 | 팀 코드 통합·OCR 분석 작업자·관리 화면 연결 | 부분 해결 | `a19c431` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-team-runtime-integration-gpt-6.md) |
+| 43 | 백엔드 임베딩 작업자와 pgvector 추천 연결 | 부분 해결 | `2d444b0` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-persistent-embedding-pipeline-gpt-6.md) |
+
 ## 개발일지 목록
 
 | 날짜 | 작성 AI | 내용 |
@@ -39,3 +58,14 @@
 | 2026-11-24 | Claude Opus 5.5 | [실제 구동 시뮬레이션](journal/2026-11-24-runtime-simulation-claude-opus-5.5.md) — #24~#27 발견 |
 | 2026-11-24 | Claude Opus 5.5 | [수집기(최준서) 검토](journal/2026-11-24-collector-review-claude-opus-5.5.md) — 주기 적재 전제, #29~#33 발견 |
 | 2026-11-24 | Claude Opus 5.5 | [#31 판매 확인 API·신선도](journal/2026-11-24-freshness-checkins-claude-opus-5.5.md) — 백엔드 부분 해결 |
+| 2026-11-24 | GPT-6 (Codex) | [GPT 회고 범위·귀속 근거](journal/2026-11-24-gpt-retrospective-scope-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#34 초기 저장소·3개 DB·로컬 개발환경](journal/2026-11-24-gpt-foundation-db-ci-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#35 수집 API·상품 갱신·필드별 검증](journal/2026-11-24-gpt-catalog-ingestion-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#36 회원·모의 구독·문의·관리·탈퇴·분석 API](journal/2026-11-24-gpt-backend-business-apis-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#37 성능 측정·조회 쿼리와 인덱스 개선](journal/2026-11-24-gpt-performance-efficiency-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#38 설정 점검·자동 백업·복원 검증](journal/2026-11-24-gpt-backup-operations-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#39 화면과 실제 백엔드·DB 연결](journal/2026-11-24-gpt-ui-backend-integration-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#40 계정별 페이지 기억·입력 검증·전환 처리](journal/2026-11-24-gpt-account-isolation-validation-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#41 모바일 날짜 입력 컴포넌트 순환 참조 제거](journal/2026-11-24-gpt-mobile-import-cycle-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#42 팀 코드 통합·OCR 분석 작업자·관리 화면 연결](journal/2026-11-24-gpt-team-runtime-integration-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#43 백엔드 임베딩 작업자와 pgvector 추천 연결](journal/2026-11-24-gpt-persistent-embedding-pipeline-gpt-6.md) |

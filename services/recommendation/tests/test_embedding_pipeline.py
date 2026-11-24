@@ -334,3 +334,33 @@ def test_one_bad_item_does_not_block_the_batch(db):
     assert worker.once(conn, Picky())
     assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (good,)).fetchone()
     assert conn.execute('SELECT attempts,last_error FROM app.embedding_jobs WHERE item_id=%s', (bad,)).fetchone() == (1, 'ValueError')
+
+
+def test_brand_and_category_changes_reembed_and_enter_text(db):
+    _, conn, source = db
+    item, offer, _ = seed(conn, source)
+    drain(conn)
+    conn.execute("UPDATE app.catalog_items SET brand='꿀픽테크', category='주방가전' WHERE item_id=%s", (item,))
+    assert conn.execute('SELECT content_version FROM app.catalog_items WHERE item_id=%s', (item,)).fetchone()[0] == 2
+    snapshot = conn.execute('SELECT snapshot FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()[0]
+    assert snapshot['brand'] == '꿀픽테크' and snapshot['category'] == '주방가전'
+    assert config.snapshot_text(snapshot) == '전기 주전자 | 꿀픽테크 | 주방가전 | product'
+    drain(conn)
+    # Price changes alone still do not re-embed.
+    conn.execute('UPDATE app.offers SET price=3000 WHERE offer_id=%s', (offer,))
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()
+
+
+def test_bootstrap_retires_superseded_contracts(db):
+    owner, conn, source = db
+    old = _vectors().Contract(model_id='catalog-product-superseded-' + uuid4().hex[:8], target='product',
+                              encoder_name='hash-ngram-384', revision='hash-ngram-v1', dimensions=384,
+                              input_template='catalog-v1: name | kind | description (omit empty fields)',
+                              query_prefix='', document_prefix='', normalize=True)
+    _vectors().register(owner, old)
+    owner.execute('UPDATE app.embedding_models SET is_serving=true WHERE model_id=%s', (old.model_id,))
+    seed(conn, source)
+    config.bootstrap(owner)
+    assert conn.execute('SELECT is_serving FROM app.embedding_models WHERE model_id=%s', (old.model_id,)).fetchone()[0] is False
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE model_id=%s', (old.model_id,)).fetchone()
+    owner.execute('DELETE FROM app.embedding_models WHERE model_id=%s', (old.model_id,))

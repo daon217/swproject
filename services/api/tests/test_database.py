@@ -18,7 +18,15 @@ def pg(role="app"):
         user="kkulpick_catalog_"+role,password=os.environ["CATALOG_"+role.upper()+"_PASSWORD"], autocommit=True)
 
 
-def test_catalog_and_vectors():
+def retire_fixture_models(model_ids):
+    """Fixture contracts must not stay serving: activation backfills a job for every catalog item,
+    and later embedding tests (or a real worker) would inherit thousands of orphaned jobs."""
+    with pg("owner") as owner:
+        owner.execute("UPDATE app.embedding_models SET is_serving=false WHERE model_id=ANY(%s)",(model_ids,))
+        owner.execute("DELETE FROM app.embedding_jobs WHERE model_id=ANY(%s)",(model_ids,))
+
+
+def test_catalog_and_vectors(request):
     now=datetime.now(UTC)-timedelta(minutes=2)
     rid=uuid4()
     path=f"/internal/v2/crawl-runs/{rid}/observations"
@@ -51,6 +59,7 @@ def test_catalog_and_vectors():
             assert db.execute("SELECT count(*) FROM app."+table+" WHERE offer_id=%s",(offer,)).fetchone()[0]==2
         item=db.execute("SELECT item_id FROM app.offers WHERE offer_id=%s",(offer,)).fetchone()[0]
         m1,m2=[str(uuid4()) for _ in range(2)]
+        request.addfinalizer(lambda: retire_fixture_models([m1,m2]))
         for m in (m1,m2):
             register(owner,Contract(m,"product","fixture-only","test-rev",3,"public-name","","",False))
             owner.execute("UPDATE app.embedding_models SET is_serving=true WHERE model_id=%s",(m,))

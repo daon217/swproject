@@ -17,7 +17,10 @@ from .embedders import HashEmbedder, SentenceTransformerEmbedder
 MODEL = 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2'
 # Pinned upstream weights, not a moving branch. See docs/embedding-pipeline.md.
 REVISION = 'e8f8c211226b894fcb81acc59f3b34ba3efd5f42'
-TEMPLATE = 'catalog-v1: name | kind | description (omit empty fields)'
+# v2 adds brand and category (migration 0011 puts them in job snapshots and content_version).
+# Changing this text yields a new immutable contract id; bootstrap retires the previous one.
+TEMPLATE = 'catalog-v2: name | brand | category | kind | description (omit empty fields)'
+SNAPSHOT_FIELDS = ('name', 'brand', 'category', 'kind', 'description')
 
 
 def settings():
@@ -43,7 +46,7 @@ def contract(kind):
 
 
 def snapshot_text(snapshot):
-    return ' | '.join(str(snapshot[k]) for k in ('name', 'kind', 'description') if snapshot.get(k))
+    return ' | '.join(str(snapshot[k]) for k in SNAPSHOT_FIELDS if snapshot.get(k))
 
 
 @lru_cache(maxsize=1)
@@ -90,3 +93,9 @@ def bootstrap(conn):
             else:
                 _vectors().register(conn, model)
             conn.execute('UPDATE app.embedding_models SET is_serving=true WHERE model_id=%s', (model.model_id,))
+            # One serving contract per domain: otherwise every catalog write keeps enqueueing jobs for
+            # superseded contracts (e.g. catalog-v1 after the v2 template) that no worker processes.
+            conn.execute('''UPDATE app.embedding_models SET is_serving=false
+                WHERE target=%s AND is_serving AND model_id<>%s''', (kind, model.model_id))
+            conn.execute('''DELETE FROM app.embedding_jobs j USING app.embedding_models m
+                WHERE j.model_id=m.model_id AND m.target=%s AND NOT m.is_serving''', (kind,))

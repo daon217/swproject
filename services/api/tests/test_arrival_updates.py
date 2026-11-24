@@ -43,6 +43,17 @@ def catalog(monkeypatch):
         def count(table):
             return db.execute(f'SELECT count(*) FROM app.{table} h JOIN app.offers o USING(offer_id) WHERE source=%s', (source,)).fetchone()[0]
         yield client, post, current, count, source, db, base, start, path, headers
+    # Match search spans sources (same GTIN/brand), so leftovers from an earlier run would leak into
+    # later runs on the same database. Remove this run's rows.
+    with pg('owner') as owner, owner.transaction():
+        items = [r[0] for r in owner.execute('SELECT item_id FROM app.offers WHERE source=%s', (source,))]
+        for table in ('offer_changes', 'price_history', 'offer_url_history', 'listing_extensions'):
+            owner.execute(f'DELETE FROM app.{table} WHERE offer_id IN (SELECT offer_id FROM app.offers WHERE source=%s)', (source,))
+        owner.execute('DELETE FROM app.listing_extensions WHERE source=%s', (source,))
+        owner.execute('UPDATE app.crawl_observations SET offer_id=NULL WHERE source=%s', (source,))
+        owner.execute('DELETE FROM app.affiliate_offers WHERE offer_id IN (SELECT offer_id FROM app.offers WHERE source=%s)', (source,))
+        owner.execute('DELETE FROM app.offers WHERE source=%s', (source,))
+        owner.execute('DELETE FROM app.catalog_items WHERE item_id=ANY(%s::uuid[])', (items,))
 
 
 def test_changes_history_and_filters(catalog):
@@ -294,3 +305,33 @@ def test_uploaded_300_import_and_replay(monkeypatch):
             cursor=body['next_cursor']
             if not cursor: break
         assert len(seen) == len(set(seen)) == 300
+
+
+def test_extension_before_first_observation_is_held_then_applied(catalog):
+    api, post, current, _, source, db, base, start, path, headers = catalog
+    ext_path = path.replace('/observations', '/extensions')
+    early = {
+        'source': source, 'source_listing_id': 'stable-1', 'variant_key': 'sku-1',
+        'observation_key': 'ext-early', 'observed_at': (start + timedelta(seconds=5)).isoformat(),
+        'matching_profile': {'brand': '먼저온브랜드', 'options': {'capacity': '1L', 'engraving': 'yes'}},
+    }
+    held = api.post(ext_path, json=early, headers=headers)
+    assert held.status_code == 202 and held.json()['state'] == 'pending', held.text
+    assert held.json()['error_code'] == 'OFFER_NOT_YET_OBSERVED'
+    # Resend while still unknown: still held, not duplicated.
+    assert api.post(ext_path, json=early, headers=headers).status_code == 202
+    assert post(0).status_code == 201  # first observation creates the offer and applies the held details
+    state = db.execute("SELECT state,change_kind,offer_id FROM app.listing_extensions WHERE source=%s AND observation_key='ext-early'",
+                       (source,)).fetchone()
+    assert state[0] == 'applied' and state[1] == 'updated' and str(state[2]) == str(current()['offer_id'])
+    assert db.execute('SELECT brand FROM app.catalog_items WHERE item_id=%s', (current()['item_id'],)).fetchone()[0] == '먼저온브랜드'
+    # A resend after it was applied is an idempotent replay.
+    replay = api.post(ext_path, json=early, headers=headers)
+    assert replay.status_code == 200 and replay.json()['state'] == 'applied'
+
+    # null removes an option; other options stay.
+    drop = early | {'observation_key': 'ext-drop', 'observed_at': (start + timedelta(seconds=20)).isoformat(),
+                    'matching_profile': {'options': {'engraving': None}}}
+    assert api.post(ext_path, json=drop, headers=headers).json()['change_kind'] == 'updated'
+    options = db.execute('SELECT options FROM app.products WHERE item_id=%s', (current()['item_id'],)).fetchone()[0]
+    assert options == {'capacity': '1L'}

@@ -45,7 +45,7 @@ def grant(cfg,now,storage=True):
     except (KeyError,ValueError,TypeError):return False
 
 def validate(cfg):
-    allowed={'source','base_url','search_url_template','queries','mode','enabled','rights','provider_min_interval_seconds',
+    allowed={'start_urls','source','base_url','search_url_template','queries','mode','enabled','rights','provider_min_interval_seconds',
         'requests_per_hour','requests_per_24h','request_interval_seconds','max_pages_per_cycle','max_products_per_cycle',
         'refresh_items_per_cycle','max_tracked_items','max_attempts','selectors','render_javascript','evidence_storage',
         'allowed_product_hosts','currencies','backend_enabled','backend_owner_approved','price_semantics_confirmed','backend_delivery','region','country','category_mapping'}
@@ -65,11 +65,14 @@ def validate(cfg):
         ('max_pages_per_cycle',1,10),('max_products_per_cycle',1,100),('refresh_items_per_cycle',0,50),('max_tracked_items',1,100000),('max_attempts',1,5)):
         if type(cfg.get(key)) is not int or not low<=cfg[key]<=high:raise ValueError('invalid_'+key)
     interval(cfg)
-    qs=cfg.get('queries')
-    if not isinstance(qs,list) or not 1<=len(qs)<=10 or any(not isinstance(q,str) or not q.strip() or len(q)>100 for q in qs):raise ValueError('bounded_queries_required')
-    template=cfg.get('search_url_template','')
-    if template.count('{query}')!=1 or template.count('{page}')>1:raise ValueError('search_template_required')
-    url(template.replace('{query}','test').replace('{page}','1'),host)
+    starts=cfg.get('start_urls',[])
+    if not isinstance(starts,list) or len(starts)>10:raise ValueError('bounded_start_URLs_required')
+    for target in starts:url(target,host)
+    qs=cfg.get('queries',[]);template=cfg.get('search_url_template','')
+    if not starts or template or qs:
+        if not isinstance(qs,list) or not 1<=len(qs)<=10 or any(not isinstance(q,str) or not q.strip() or len(q)>100 for q in qs):raise ValueError('bounded_queries_required')
+        if template.count('{query}')!=1 or template.count('{page}')>1:raise ValueError('search_template_required')
+        url(template.replace('{query}','test').replace('{page}','1'),host)
     if not isinstance(cfg.get('currencies'),list) or not cfg['currencies'] or any(not re.fullmatch('[A-Z]{3}',c) for c in cfg['currencies']):raise ValueError('currency_allowlist_required')
     selectors=cfg.get('selectors',{})
     if not isinstance(selectors,dict) or set(selectors)-{'product_links','next_page','card','id','name','price','currency','seller','condition','availability','image','description','category','ingredients','allergens','cross_contact','brand','manufacturer','model','model_number','mpn','gtin','color','size'}:

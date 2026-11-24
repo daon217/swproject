@@ -17,7 +17,9 @@ class URLWorker:
     def __init__(self,cfg,root,*,transport=None,delivery=None,renderer=None,clock=utcnow):
         self.cfg=validate(cfg);self.clock=clock;self.root=Path(root)/cfg['source'];self.path=self.root/'url_checkpoint.json';self.stop=threading.Event()
         self.synthetic=getattr(transport,'synthetic_only',False) is True
-        self.context=digest({k:cfg[k] for k in ('source','base_url','search_url_template','queries','mode','selectors','render_javascript')})
+        context={k:cfg.get(k,[] if k=='queries' else '') for k in ('source','base_url','search_url_template','queries','mode','selectors','render_javascript')}
+        if cfg.get('start_urls'):context['start_urls']=cfg['start_urls']
+        self.context=digest(context)
         self.state=load(self.path,{'version':1,'synthetic_only':self.synthetic,'context':self.context,'tasks':[],'known':{},'cycle_seen':[], 'cycle_products':0,
             'next_cycle_at':None,'next_action_at':None,'hold':None,'totals':{},'cycle':0,'inflight':False,'shape':{},'checkpoint_outbox_seen':False})
         if self.state.get('version')!=1 or self.state.get('context')!=self.context:raise ValueError('URL_checkpoint_context_mismatch_no_reset')
@@ -35,7 +37,8 @@ class URLWorker:
     def task(self,kind,target,**kw):return dict(kind=kind,url=target,attempts=0,**kw)
     def begin(self):
         self.state['cycle']+=1;self.state['cycle_seen']=[];self.state['cycle_products']=0
-        self.state['tasks']=[self.task('list',url(self.cfg['search_url_template'].replace('{query}',quote(q,safe='')).replace('{page}','1')),page=1) for q in self.cfg['queries']]
+        self.state['tasks']=[self.task('list',url(self.cfg['search_url_template'].replace('{query}',quote(q,safe='')).replace('{page}','1')),page=1) for q in self.cfg.get('queries',[])]
+        self.state['tasks'] += [self.task('auto',url(t),page=1) for t in dict.fromkeys(self.cfg.get('start_urls',[]))]
         self.state['refresh_queued']=False
     def complete(self):
         if not self.state['tasks'] and not self.state.get('refresh_queued'):
@@ -57,6 +60,19 @@ class URLWorker:
                 self.renderer=PlaywrightRenderer()
             text=self.renderer.render(task['url'],self.http)
         now=self.clock().isoformat();self.state['last_collection_at']=now
+        if task['kind']=='auto':
+            from .parser import document,structured
+            soup=document(text)
+            detail=len(structured(soup))==1 or bool(soup.select_one('[itemtype$="/Product"]'))
+            if not detail:
+                selectors=self.cfg.get('selectors',{})
+                from .analysis import value
+                detail=bool(value(soup,'price',selectors) and value(soup,'name',selectors))
+            if detail:
+                if task['url'] in self.state['cycle_seen']:self.count('duplicates_skipped');return
+                if self.state['cycle_products']>=self.cfg['max_products_per_cycle']:self.count('cycle_coverage_limited');return
+                self.state['cycle_seen'].append(task['url']);self.state['cycle_products']+=1
+            else:task['kind']='list'
         if task['kind']=='list':
             found,next_page=links(text,task['url'],self.cfg)
             shape_key=hashlib.sha256(task['url'].encode()).hexdigest()

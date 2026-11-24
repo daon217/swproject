@@ -106,3 +106,32 @@ class DeferredBackend:
         return self.actual(path,body)
     def close(self):
         if self.actual:self.actual.close()
+
+
+def endpoint_plan(configured_url):
+    """Pure preflight for the same effective destination used by build_backend.
+
+    No provider entitlement is inferred here, and no network or secret is read.
+    """
+    mode=os.environ.get('COLLECTOR_BACKEND_TRANSPORT','https')
+    target=os.environ.get('COLLECTOR_BACKEND_BASE_URL') or configured_url
+    reasons=[]
+    try:
+        if mode=='internal_http':
+            configured_http_origin()  # Explicit URL and existing delivery switch.
+        elif mode=='https':
+            p=urlsplit(target)
+            if (p.scheme!='https' or not p.hostname or p.port not in (None,443) or
+                p.username or p.password or p.query or p.fragment or p.path not in ('','/') or
+                any(ord(c)<33 for c in target) or '\\' in target):
+                raise ValueError('approved_HTTPS_team_API_endpoint_required')
+            if p.hostname.endswith(('.invalid','.example','.test')):
+                raise ValueError('placeholder_team_API_endpoint_forbidden')
+            from pathlib import Path
+            if os.environ.get('COLLECTOR_CA_FILE') and not Path(os.environ['COLLECTOR_CA_FILE']).is_file():
+                raise ValueError('trusted_CA_file_missing')
+        else:raise ValueError('backend_transport_mode_invalid')
+    except (ValueError,TypeError):
+        reasons.append('explicit_internal_HTTP_endpoint_and_delivery_switch_required' if mode=='internal_http' else
+            'approved_HTTPS_team_API_endpoint_required' if mode=='https' else 'backend_transport_mode_invalid')
+    return {'transport':mode,'ready':not reasons,'reasons':reasons,'environment_override':bool(os.environ.get('COLLECTOR_BACKEND_BASE_URL'))}

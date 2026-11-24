@@ -52,18 +52,13 @@ def preflight(provider,cfg,current=None):
         delivery=cfg
     if not all(delivery.get(k) is True for k in ('backend_enabled','backend_owner_approved','price_semantics_confirmed')):
         reasons.append('backend_owner_and_price_approval_required')
-    from urllib.parse import urlsplit
-    endpoint=urlsplit(delivery.get('backend_delivery',{}).get('base_url',''))
-    if endpoint.scheme!='https' or not endpoint.hostname or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment:
-        reasons.append('approved_HTTPS_team_API_endpoint_required')
-    elif endpoint.hostname.endswith(('.invalid','.example','.test')):
-        reasons.append('placeholder_team_API_endpoint_forbidden')
-    if os.environ.get('COLLECTOR_CA_FILE') and not Path(os.environ['COLLECTOR_CA_FILE']).is_file():
-        reasons.append('trusted_CA_file_missing')
+    from .backend_transport import endpoint_plan
+    backend_check=endpoint_plan(delivery.get('backend_delivery',{}).get('base_url',''))
+    reasons.extend(backend_check['reasons'])
     presence={n:bool(os.environ.get(n) or os.environ.get(n+'_FILE') and Path(os.environ[n+'_FILE']).is_file()) for n in KEYS[provider]+['KKULPICK_BACKEND_TOKEN']}
     if not all(presence.values()):reasons.append('required_credentials_missing')
     return {'provider':provider,'ready':not reasons,'configured_enabled':cfg['enabled'],
-            'reasons':reasons,'credential_presence':presence,
+            'reasons':reasons,'credential_presence':presence,'backend_transport':backend_check,
             'budget':{k:delivery[k] for k in ('requests_per_cycle','requests_per_hour','requests_per_24h','requests_per_kst_day',
                  'request_interval_seconds','max_units_per_month','cost_per_request','max_cost_per_month','cost_currency','credits_per_request') if k in delivery},
             'cycle_interval_seconds':max(7200,cfg.get('cycle_interval_seconds',7200)),

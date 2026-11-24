@@ -36,6 +36,8 @@ def select_adapter(site,approval=None):
     if site.get('official_api_available') is True and approval.get('api_entitlement_confirmed') and known in ADAPTERS:return known
     if known in ADAPTERS:return known
     caps=site.get('capabilities',{})
+    if caps.get('javascript_reviewed'):return 'generic_javascript'
+    if caps.get('css_product_reviewed'):return 'generic_html'
     if caps.get('jsonld_product_count',0):return 'generic_jsonld'
     if caps.get('microdata_product_count',0) or caps.get('open_graph'):return 'generic_html'
     if caps.get('javascript_reviewed'):return 'generic_javascript'
@@ -93,6 +95,7 @@ class DiscoveryStore:
         site['enabled']=bool(okay and site['product_quality_verified'] and site['access_policy']=='metadata_accessible' and
             site['adapter_name'] not in ('blocked_partner_required','dedicated_parser_review_required','elevenst_offline') and
             approval.get('backend_owner_approved') is True and approval.get('price_semantics_confirmed') is True)
+        site['activation_wait_reasons']=[reason for reason,passed in (('storage_reuse_grant_required',okay),('product_quality_check_required',site['product_quality_verified']),('metadata_access_required',site['access_policy']=='metadata_accessible'),('backend_owner_approval_required',approval.get('backend_owner_approved') is True),('price_semantics_confirmation_required',approval.get('price_semantics_confirmed') is True)) if not passed]
         site['collection_permission']='storage_reuse_confirmed' if okay else 'unverified'
         if site['enabled']:site['verification_status']='activation_ready_backend_contract_still_required'
         elif site['product_quality_verified']:site['verification_status']='lookup_verified_storage_or_backend_permission_wait'
@@ -122,6 +125,7 @@ class MetadataHTTP(SafeHTTP):
         if self.clock()>=self.metadata_deadline:return False
         if target in self.metadata_targets:return True
         approval=self.preview_grants.get(target,{})
+        if not approval and getattr(self,'render_approval',None):approval=self.render_approval
         return bool(approval.get('terms_reference') and lookup_permitted({'rights':approval},self.clock()))
     def allow_product(self,target,approval):
         target=url(target,self.host);self.preview_grants[target]=copy.deepcopy(approval);self.allowed.add(target)
@@ -153,7 +157,7 @@ def catalogue_links(text,base):
                     except ValueError:pass
     return output[:100]
 
-def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None):
+def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None,renderer=None):
     site=store.state['sites'][ident];targets=site['metadata_urls'] or ['https://'+site['domain']+'/']
     approval=approval or {}
     site['last_metadata_attempt_at']=store.clock().isoformat();store.save()
@@ -171,6 +175,16 @@ def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None):
                     host=urlsplit(link['url']).hostname
                     if domain(host)!=domain(site['domain']):store.add({'domain':host},target)
             else:
+                if approval.get('render_javascript') is True:
+                    if not lookup_permitted({'rights':approval},store.clock()) or not approval.get('terms_reference'):
+                        raise Wait('render_lookup_grant_required',hold=True)
+                    if not isinstance(http,MetadataHTTP):raise Wait('render_grant_transport_required',hold=True)
+                    http.render_approval=copy.deepcopy(approval)
+                    if renderer is None:
+                        from .render import PlaywrightRenderer
+                        renderer=PlaywrightRenderer()
+                    text=renderer.render(target,http)
+                    site['capabilities']['javascript_reviewed']=True
                 caps=analyze(text,target);site['capabilities'].update(caps)
                 if caps['search_url_template']:site['search_url_template']=caps['search_url_template']
                 elif caps['opensearch_descriptions']:
@@ -181,7 +195,7 @@ def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None):
                 for k in ('supports_pagination','supports_product_detail','supports_price','supports_stock_status','supports_used_products'):site[k]=caps[k]
                 check_cfg={'source':'html_'+ident.removeprefix('marketplace-'),'allowed_product_hosts':[site['domain']],
                     'currencies':['KRW','USD','AUD','EUR','INR','GBP','JPY','CNY','PLN'],'mode':'used' if site['kind']=='used' else 'general',
-                    'selectors':{},'max_products_per_cycle':1,'country':site['country']}
+                    'selectors':approval.get('selectors',{}),'max_products_per_cycle':1,'country':site['country']}
                 detail_text=text;detail_target=target
                 # A directory/listing page needs an independently granted, bounded product preview.
                 if not (caps['jsonld_product_count']==1 or caps['microdata_product_count']==1 or caps['open_graph']):
@@ -192,13 +206,16 @@ def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None):
                         http.allow_product(detail_target,approval)
                         detail_code,detail_text=wait_fetch(http,detail_target,stop)
                         if detail_code!=200:detail_text=''
+                        elif approval.get('render_javascript') is True:detail_text=renderer.render(detail_target,http)
                 if detail_text:
                     try:
                         normalized=normalize(detail_text,detail_target,store.clock().isoformat(),check_cfg)
                         valid=normalized['observation'] is not None
                         site['quality_preview']={'valid':int(valid),'held':int(not valid),'missing_fields':normalized['missing_fields'],
                             'at':store.clock().isoformat(),'scope':'one_document_or_granted_detail','DB_sent':False}
-                        if valid:site['product_quality_verified']=True;site['last_success_at']=store.clock().isoformat()
+                        if valid:
+                            site['product_quality_verified']=True;site['last_success_at']=store.clock().isoformat()
+                            if approval.get('selectors'):site['capabilities']['css_product_reviewed']=True
                     except (ValueError,TypeError,KeyError,ArithmeticError):
                         site['quality_preview']={'valid':0,'held':1,'reason':'native_parser_review','at':store.clock().isoformat(),'DB_sent':False}
             site['probes']=(site['probes']+[info])[-20:]

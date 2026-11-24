@@ -26,7 +26,7 @@ PROPERTIES={
 
 def node_value(node):
     if node is None:return None
-    return node.get('content') or node.get('href') or node.get('src') or node.get_text(' ',strip=True)
+    return node.get('content') or node.get('href') or node.get('data-src') or node.get('src') or node.get_text(' ',strip=True)
 
 def value(soup,field,selectors=None):
     selector=(selectors or {}).get(field) or PROPERTIES.get(field)

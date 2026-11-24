@@ -31,7 +31,7 @@ def links(html,base,cfg):
     # Prefer declared product URLs; never follow arbitrary site navigation.
     for p in structured(soup):
         offers=p.get('offers') or {}
-        candidate=p.get('url') or (offers.get('url') if isinstance(offers,dict) else None)
+        candidate=p.get('url') or p.get('@id') or (offers.get('url') if isinstance(offers,dict) else None)
         if isinstance(candidate,str):found.append(urljoin(base,candidate))
     for script in soup.select('script[type="application/ld+json"]')[:100]:
         try:data=json.loads(script.string or script.get_text())
@@ -42,6 +42,10 @@ def links(html,base,cfg):
             node=stack.pop()
             if isinstance(node,list):stack.extend(node)
             elif isinstance(node,dict):
+                if kind(node,'ItemList'):
+                    for item in node.get('itemListElement',[])[:500]:
+                        target=item if isinstance(item,str) else item.get('url') if isinstance(item,dict) else None
+                        if isinstance(target,str):found.append(urljoin(base,target))
                 if kind(node,'ListItem'):
                     item=node.get('item',node)
                     target=item.get('url') or item.get('@id') if isinstance(item,dict) else item
@@ -49,6 +53,10 @@ def links(html,base,cfg):
                 stack.extend(v for k,v in node.items() if k in ('@graph','itemListElement','item'))
     if sel.get('product_links'):
         found.extend(urljoin(base,n['href']) for n in soup.select(sel['product_links'])[:500] if n.get('href'))
+    if sel.get('card'):
+        for card in soup.select(sel['card'])[:500]:
+            node=card if card.get('href') else card.select_one('a[href]')
+            if node and node.get('href'):found.append(urljoin(base,node['href']))
     if not found:
         found.extend(urljoin(base,n['href']) for n in soup.select('[itemtype$="/Product"] a[href],a[itemprop="url"][href]')[:500])
     host=cfg['allowed_product_hosts'][0];valid=[]
@@ -58,7 +66,9 @@ def links(html,base,cfg):
         if target not in valid:valid.append(target)
     next_node=soup.select_one(sel.get('next_page','a[rel~="next"]'))
     next_url=None
-    if next_node and next_node.get('href'):next_url=url(urljoin(base,next_node['href']),host)
+    if next_node and next_node.get('href'):
+        try:next_url=url(urljoin(base,next_node['href']),host)
+        except ValueError:pass
     return valid[:cfg['max_products_per_cycle']],next_url
 
 def css_product(soup,selectors):
@@ -97,18 +107,27 @@ def normalize(html,base,at,cfg):
     # Multiple independent products or variant offers require a site adapter.
     if len(products)>1 or not products and len(soup.select('[itemtype$="/Product"]'))>1:raise ValueError('multiple_product_details_require_adapter')
     p=products[0] if products else css_product(soup,cfg.get('selectors',{}))
+    # Fill only absent values with explicit native evidence. JSON-LD wins.
+    fallback=css_product(soup,cfg.get('selectors',{}))
+    p=dict(p)
+    for key,value in fallback.items():
+        if key!='offers' and not p.get(key) and value:p[key]=value
     offers=p.get('offers') or {}
     if isinstance(offers,list):
         if len(offers)!=1:raise ValueError('multiple_offers_require_adapter')
         offers=offers[0]
     if not isinstance(offers,dict) or p.get('hasVariant') or kind(offers,'AggregateOffer'):raise ValueError('variant_offer_requires_adapter')
+    offers=dict(offers)
+    for key,value in fallback['offers'].items():
+        if not offers.get(key) and value and value!={'name':None}:offers[key]=value
+    p['offers']=offers
     target=url(urljoin(base,p.get('url') or offers.get('url') or base),cfg['allowed_product_hosts'][0])
     def code(value):return str(value or '').rstrip('/').rsplit('/',1)[-1]
     native_condition=code(p.get('itemCondition') or offers.get('itemCondition'))
-    condition={'NewCondition':'new','UsedCondition':'used','new':'new','used':'used'}.get(native_condition)
+    condition={'NewCondition':'new','UsedCondition':'used','new':'new','used':'used','신품':'new','새상품':'new','중고':'used'}.get(native_condition)
     native_state=code(offers.get('availability'))
     state={'InStock':'available','LimitedAvailability':'available','OutOfStock':'out_of_stock','SoldOut':'ended',
-           'available':'available','out_of_stock':'out_of_stock','ended':'ended'}.get(native_state)
+           'in stock':'available','재고있음':'available','판매중':'available','품절':'out_of_stock','판매완료':'ended','available':'available','out_of_stock':'out_of_stock','ended':'ended'}.get(native_state)
     ident=p.get('productID') or 'url:'+hashlib.sha256(target.encode()).hexdigest()
     variant=str(p.get('sku') or ident)
     seller=offers.get('seller') or p.get('seller') or {}
@@ -119,7 +138,7 @@ def normalize(html,base,at,cfg):
     if not seller:result['missing_fields'].append('seller');result['observation']=None
     if cfg.get('mode')=='used' and condition!='used':result['missing_fields'].append('used_condition_required');result['observation']=None
     image=p.get('image') or native_value(soup,'image',cfg.get('selectors',{}));image=image[0] if isinstance(image,list) and image else image
-    image=image.get('url') if isinstance(image,dict) else image
+    image=(image.get('url') or image.get('contentUrl')) if isinstance(image,dict) else image
     description=plain(p.get('description') or native_value(soup,'description',cfg.get('selectors',{})))
     if result['observation'] and description:
         from services.collector.marketplace_live.normalize import validate_body
@@ -146,7 +165,7 @@ def normalize(html,base,at,cfg):
         'purchase_available':True if state=='available' else False if state in ('out_of_stock','ended') else None,
         'synthetic':False,'data_source':'registered_public_HTML','verified_at':at}
     from .matching import profile
-    metadata['matching_profile']=profile(p,base,origin='jsonld_product' if products else 'native_page')
+    metadata['matching_profile']=profile(products[0] if products else p,base,origin='jsonld_product' if products else 'native_page')
     result['metadata']=metadata
     labels=labeled_food(soup)
     result['food_input']={'name':result.get('name') or '', 'category':category or '', 'description':description,

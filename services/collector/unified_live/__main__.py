@@ -16,7 +16,7 @@ def emit(data):print(json.dumps(data,ensure_ascii=False,default=str))
 
 def plan(provider,data):
     if provider=='url':
-        cfg=validate(data);per_cycle=len(cfg['queries'])*cfg['max_pages_per_cycle']+cfg['max_products_per_cycle']+cfg['refresh_items_per_cycle']
+        cfg=validate(data);per_cycle=(len(cfg.get('queries',[]))+len(cfg.get('start_urls',[])))*cfg['max_pages_per_cycle']+cfg['max_products_per_cycle']+cfg['refresh_items_per_cycle']
         seconds=interval(cfg)
         ready=cfg['enabled'] and grant(cfg,utcnow()) and os.environ.get('COLLECTOR_RUN_APPROVED')=='yes'
         return {'provider':provider,'source':cfg['source'],'ready':ready,'effective_interval_seconds':seconds,
@@ -31,7 +31,7 @@ def plan(provider,data):
     if provider=='ebay_used':
         source=json.loads(Path(data).read_text(encoding='utf-8-sig'));schedule=source.get('schedule',{})
         seconds,reason=used_interval(schedule)
-        estimated=len(cfg['queries'])*cfg['max_pages_per_cycle']*(1+cfg['page_size'])+cfg.get('refresh_items_per_cycle',1)
+        estimated=(len(cfg.get('queries',[]))+len(cfg.get('start_urls',[])))*cfg['max_pages_per_cycle']*(1+cfg['page_size'])+cfg.get('refresh_items_per_cycle',1)
         result.update(effective_interval_seconds=seconds,interval_reason=reason,estimated_max_data_requests_per_24h=estimated*86400/seconds,
             shared_ebay_daily_budget=cfg['requests_per_24h'],quota_can_delay_polls=True)
     return result

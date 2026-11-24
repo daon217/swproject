@@ -19,7 +19,8 @@ def registration(site,approval):
     if not site['enabled'] or site['adapter_name'] not in ('generic_jsonld','generic_html','generic_javascript'):return None
     if approval.get('allowed_hosts')!=[site['domain']]:raise ValueError('site_specific_local_grant_required')
     cfg={'source':'html_'+site['marketplace_id'].removeprefix('marketplace-'),'base_url':'https://'+site['domain']+'/',
-        'search_url_template':site['search_url_template'],'queries':approval.get('queries'),
+        'search_url_template':approval.get('search_url_template') or site['search_url_template'] or '',
+        'queries':approval.get('queries',[]),
         'mode':'used' if site['kind']=='used' else 'general','country':site['country'],
         'region':'domestic' if site['country']=='KR' else 'overseas' if site['country'] else 'unknown',
         'enabled':True,'backend_enabled':approval.get('backend_enabled') is True,
@@ -33,6 +34,7 @@ def registration(site,approval):
         'selectors':approval.get('selectors',{}),'category_mapping':approval.get('category_mapping',{}),
         'rights':{k:approval[k] for k in ('reference','terms_reference','expires_at','allowed_uses')},
         'backend_delivery':approval.get('backend_delivery',{})}
+    if approval.get('start_urls'):cfg['start_urls']=approval['start_urls']
     return validate(cfg)
 
 class FleetSupervisor:
@@ -93,7 +95,7 @@ class FleetSupervisor:
             atomic(path,cfg);child_root=self.root/'sources'/ident
             command=[sys.executable,'-m','services.collector.unified_live','--provider','url','--config',str(path),'--state-dir',str(child_root),'--watch']
             env={k:v for k,v in os.environ.items() if k.upper() in {'PATH','SYSTEMROOT','WINDIR','TEMP','TMP','PYTHONPATH','PYTHONDONTWRITEBYTECODE',
-                'COLLECTOR_RUN_APPROVED','COLLECTOR_DELIVERY_APPROVED','KKULPICK_BACKEND_TOKEN','KKULPICK_BACKEND_TOKEN_FILE','COLLECTOR_BROWSER_CHANNEL','COLLECTOR_CA_FILE','LANG','LC_ALL'}}
+                'COLLECTOR_BACKEND_TRANSPORT','COLLECTOR_BACKEND_BASE_URL','COLLECTOR_RUN_APPROVED','COLLECTOR_DELIVERY_APPROVED','KKULPICK_BACKEND_TOKEN','KKULPICK_BACKEND_TOKEN_FILE','COLLECTOR_BROWSER_CHANNEL','COLLECTOR_CA_FILE','LANG','LC_ALL'}}
             try:self.children[ident]=self.popen(command,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             except OSError:
                 status['failures']+=1;status['process_state']='start_failed_backoff';status['next_start_at']=(self.clock()+timedelta(seconds=60)).isoformat();continue

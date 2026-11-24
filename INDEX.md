@@ -2,6 +2,8 @@
 
 기존 Claude 검토 기준: `part/소병선-backend-test` (기준: `origin/maintest` 2c65ccd).
 
+GPT 회고 범위는 실제 코드 개발을 시작한 **2026-11-04 이후**다. 개발 이전 설계·ERD·발표자료는 제외한다. [개발 기록 대응표·누락 보완](GPT_COVERAGE.md)을 함께 확인한다.
+
 GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 기록은 현재 미해결 이슈의 종료 판정이 아니다.
 
 - **미해결 문제 → [OPEN_ISSUES.md](OPEN_ISSUES.md)** (현재 상태·주기 적재 시 영향·다음 행동)
@@ -47,6 +49,10 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 41 | 모바일 날짜 입력 컴포넌트 순환 참조 제거 | 해결 | `d3ccb8a` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-mobile-import-cycle-gpt-6.md) |
 | 42 | 팀 코드 통합·OCR 분석 작업자·관리 화면 연결 | 부분 해결 | `a19c431` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-team-runtime-integration-gpt-6.md) |
 | 43 | 백엔드 임베딩 작업자와 pgvector 추천 연결 | 부분 해결 | `2d444b0` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-persistent-embedding-pipeline-gpt-6.md) |
+| 44 | API 의존성·본문 제한·실행환경 감사 보완 | 부분 해결 | `0c2bff5` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-runtime-hardening-supplement-gpt-6.md) |
+| 45 | 선택 공유 접속·독립 PC 전환·문서 정리 보완 | 부분 해결 | `ba68281` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-onboarding-docs-supplement-gpt-6.md) |
+| 46 | 실제 수집 파일 가져오기·정리 정책·재생성 방지 보완 | 부분 해결 | `8fcacfa` | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-import-retention-supplement-gpt-6.md) |
+| 47 | main 점검 이력과 개발일지 누락 재검토 | 해결(기록 보완) | `e7f7007`(점검 대상) | GPT-6 (Codex) | [기록](journal/2026-11-24-gpt-readonly-review-supplement-gpt-6.md) |
 
 ## 개발일지 목록
 
@@ -69,3 +75,7 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-24 | GPT-6 (Codex) | [#41 모바일 날짜 입력 컴포넌트 순환 참조 제거](journal/2026-11-24-gpt-mobile-import-cycle-gpt-6.md) |
 | 2026-11-24 | GPT-6 (Codex) | [#42 팀 코드 통합·OCR 분석 작업자·관리 화면 연결](journal/2026-11-24-gpt-team-runtime-integration-gpt-6.md) |
 | 2026-11-24 | GPT-6 (Codex) | [#43 백엔드 임베딩 작업자와 pgvector 추천 연결](journal/2026-11-24-gpt-persistent-embedding-pipeline-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#44 API 의존성·본문 제한·실행환경 감사 보완](journal/2026-11-24-gpt-runtime-hardening-supplement-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#45 선택 공유 접속·독립 PC 전환·문서 정리 보완](journal/2026-11-24-gpt-onboarding-docs-supplement-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#46 실제 수집 파일 가져오기·정리 정책·재생성 방지 보완](journal/2026-11-24-gpt-import-retention-supplement-gpt-6.md) |
+| 2026-11-24 | GPT-6 (Codex) | [#47 main 점검 이력과 개발일지 누락 재검토](journal/2026-11-24-gpt-readonly-review-supplement-gpt-6.md) |

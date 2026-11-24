@@ -2,7 +2,7 @@
 
 작업 브랜치: `part/소병선-backend-test` (기준: `origin/maintest` 2c65ccd).
 
-- **미해결 문제 → [OPEN_ISSUES.md](OPEN_ISSUES.md)** (현재 상태·사전 적재 시 영향·다음 행동)
+- **미해결 문제 → [OPEN_ISSUES.md](OPEN_ISSUES.md)** (현재 상태·주기 적재 시 영향·다음 행동)
 - **무엇을 언제 왜 했는지 → `journal/` 개발일지**
 
 ## 해결됨
@@ -26,7 +26,7 @@
 
 ## 미해결 (상세는 OPEN_ISSUES.md)
 
-04(부분 해결), 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28
+04(부분 해결), 16~33
 
 ## 개발일지 목록
 
@@ -36,3 +36,4 @@
 | 2026-11-24 | Claude Opus 5.5 | [세션 1](journal/2026-11-24-backend-test-branch-claude-opus-5.5.md) — #01~#10 |
 | 2026-11-24 | Claude Opus 5.5 | [세션 2](journal/2026-11-24-backend-test-round2-claude-opus-5.5.md) — #11~#15 |
 | 2026-11-24 | Claude Opus 5.5 | [실제 구동 시뮬레이션](journal/2026-11-24-runtime-simulation-claude-opus-5.5.md) — #24~#27 발견 |
+| 2026-11-24 | Claude Opus 5.5 | [수집기(최준서) 검토](journal/2026-11-24-collector-review-claude-opus-5.5.md) — 주기 적재 전제, #29~#33 발견 |

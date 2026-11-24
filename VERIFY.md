@@ -12,6 +12,11 @@ DB가 필요한 테스트는 `CATALOG_INTEGRATION`/`EMBEDDING_INTEGRATION` 환�
 
 ## 2. 실제 PostgreSQL 통합 테스트 (격리 DB)
 
+**검증 DB란?** 테스트만을 위해 잠깐 띄우는 별도의 PostgreSQL 컨테이너다. 평소 개발 DB와 같은 이미지·같은 초기화 스크립트·같은 마이그레이션을 쓰지만
+compose 프로젝트 이름(`kkulpick-verify`), 데이터 볼륨, 포트(55433), 비밀번호가 모두 따로라서 개발 DB의 데이터에 전혀 영향을 주지 않는다.
+테스트가 끝나면 `down -v`로 볼륨까지 지운다. CI(GitHub Actions)가 매번 새 DB를 만들어 테스트하는 것과 같은 방식이다.
+
+
 기존 개발 DB 볼륨(`kkulpick-db-dev_postgres_data`)을 건드리지 않도록 **별도 compose 프로젝트 이름과 포트**를 쓴다.
 
 1. 임시 env 파일을 만든다(비밀번호는 무작위, 저장소 밖에 둔다):

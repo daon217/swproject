@@ -1,4 +1,4 @@
-# 2026-11-24 현황 조사 (코드 변경 없음)
+# [Claude Opus 5.5] 2026-11-24 현황 조사 (코드 변경 없음)
 
 - 작성: Claude (Opus 5.5), 사용자 요청 "GitHub 진행상황·Actions·브랜치·구조·문제점·성능 파악"
 - 기준: `origin/main` 32f08ba, `origin/maintest` 2c65ccd

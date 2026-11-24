@@ -297,3 +297,40 @@ def test_domain_switch_cleans_up_stale_embedding_jobs(db):
     assert [r[0] for r in jobs] == [food_model]
     drain(conn)
     assert conn.execute('SELECT count(*) FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()[0] == 0
+
+
+def test_poison_job_is_parked_instead_of_retrying_forever(db, monkeypatch):
+    _, conn, source = db
+    drain(conn)
+    item, _, _ = seed(conn, source)
+    monkeypatch.setattr(worker, 'MAX_ATTEMPTS', 2)
+    class Broken:
+        def embed_documents(self, texts): raise RuntimeError('always fails')
+    for _ in range(2):
+        conn.execute('UPDATE app.embedding_jobs SET available_at=now() WHERE item_id=%s', (item,))
+        assert worker.once(conn, Broken())
+    row = conn.execute("SELECT attempts,last_error,available_at='infinity' FROM app.embedding_jobs WHERE item_id=%s",
+                       (item,)).fetchone()
+    assert row == (2, 'exhausted:RuntimeError', True)
+    # Parked: never claimed again, even when forced available, until explicitly requeued.
+    conn.execute('UPDATE app.embedding_jobs SET available_at=now() WHERE item_id=%s', (item,))
+    assert all(j['item_id'] != item for j in worker.claim_many(conn, 100))
+    conn.execute("UPDATE app.embedding_jobs SET lease_token=NULL,lease_until=NULL,available_at='infinity' WHERE item_id=%s", (item,))
+    assert worker.pending_counts(conn)[1] >= 1
+    assert worker.requeue_failed(conn) >= 1
+    drain(conn)
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()
+
+
+def test_one_bad_item_does_not_block_the_batch(db):
+    _, conn, source = db
+    drain(conn)
+    good, _, _ = seed(conn, source, name='무선 키보드')
+    bad, _, _ = seed(conn, source, name='POISON 상품')
+    class Picky:
+        def embed_documents(self, texts):
+            if any('POISON' in t for t in texts): raise ValueError('bad input')
+            return HashEmbedder().embed_documents(texts)
+    assert worker.once(conn, Picky())
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (good,)).fetchone()
+    assert conn.execute('SELECT attempts,last_error FROM app.embedding_jobs WHERE item_id=%s', (bad,)).fetchone() == (1, 'ValueError')

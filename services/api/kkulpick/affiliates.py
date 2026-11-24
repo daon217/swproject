@@ -5,6 +5,7 @@ from fastapi import APIRouter,Depends,Query,Request
 from pydantic import AwareDatetime,Field,HttpUrl,model_validator
 from .access import access, admin_member
 from .members import Strict,row,execute,fail,wrap
+from .freshness import CARD_FRESHNESS, stale_hours
 
 router=APIRouter()
 
@@ -57,13 +58,13 @@ async def disable(offer_id:UUID,req:Request,expected_version:int=Query(ge=1),uid
 @router.get('/v2/recommendations/featured')
 async def featured(req:Request,limit:int=Query(10,ge=1,le=100),selected_domain:str=Query('product',pattern='^(product|food)$'),after:UUID|None=None):
     async with req.app.state.engine.connect() as c:
-        rows=(await execute(c,'''SELECT o.offer_id,i.name,o.price::text,o.currency,o.price_observed_at AS observed_at,
-            o.availability,a.affiliate_url AS url,a.partner_name AS subtitle,o.kind AS image_kind
+        rows=(await execute(c,f'''SELECT o.offer_id,i.name,o.price::text,o.currency,o.price_observed_at AS observed_at,
+            o.availability,a.affiliate_url AS url,a.partner_name AS subtitle,o.kind AS image_kind,{CARD_FRESHNESS}
             FROM app.affiliate_offers a JOIN app.offers o USING(offer_id) JOIN app.catalog_items i USING(item_id)
             WHERE a.enabled AND a.starts_at<=now() AND (a.ends_at IS NULL OR a.ends_at>now())
             AND o.availability='available' AND o.kind=:k
             AND (CAST(:after AS uuid) IS NULL OR o.offer_id>CAST(:after AS uuid))
-            ORDER BY o.offer_id LIMIT :n''',k=selected_domain,after=after,n=limit)).mappings().all()
+            ORDER BY o.offer_id LIMIT :n''',k=selected_domain,after=after,n=limit,stale_hours=stale_hours())).mappings().all()
     return wrap([dict(r)|{'affiliate':True,'reason':'제휴 상품'} for r in rows],req)
 
 
@@ -82,8 +83,8 @@ async def basic(req:Request,limit:int=Query(10,ge=1,le=30),
                 selected_domain:str=Query('product',pattern='^(product|food)$')):
     """Public catalog browsing, not personalized AI or an analysis/history write."""
     async with req.app.state.engine.connect() as c:
-        rows=(await execute(c,'''SELECT o.offer_id,i.name,o.price::text,o.currency,
-            o.price_observed_at AS observed_at,o.availability,
+        rows=(await execute(c,f'''SELECT o.offer_id,i.name,o.price::text,o.currency,
+            o.price_observed_at AS observed_at,o.availability,{CARD_FRESHNESS},
             COALESCE(a.affiliate_url,o.current_url) AS url,
             COALESCE(a.partner_name,o.source) AS subtitle,o.kind AS image_kind,
             (a.offer_id IS NOT NULL) AS affiliate
@@ -91,6 +92,6 @@ async def basic(req:Request,limit:int=Query(10,ge=1,le=30),
             LEFT JOIN app.affiliate_offers a ON a.offer_id=o.offer_id
               AND a.enabled AND a.starts_at<=now() AND (a.ends_at IS NULL OR a.ends_at>now())
             WHERE o.availability='available' AND o.condition='new' AND o.kind=:k
-            ORDER BY o.price_observed_at DESC,o.offer_id LIMIT :n''',
-            k=selected_domain,n=limit)).mappings().all()
-    return wrap([dict(r)|{'reason':'최근 가격이 확인된 상품 · 개인 맞춤 분석 아님'} for r in rows],req)
+            ORDER BY o.last_seen_at DESC,o.offer_id LIMIT :n''',
+            k=selected_domain,n=limit,stale_hours=stale_hours())).mappings().all()
+    return wrap([dict(r)|{'reason':'최근 판매가 확인된 상품 · 개인 맞춤 분석 아님'} for r in rows],req)

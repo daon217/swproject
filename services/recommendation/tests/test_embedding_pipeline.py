@@ -364,3 +364,17 @@ def test_bootstrap_retires_superseded_contracts(db):
     assert conn.execute('SELECT is_serving FROM app.embedding_models WHERE model_id=%s', (old.model_id,)).fetchone()[0] is False
     assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE model_id=%s', (old.model_id,)).fetchone()
     owner.execute('DELETE FROM app.embedding_models WHERE model_id=%s', (old.model_id,))
+
+
+def test_optional_staleness_window_drops_unconfirmed_offers(db, monkeypatch):
+    _, conn, source = db
+    item, offer, pid = seed(conn, source, name='오래된 주전자')
+    drain(conn)
+    model = config.contract('product').model_id
+    query = HashEmbedder().embed_query('오래된 주전자')
+    conn.execute("UPDATE app.offers SET last_seen_at=now()-interval '10 days' WHERE offer_id=%s", (offer,))
+    assert pid in [c.product_id for c in PgVectorIndex(conn, model).search(query, 100)]  # default: keep
+    monkeypatch.setenv('RECO_MAX_STALENESS_HOURS', '72')
+    assert pid not in [c.product_id for c in PgVectorIndex(conn, model).search(query, 100)]
+    conn.execute('UPDATE app.offers SET last_seen_at=now() WHERE offer_id=%s', (offer,))
+    assert pid in [c.product_id for c in PgVectorIndex(conn, model).search(query, 100)]

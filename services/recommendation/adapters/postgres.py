@@ -16,6 +16,7 @@
 """
 from __future__ import annotations
 
+import os
 from typing import Iterable, Sequence
 
 from ..contracts import Candidate, CollectedProduct
@@ -27,6 +28,12 @@ def _vectors():
     except ImportError:  # 저장소 루트에서 실행
         from services.api.kkulpick import vectors
     return vectors
+
+
+def max_staleness_hours() -> int:
+    """RECO_MAX_STALENESS_HOURS: drop offers whose sale was not confirmed within this many hours.
+    0 (default) keeps every available offer; stale ones are only flagged on cards by the API."""
+    return max(0, int(os.getenv('RECO_MAX_STALENESS_HOURS', '0')))
 
 
 def split_product_id(product_id: str) -> tuple[str, str, str]:
@@ -88,15 +95,18 @@ class PgVectorIndex:
             self._v.put(self.conn, self.model_id, item_id, version, vec)
 
     def search(self, vector: list[float], limit: int) -> list[Candidate]:
-        rows = self._v.candidates(self.conn, self.model_id, vector, limit, available_only=True)
+        hours = max_staleness_hours()
+        rows = self._v.candidates(self.conn, self.model_id, vector, limit, available_only=True,
+                                  max_staleness_hours=hours)
         if not rows:
             return []
         # item 하나에 판매처(offer)가 여럿일 수 있음 -> 판매 중인 것 중 가장 싼 offer 로 대표
         reps = {iid: join_product_id(src, l, v) for iid, src, l, v in self.conn.execute(
             """SELECT DISTINCT ON (item_id) item_id::text, source, source_listing_id, variant_key
                FROM app.offers WHERE item_id = ANY(%s::uuid[]) AND availability='available'
+                 AND (%s = 0 OR last_seen_at > now() - make_interval(hours => %s))
                ORDER BY item_id, price, offer_id""",
-            ([str(r[0]) for r in rows],)).fetchall()}
+            ([str(r[0]) for r in rows], hours, hours)).fetchall()}
         return [Candidate(reps[str(iid)], round(1.0 - float(dist), 6)) for iid, dist in rows if str(iid) in reps]
 
 

@@ -57,16 +57,23 @@ def put(conn, model, parent_id, version, values):
             (parent_id,model,version,vec))
 
 
-def candidates(conn, model, values, limit=20, available_only=False):
-    """Returns candidate identities, not a price, an allergy verdict or a final recommendation."""
+def candidates(conn, model, values, limit=20, available_only=False, max_staleness_hours=0):
+    """Returns candidate identities, not a price, an allergy verdict or a final recommendation.
+    max_staleness_hours>0 also requires a sale confirmed (last_seen_at) within that window."""
     if not 1<=limit<=100:
         raise ValueError("invalid limit")
+    if not 0<=int(max_staleness_hours)<=24*365:
+        raise ValueError("invalid staleness window")
     with conn.transaction():
         t,dim,vec=_space(conn,model,values)
         _,parent,pk=TARGETS[t]
         available = sql.SQL('')
         if available_only and t in ('product', 'food'):
-            available = sql.SQL(" AND EXISTS (SELECT 1 FROM app.offers o WHERE o.item_id=p.item_id AND o.availability='available')")
+            fresh = sql.SQL('')
+            if max_staleness_hours:
+                fresh = sql.SQL(" AND o.last_seen_at > now() - make_interval(hours => {})").format(
+                    sql.Literal(int(max_staleness_hours)))
+            available = sql.SQL(" AND EXISTS (SELECT 1 FROM app.offers o WHERE o.item_id=p.item_id AND o.availability='available'{})").format(fresh)
         conn.execute("SET LOCAL hnsw.ef_search=40")
         conn.execute("SET LOCAL hnsw.iterative_scan=strict_order")
         distance=sql.SQL("e.embedding::vector({}) <=> %s::vector({})").format(sql.Literal(dim),sql.Literal(dim))

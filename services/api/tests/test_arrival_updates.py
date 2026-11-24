@@ -335,3 +335,56 @@ def test_extension_before_first_observation_is_held_then_applied(catalog):
     assert api.post(ext_path, json=drop, headers=headers).json()['change_kind'] == 'updated'
     options = db.execute('SELECT options FROM app.products WHERE item_id=%s', (current()['item_id'],)).fetchone()[0]
     assert options == {'capacity': '1L'}
+
+
+def test_listing_checks_refresh_freshness_only_when_catalog_matches(catalog, monkeypatch):
+    api, post, current, _, source, db, base, start, path, headers = catalog
+    assert post(0).status_code == 201
+    before = current()
+    seen = datetime.now(UTC) - timedelta(minutes=1)
+    check = {'source_listing_id': 'stable-1', 'variant_key': 'sku-1', 'observed_at': seen.isoformat(),
+             'price': base['price'], 'currency': base['currency'], 'availability': base['availability']}
+    batch = {'source': source, 'items': [
+        check,
+        check | {'price': '1.0000'},                                   # collector saw another price
+        check | {'source_listing_id': 'never-observed'},              # not in catalog
+        check | {'observed_at': (datetime.now(UTC) + timedelta(hours=1)).isoformat()},  # future
+    ]}
+    assert api.post('/internal/v2/listing-checks', json=batch).status_code == 401
+    r = api.post('/internal/v2/listing-checks', json=batch, headers=headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # The matching check and the mismatching one share an identity: the newest one in the batch wins.
+    assert body['rejected'][0]['reason'] == 'OBSERVED_AT_OUT_OF_RANGE'
+    assert {'source_listing_id': 'never-observed', 'variant_key': 'sku-1'} in body['unknown']
+    after = current()
+    # Only freshness moves; the price clock and values stay untouched.
+    assert after['price'] == before['price'] and after['price_observed_at'] == before['price_observed_at']
+    assert after['last_changed_at'] == before['last_changed_at']
+    if body['confirmed']:
+        assert after['last_seen_at'] > before['last_seen_at']
+    # A clean batch confirms and advances last_seen_at; an older check never moves it back.
+    ok = api.post('/internal/v2/listing-checks', json={'source': source, 'items': [check]}, headers=headers).json()
+    assert ok == {'confirmed': 1, 'mismatch': [], 'unknown': [], 'rejected': []}
+    assert current()['last_seen_at'] == seen
+    older = check | {'observed_at': (seen - timedelta(hours=1)).isoformat()}
+    assert api.post('/internal/v2/listing-checks', json={'source': source, 'items': [older]}, headers=headers).json()['confirmed'] == 1
+    assert current()['last_seen_at'] == seen
+    bad = api.post('/internal/v2/listing-checks', json={'source': source, 'items': [check | {'price': '1.0000'}]}, headers=headers).json()
+    assert bad['mismatch'] == [{'source_listing_id': 'stable-1', 'variant_key': 'sku-1'}] and bad['confirmed'] == 0
+
+
+def test_cards_flag_stale_listings(catalog, monkeypatch):
+    api, post, current, _, source, db, base, start, path, headers = catalog
+    assert post(0).status_code == 201  # observed 10 days ago by the fixture clock
+    monkeypatch.setenv('CATALOG_STALE_HOURS', '72')
+    cards = api.get('/v2/recommendations/basic?limit=30').json()['data']
+    mine = [c for c in cards if c['offer_id'] == str(current()['offer_id'])]
+    if mine:  # basic lists the most recently seen listings; ours may be outside the window
+        assert mine[0]['stale'] is True and mine[0]['seen_at']
+    check = {'source_listing_id': 'stable-1', 'variant_key': 'sku-1', 'observed_at': datetime.now(UTC).isoformat(),
+             'price': base['price'], 'currency': base['currency'], 'availability': base['availability']}
+    assert api.post('/internal/v2/listing-checks', json={'source': source, 'items': [check]}, headers=headers).json()['confirmed'] == 1
+    cards = api.get('/v2/recommendations/basic?limit=30').json()['data']
+    mine = [c for c in cards if c['offer_id'] == str(current()['offer_id'])]
+    assert mine and mine[0]['stale'] is False

@@ -19,6 +19,7 @@ from .analyses import router as analysis_router
 from .console import router as console_router
 from .extensions import apply_pending_extensions, router as extension_router
 from .adpick import router as adpick_router
+from .freshness import router as freshness_router
 
 from .db import url
 from .ingest import accept
@@ -44,7 +45,7 @@ async def lifespan(app):
 
 
 app = FastAPI(title="꿀픽 카탈로그 개발 API", version="0.1", lifespan=lifespan)
-for router in (member_router, account_router, admin_auth_router, support_router, affiliate_router, analysis_router, console_router, extension_router, adpick_router):
+for router in (member_router, account_router, admin_auth_router, support_router, affiliate_router, analysis_router, console_router, extension_router, adpick_router, freshness_router):
     app.include_router(router)
 app.add_middleware(RequestBodyLimit)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DEV_ORIGINS","http://localhost:3000").split(","),

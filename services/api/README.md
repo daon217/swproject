@@ -33,6 +33,10 @@ POST /internal/v2/crawl-runs/{run_id}/observations. UUID run_id를 생성하고 
 - 내부 수신 201, 재전송 200, 같은 source/observation_key의 다른 payload 409, 형식 오류 422, 인증 실패 401. 201은 관측 보관 결과로, 본문 state가 applied인지 확인한다. normalized_payload에는 허용된 필드만 저장한다.
 - 가격/배송비·판매 상태·URL·설명·신품/중고 상태는 필드별 관측 시각으로 비교한다. 오래된 관측은 기록하고 현재값은 보존한다. 같은 시각 상충은 격리한다. 가격 변경 때만 가격 이력, URL 변경 때만 URL 이력/버전을 추가한다.
 - 수신 시 갱신: 24시간 만료 조건을 제거했다. 새 관측이 도착하면 observed_at을 비교해 적용한다. not_found는 suspect로 일반 목록에서 제외하고 timeout/blocked/error는 현재 판매 상태를 보존한다. 수집 파일에 없다는 이유로 삭제하지 않는다. last_seen_at을 화면에 표시하며 실시간 가격이라고 보장하지 않는다.
+- **변경 없음 확인(heartbeat)**: POST /internal/v2/listing-checks (수집 토큰). 본문 `{"source", "items":[{source_listing_id, variant_key, observed_at, price, currency, availability}]}`, 최대 500개.
+  수집기가 다시 확인했는데 내용이 같아 관측을 보내지 않은 매물을 묶어 보낸다. 카탈로그의 price·currency·availability가 같을 때만 last_seen_at/last_checked_at을 앞으로 옮긴다(가격·상태와 그 관측 시각은 바꾸지 않음).
+  응답 `{"confirmed": n, "mismatch": [...], "unknown": [...], "rejected": [...]}`. mismatch(카탈로그와 다름)·unknown(없음/삭제됨)은 전체 관측을 다시 보내야 한다. observed_at이 미래 5분 초과이거나 30일보다 오래되면 rejected.
+- 상품 카드(기본 추천·제휴·분석 결과)에 `seen_at`(마지막으로 판매 확인된 시각)과 `stale`(CATALOG_STALE_HOURS, 기본 72시간 초과)을 포함한다. 추천 서비스는 RECO_MAX_STALENESS_HOURS(기본 0=끔)를 넘긴 매물을 후보에서 뺄 수 있다.
 - food와 product는 분리 조회한다. 중고는 condition=used로 조회한다. 제휴·회원·상담 API는 위 업무별 문서를 참고한다. 실제 상품 상세정보 수집 연동은 별도다.
 
 ## 정우: 임베딩 연결

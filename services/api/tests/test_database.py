@@ -78,3 +78,30 @@ def test_catalog_and_vectors(request):
         assert post(fail).json()["state"]=="recorded" and visible()
         fail.update(result="not_found",observation_key=f"{rid}:8")
         assert post(fail).json()["state"]=="applied" and not visible()
+
+
+def test_run_source_and_invoice_owner_are_enforced_by_the_database():
+    """2026-11-26 schema review: repeated facts may not contradict their source row."""
+    run = uuid4()
+    with pg() as c:
+        c.execute("INSERT INTO app.crawl_runs(run_id,source) VALUES(%s,'run_a')", (run,))
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            c.execute("""INSERT INTO app.crawl_observations(run_id,source,observation_key,payload_hash,observed_at,
+                normalized_payload,state) VALUES(%s,'run_b','k1','h',now(),'{}','received')""", (run,))
+        with pytest.raises(psycopg.errors.ForeignKeyViolation):
+            c.execute("""INSERT INTO app.listing_extensions(run_id,source,observation_key,schema_version,payload_hash,
+                observed_at,normalized_payload,state,change_kind) VALUES(%s,'run_b','e1','listing-extension-v1','h',
+                now(),'{}','pending','pending')""", (run,))
+    with pg("owner") as o:
+        o.execute("DELETE FROM app.crawl_runs WHERE run_id=%s", (run,))
+    member = psycopg.connect(host="127.0.0.1", port=os.getenv("DB_PORT", "5433"), dbname="kkulpick_member",
+                             user="kkulpick_member_owner", password=os.environ["MEMBER_OWNER_PASSWORD"], autocommit=True)
+    with member as m, m.transaction(force_rollback=True):
+        a, b = (m.execute("""INSERT INTO app.members(login_id,password_hash,consent_version)
+            VALUES(%s,'x','v') RETURNING user_id""", ('own' + uuid4().hex[:10],)).fetchone()[0] for _ in range(2))
+        plan = m.execute("SELECT plan_id FROM app.subscription_plans LIMIT 1").fetchone()[0]
+        sub = m.execute("""INSERT INTO app.subscriptions(user_id,plan_id,billing_mode) VALUES(%s,%s,'mock')
+            RETURNING subscription_id""", (a, plan)).fetchone()[0]
+        with pytest.raises(psycopg.errors.ForeignKeyViolation), m.transaction():
+            m.execute("""INSERT INTO app.invoices(subscription_id,user_id,idempotency_key,request_hash,amount,currency,
+                period_start,period_end) VALUES(%s,%s,'key-12345','h',1,'KRW',now(),now()+interval '1 day')""", (sub, b))

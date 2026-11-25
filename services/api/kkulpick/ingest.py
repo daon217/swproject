@@ -150,8 +150,7 @@ async def accept(c, rid, obs):
                 await run(c, f"UPDATE app.offers SET {clock}=:t WHERE offer_id=:id", t=at, id=offer)
             else:
                 assignments = ",".join(f"{k}=:{k}" for k in values)
-                extra = ",url_version=url_version+1" if clock == "url_observed_at" and changes else ""
-                await run(c, f"UPDATE app.offers SET {assignments},{clock}=:t{extra} WHERE offer_id=:id",
+                await run(c, f"UPDATE app.offers SET {assignments},{clock}=:t WHERE offer_id=:id",
                           **values, t=at, id=offer)
             price_change |= bool(changes.keys() & {"price", "currency", "shipping_fee"})
             url_change |= "current_url" in changes

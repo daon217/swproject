@@ -143,8 +143,8 @@ async def create_analysis(req:Request,response:Response,uid=Depends(member)):
                 if pending['n']>=3:fail(429,'ANALYSIS_LIMIT')
                 if image is not None:image_id=save_image(image)
                 result=await row(c,'''INSERT INTO app.analyses(owner_id,request_key,request_hash,page_url,page_session_id,page_revision,
-                    selected_domain,image_id,image_hash,image_expires_at)
-                    VALUES(:u,:k,:h,:url,:session,:revision,:kind,:image,:ih,CASE WHEN CAST(:image AS uuid) IS NOT NULL THEN now()+interval '1 hour' ELSE NULL END)
+                    selected_domain,image_id,image_hash)
+                    VALUES(:u,:k,:h,:url,:session,:revision,:kind,:image,:ih)
                     RETURNING analysis_id,state''',u=uid,k=data.request_key,h=digest,url=str(data.page_url) if data.page_url else None,session=data.page_session_id,
                     revision=data.page_revision,kind=data.selected_domain,image=image_id,ih=image_hash)
     except BaseException:

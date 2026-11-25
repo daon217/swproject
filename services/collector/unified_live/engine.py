@@ -128,6 +128,17 @@ class URLWorker:
             self.count('stage_'+staged['status'])
             if staged['status'] in ('pending','delivered'):self.count('products_success');self.state['last_success_at']=now
             elif staged['status']!='unchanged_skipped':self.count('products_held')
+    def defer_failed_task(self,task,reason):
+        """Bounded page-local failure; retain evidence/history, revisit next cycle.
+
+        Policy/auth/robots/DNS/network-uncertain holds never enter this path.
+        """
+        self.count('tasks_deferred');self.state['last_failure_at']=self.clock().isoformat()
+        failures=self.state.setdefault('recent_task_failures',[])
+        failures.append({'url_sha256':hashlib.sha256(task['url'].encode()).hexdigest(),
+            'kind':task['kind'],'reason':reason,'at':self.clock().isoformat()})
+        self.state['recent_task_failures']=failures[-50:]
+        self.state['tasks'].pop(0);self.state['next_action_at']=None;self.complete()
     def step(self):
         if self.stop.is_set() or not self.cfg['enabled']:return self.report()
         if not grant(self.cfg,self.clock()):self.state['hold']='permission_expired_or_missing';self.save();return self.report()
@@ -148,9 +159,9 @@ class URLWorker:
                     task['attempts']+=1;self.count('request_failures');self.state['last_failure_at']=self.clock().isoformat()
                 due=exc.until or self.clock()+timedelta(seconds=min(3600,5*2**task['attempts']))
                 self.state['next_action_at']=max(due,self.clock()+timedelta(seconds=min(3600,5*2**task['attempts']))).isoformat()
-                if task['attempts']>=self.cfg['max_attempts']:self.state['hold']='retry_exhausted_review_required'
+                if task['attempts']>=self.cfg['max_attempts']:self.defer_failed_task(task,'transient_retry_exhausted')
         except (ValueError,TypeError,KeyError,ArithmeticError):
-            self.state['hold']='parser_or_contract_review_required';self.count('products_failed');self.state['last_failure_at']=self.clock().isoformat()
+            self.count('products_failed');self.defer_failed_task(task,'parser_or_contract_review_required')
         else:
             self.state['tasks'].pop(0);self.state['next_action_at']=None;self.complete()
         self.state['inflight']=False;self.save();self.delivery.flush(stop=self.stop)
@@ -161,5 +172,5 @@ class URLWorker:
             'last_collection_at':self.state.get('last_collection_at'),'last_success_at':self.state.get('last_success_at'),'last_failure_at':self.state.get('last_failure_at'),
             'hold':self.state['hold'] or self.http.state.get('hold'),'pending_tasks':len(self.state['tasks']),'tracked_items':len(self.state['known']),
             'totals':self.state['totals'],'content_changes':self.delivery.data['totals'],'backend':self.delivery.report(),
-            'HTTP_attempts':len(self.http.state['requests']),'all_items_refreshed_each_minute':False}
+            'recent_task_failures':self.state.get('recent_task_failures',[]),'HTTP_attempts':len(self.http.state['requests']),'all_items_refreshed_each_minute':False}
     def close(self):self.stop.set();self.http.close();self.delivery.close()

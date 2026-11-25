@@ -136,6 +136,7 @@ def normalize(html,base,at,cfg):
         price=native_money(offers['price'],offers.get('priceCurrency')) if offers.get('price') is not None else None,currency=offers.get('priceCurrency'),
         url=target,condition=condition,availability=state),plain(seller,200),native_state,at,cfg)
     if not seller:result['missing_fields'].append('seller');result['observation']=None
+    if native_state in ('reserved','예약중','예약'):result['missing_fields'].append('reserved_status_contract_required');result['observation']=None
     if cfg.get('mode')=='used' and condition!='used':result['missing_fields'].append('used_condition_required');result['observation']=None
     image=p.get('image') or native_value(soup,'image',cfg.get('selectors',{}));image=image[0] if isinstance(image,list) and image else image
     image=(image.get('url') or image.get('contentUrl')) if isinstance(image,dict) else image
@@ -162,7 +163,8 @@ def normalize(html,base,at,cfg):
         'category_mapped':mapping.get(category),'category_mapping_authority':'operator_supplied' if category in mapping else None,
         'brand':label(p.get('brand')),'manufacturer':label(p.get('manufacturer')),'region':cfg.get('region','unknown'),'country':cfg.get('country'),
         'condition_native':native_condition or None,'sale_status_native':native_state or None,'stock_quantity':quantity,
-        'purchase_available':True if state=='available' else False if state in ('out_of_stock','ended') else None,
+        'listing_status':'reserved' if native_state in ('reserved','예약중','예약') else 'ended' if state=='ended' else 'out_of_stock' if state=='out_of_stock' else 'active' if state=='available' else 'unknown',
+        'purchase_available':False if native_state in ('reserved','예약중','예약') else True if state=='available' else False if state in ('out_of_stock','ended') else None,
         'synthetic':False,'data_source':'registered_public_HTML','verified_at':at}
     from .matching import profile
     metadata['matching_profile']=profile(products[0] if products else p,base,origin='jsonld_product' if products else 'native_page')

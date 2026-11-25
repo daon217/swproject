@@ -1,5 +1,7 @@
 """Bounded publisher-directory discovery; remote metadata cannot approve collection."""
 import argparse
+from contextlib import contextmanager
+import errno
 import copy
 from datetime import timedelta
 import hashlib
@@ -40,7 +42,6 @@ def select_adapter(site,approval=None):
     if caps.get('css_product_reviewed'):return 'generic_html'
     if caps.get('jsonld_product_count',0):return 'generic_jsonld'
     if caps.get('microdata_product_count',0) or caps.get('open_graph'):return 'generic_html'
-    if caps.get('javascript_reviewed'):return 'generic_javascript'
     return 'dedicated_parser_review_required'
 
 class DiscoveryStore:
@@ -158,8 +159,16 @@ def catalogue_links(text,base):
     return output[:100]
 
 def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None,renderer=None):
-    site=store.state['sites'][ident];targets=site['metadata_urls'] or ['https://'+site['domain']+'/']
-    approval=approval or {}
+    site=store.state['sites'][ident];approval=approval or {}
+    targets=list(site['metadata_urls'] or ['https://'+site['domain']+'/'])
+    # Explicit local starts are evidence targets, not rights inferred from a page.
+    starts=approval.get('start_urls',[])
+    if not isinstance(starts,list) or len(starts)>10:raise ValueError('bounded_local_starts_required')
+    if starts and lookup_permitted({'rights':approval},store.clock()) and approval.get('terms_reference'):
+        targets=list(dict.fromkeys(url(t,site['domain']) for t in starts))[:5]
+    site['product_quality_verified']=False  # Never keep a stale success after a failed recheck.
+    site['capabilities'].pop('css_product_reviewed',None)
+    site['capabilities'].pop('javascript_reviewed',None)
     site['last_metadata_attempt_at']=store.clock().isoformat();store.save()
     http=http_factory(site['domain'],targets,store.root/'metadata'/ident,store.clock)
     try:
@@ -185,6 +194,16 @@ def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None,renderer
                         renderer=PlaywrightRenderer()
                     text=renderer.render(target,http)
                     site['capabilities']['javascript_reviewed']=True
+                selector=approval.get('discovery_links_selector')
+                if selector:
+                    if not isinstance(selector,str) or len(selector)>200:raise ValueError('bounded_directory_selector_required')
+                    from .parser import document
+                    for node in document(text).select(selector)[:20]:
+                        try:
+                            candidate=url(urljoin(target,node.get('href','')))
+                            host=urlsplit(candidate).hostname
+                            if domain(host)!=domain(site['domain']):store.add({'domain':host},target)
+                        except ValueError:continue
                 caps=analyze(text,target);site['capabilities'].update(caps)
                 if caps['search_url_template']:site['search_url_template']=caps['search_url_template']
                 elif caps['opensearch_descriptions']:
@@ -198,7 +217,7 @@ def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None,renderer
                     'selectors':approval.get('selectors',{}),'max_products_per_cycle':1,'country':site['country']}
                 detail_text=text;detail_target=target
                 # A directory/listing page needs an independently granted, bounded product preview.
-                if not (caps['jsonld_product_count']==1 or caps['microdata_product_count']==1 or caps['open_graph']):
+                if not (caps['jsonld_product_count']==1 or caps['microdata_product_count']==1 or caps['open_graph'] and caps['supports_price']):
                     found,_=links(text,target,check_cfg)
                     if found and select_adapter(site,approval) not in ADAPTERS and lookup_permitted({'rights':approval},store.clock()) and approval.get('terms_reference'):
                         detail_target=found[0]
@@ -214,6 +233,9 @@ def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None,renderer
                         site['quality_preview']={'valid':int(valid),'held':int(not valid),'missing_fields':normalized['missing_fields'],
                             'at':store.clock().isoformat(),'scope':'one_document_or_granted_detail','DB_sent':False}
                         if valid:
+                            detail_caps=analyze(detail_text,detail_target)
+                            for field in ('jsonld_product_count','microdata_product_count','open_graph','supports_product_detail','supports_price','supports_stock_status','supports_used_products'):
+                                site['capabilities'][field]=detail_caps[field]
                             site['product_quality_verified']=True;site['last_success_at']=store.clock().isoformat()
                             if approval.get('selectors'):site['capabilities']['css_product_reviewed']=True
                     except (ValueError,TypeError,KeyError,ArithmeticError):
@@ -224,6 +246,20 @@ def probe(store,ident,http_factory=MetadataHTTP,stop=None,approval=None,renderer
         site.update(enabled=False,access_policy='metadata_blocked_or_review_required',verification_status='policy_or_structure_review',last_failure_at=store.clock().isoformat())
     finally:http.close();store.evaluate(ident,approval)
     return site
+
+@contextmanager
+def shared_lock(root,stop):
+    """Retry brief fleet contention; never swallow I/O failures in the body."""
+    acquired=None
+    for attempt in range(20):
+        candidate=FileState(Path(root)/'lock').lock()
+        try:candidate.__enter__()
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES,errno.EAGAIN) or attempt==19:raise
+            if stop.wait(.1):raise ValueError('discovery_stopping') from None
+        else:acquired=candidate;break
+    try:yield
+    finally:acquired.__exit__(None,None,None)
 
 def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--state-dir',required=True);p.add_argument('--directory',default=str(SEEDS));p.add_argument('--grants')
@@ -246,10 +282,12 @@ def main(argv=None):
                 'max_sites':args.max_sites,'enabled_by_discovery':0,'HTTP_requests_this_command':0}));return 0
         if threading.current_thread() is threading.main_thread():
             for sig in (signal.SIGINT,signal.SIGTERM):prior[sig]=signal.signal(sig,lambda *_:stop.set())
-        with FileState(root/'lock').lock():
+        with shared_lock(root,stop):
             store=DiscoveryStore(root);store.ingest(data['sites'],data.get('reference','operator_directory'))
-            ticks=0
-            while not stop.is_set():
+        ticks=0
+        while not stop.is_set():
+            with shared_lock(root,stop):
+                store=DiscoveryStore(root)
                 due=args.scan or not store.state['next_scan_at'] or stamp(store.state['next_scan_at'])<=store.clock()
                 if due:
                     # Prefer explicitly published metadata endpoints; do not crawl every seed on first boot.
@@ -259,13 +297,18 @@ def main(argv=None):
                         approvals=load(Path(args.grants),{}) if args.grants else {}
                         for ident in order[:args.max_sites]:
                             if stop.is_set():break
-                            probe(store,ident,stop=stop,approval=approvals.get(ident,{}))
+                            try:probe(store,ident,stop=stop,approval=approvals.get(ident,{}))
+                            except (ValueError,TypeError,KeyError):
+                                store.state['sites'][ident].update(enabled=False,product_quality_verified=False,
+                                    access_policy='local_grant_configuration_review',verification_status='local_grant_configuration_review',
+                                    last_failure_at=store.clock().isoformat())
+                                store.save()
                     store.state['last_scan_at']=store.clock().isoformat();store.state['next_scan_at']=(store.clock()+timedelta(days=1)).isoformat();store.save()
                 atomic(root/'heartbeat.json',dict(store.report(),heartbeat_at=store.clock().isoformat(),mode='metadata_only' if args.live_metadata else 'offline_directory_only'))
-                ticks+=1
-                if args.scan or args.max_ticks and ticks>=args.max_ticks:break
-                stop.wait(1)
-            print(json.dumps(store.report()));return 0
+            ticks+=1
+            if args.scan or args.max_ticks and ticks>=args.max_ticks:break
+            stop.wait(1)
+        print(json.dumps(store.report()));return 0
     except Exception:
         print(json.dumps({'status':'blocked','reason':'discovery_configuration_state_or_lock_review','automatic_reset':False}));return 2
     finally:

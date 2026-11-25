@@ -45,16 +45,17 @@ class FleetSupervisor:
         if self.state.get('version')!=1:raise ValueError('fleet_version_no_reset')
     def save(self):atomic(self.path,self.state)
     def desired(self):
-        store=DiscoveryStore(self.discovery_root,self.clock);wanted={}
+        wanted={}
         # Never race the discovery writer while adding local grant decisions.
         with FileState(self.discovery_root/'lock').lock():
+            store=DiscoveryStore(self.discovery_root,self.clock)
             for ident in list(store.state['sites']):
                 approval=self.grants.get(ident,{})
                 try:
                     site=store.evaluate(ident,approval)
                     cfg=registration(site,approval)
                 except (ValueError,KeyError,TypeError):
-                    store.state['sites'][ident].update(enabled=False,verification_status='local_grant_configuration_review');store.save();continue
+                    store.state['sites'][ident].update(enabled=False,verification_status='local_grant_configuration_review',activation_wait_reasons=['local_grant_configuration_review']);store.save();continue
                 if cfg:wanted[ident]=cfg
         return wanted
     def tick(self):

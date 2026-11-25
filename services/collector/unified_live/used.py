@@ -69,7 +69,12 @@ class ScheduledWorker(OpsWorker):
     def report(self):
         result=super().report()
         seconds,reason=used_interval(self.schedule) if self.cfg.get('collection_profile')=='ebay_used' else (self.cfg['cycle_interval_seconds'],'general_7200_seconds')
-        result.update(effective_interval_seconds=seconds,interval_reason=reason,content_changes=self.delivery.data['totals'],
+        requests=(len(self.cfg['queries'])*self.cfg['max_pages_per_cycle']*(1+self.cfg['page_size'])+self.cfg.get('refresh_items_per_cycle',1))
+        quota=getattr(self.http,'cfg',self.cfg).get('requests_per_24h',self.cfg['requests_per_24h'])
+        capacity={'data_requests_per_cycle_upper_bound':requests,'requested_cycles_per_24h':86400/seconds,
+            'shared_requests_per_24h':quota,'continuous_polling_within_daily_budget':requests*86400/seconds<=quota,
+            'authentication_and_retry_requests_also_consume_budget':True,'all_listings_refreshed':False}
+        result.update(polling_capacity=capacity,effective_interval_seconds=seconds,interval_reason=reason,content_changes=self.delivery.data['totals'],
             schedule_semantics='next_cycle_after_previous_completion; rate_budget_and_backoff_may_delay',
             all_items_refreshed_each_minute=False)
         return result

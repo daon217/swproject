@@ -36,7 +36,7 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 
 ## 미해결 (상세는 OPEN_ISSUES.md)
 
-04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60, 61
+04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60~65
 
 ## GPT 작업 회고 — 당시 완료 범위
 
@@ -112,3 +112,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | GPT-6 (Codex) | [점검·테스트 방법 기록 게시 후 재검증](journal/2026-11-25-gpt-test-methods-postpublish-verification-gpt-6.md) — 원격 본문·코드 참조·명령·CI 수치 재확인 |
 | 2026-11-25 | Gemini 4 Argon | [Gemini 점검·테스트 방법과 수행 이력](journal/2026-11-25-gemini-test-methods-gemini-4-argon.md) — [방법 상세](GEMINI_METHODS.md), 도구·4중 검증·실패 수정·정정 수용 및 고정 CI 근거 |
 | 2026-11-25 | Gemini 4 Argon | [Gemini 점검·테스트 방법 기록 게시 후 재검증](journal/2026-11-25-gemini-test-methods-postpublish-verification-gemini-4-argon.md) — 원격 blob 본문·고정 코드 참조 15개·링크 179개·CI Job 로그 수치 재확인 |
+| 2026-11-25 | Claude Opus 5.5 | [Vision OCR 정제·파이프라인 검토](journal/2026-11-25-vision-pipeline-review-claude-opus-5.5.md) — #62~#65 발견, #21 상향 |

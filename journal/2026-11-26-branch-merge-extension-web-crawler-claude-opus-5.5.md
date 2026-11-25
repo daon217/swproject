@@ -36,3 +36,9 @@
 - 서지웅이 `214914e`(비회원 추천 탭의 상품/식품 선택 버튼 제거)를 테스트 브랜치를 거치지 않고 maintest에 직접 푸시 → 사용자 요청으로 되돌림 커밋 `823ccd5`(강제 푸시 없음, 기록 유지)로 maintest를 테스트 브랜치 코드(7ddb5ea)와 같게 맞춤.
 - 이후 같은 변경을 테스트 브랜치에서 정식으로 재적용(`a77b950`, 되돌림의 되돌림. 이미 기록에 있는 커밋이라 일반 병합으로는 반영 안 됨).
 - 확인: 확장만 바뀜(`tabs.tsx`, README). 호출하는 `/v2/recommendations/basic?selected_domain=product`는 백엔드에 그대로 있고 모바일과 같은 방식. 확장 TypeScript·빌드 통과. 백엔드 코드는 전체 검증한 7ddb5ea와 동일.
+
+## 추가: 수집기 결정 (사용자)
+- 수집기는 **박정우 홈페이지 크롤러**(`services/collector/homepage_crawler`)로 한다. 최준서 `part/최준서-collector`의 새 커밋 70818b5(도매꾹 분류·식품 근거·식별자)는 병합·검증까지 했으나(수집기 650 통과, 실제 백엔드 연결 확인) 사용자 결정으로 **적용하지 않고** 마지막 푸시(a77b950)로 되돌림.
+  - 참고(재검토 시): 그 커밋은 설정이 '식품 보류'여도 성분 없이 식품을 보냈고, 자체 테스트 3개가 실패한 상태였음.
+- 실행은 **직접 실행**(Docker 서비스로 만들지 않음). 필요 설정: 백엔드 `CATALOG_URL_HOSTS`에 쇼핑몰 도메인, 실행 쪽 `COLLECTOR_BACKEND_BASE_URL`·`KKULPICK_BACKEND_TOKEN_FILE`, 저장소 루트에서 `python -m services.collector.homepage_crawler.crawler --backend --watch`. 터미널·PC를 끄면 수집도 멈춤.
+- 상태: maintest = 테스트 브랜치 = a77b950.

@@ -165,6 +165,34 @@ def test_admin_signup_requires_approval_and_stays_out_of_members(client):
         engine.dispose()
 
 
+def test_admin_conversation_list_carries_customer_summary_for_support_staff(client):
+    """#72: support staff cannot read the admin-only member list (and it stops at 100 members), so the
+    conversation list itself must name the customer and carry the summary shown in the console."""
+    customer,customer_profile,customer_uid=account(client)
+    support,support_profile,support_uid=account(client)
+    admin,_,admin_uid=account(client)
+    grant(support_uid,'support'); grant(admin_uid)
+    cid=client.post('/v2/support/conversations',headers=customer).json()['data']['conversation_id']
+    assert client.get('/v2/admin/members',headers=support).status_code==403
+
+    def find(headers):
+        after=None
+        while True:
+            q='/v2/admin/support/conversations?limit=100'+(f'&after={after}' if after else '')
+            page=client.get(q,headers=headers)
+            assert page.status_code==200,page.text
+            rows=page.json()['data']
+            hit=next((c for c in rows if c['conversation_id']==cid),None)
+            if hit or len(rows)<100: return hit
+            after=rows[-1]['conversation_id']
+
+    for headers in (support,admin):
+        row=find(headers)
+        assert row['owner_id']==customer_uid and row['owner_login_id']==customer_profile['login_id']
+        assert row['owner']=={'login_id':customer_profile['login_id'],'gender':'male','age_decade':20,
+                              'subscribed':False,'subscription_started_at':None}
+
+
 def test_support_admin_reply_close_and_revocation(client):
     h,_,_=account(client);admin,profile,uid=account(client)
     other_admin,other_profile,other_uid=account(client)

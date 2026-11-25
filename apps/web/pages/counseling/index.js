@@ -36,6 +36,8 @@ const counselingPage = {
       id: row.conversation_id,
       customerId: row.owner_id,
       customerLoginId: row.owner_login_id || loginIds.get(row.owner_id),
+      // 서버가 상담 목록과 함께 준 고객 요약(상담 담당자도 받음, 회원 수와 무관). 없으면 회원 목록으로 보충한다.
+      customerProfile: row.owner ? this.formatMemberRow({ ...row.owner, user_id: row.owner_id }) : null,
       agent: row.agent_name || '—',
       title: '',
       status: statuses[row.status] || '알 수 없음',
@@ -319,7 +321,7 @@ const counselingPage = {
         <a href="#/counseling" class="btn-secondary inline-flex">목록으로</a>
       `;
     }
-    const customer = this.getCustomerItems().find(
+    const customer = cs.customerProfile || this.getCustomerItems().find(
       (c) => c.userId === cs.customerId || c.id === cs.customerLoginId || c.id === cs.customerId
     ) || null;
     const customerLabel = cs.customerLoginId || customer?.id || cs.customerId;

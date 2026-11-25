@@ -19,16 +19,35 @@ async def admin_me(req:Request,uid=Depends(admin_member)):
         return wrap({'user_id':uid,'role':req.state.admin_role},req)
 
 
+# One definition of the admin-visible member summary, shared by the member list and the support
+# conversation list, so "subscribed" and the age band are computed the same way everywhere.
+MEMBER_SUMMARY = '''SELECT m.user_id,m.login_id,m.created_at,m.gender,
+    (extract(year FROM age(current_date,m.birth_date))::int/10)*10 AS age_decade,
+    coalesce(s.entitlement_end>now() AND s.billing_mode=:mode AND :enabled,false) AS subscribed,
+    (SELECT min(i.period_start) FROM app.invoices i JOIN app.payments p USING(invoice_id)
+        WHERE i.user_id=m.user_id AND p.status='succeeded') AS subscription_started_at
+    FROM app.members m LEFT JOIN app.subscriptions s USING(user_id)
+    WHERE m.deleted_at IS NULL'''
+
+
+def billing_params():
+    return {'mode': os.getenv('BILLING_MODE','disabled'), 'enabled': os.getenv('APP_ENV','development')=='development'}
+
+
+async def member_summaries(c, user_ids):
+    """Summaries for the given members (deleted members are absent)."""
+    if not user_ids:
+        return {}
+    rows=(await execute(c, MEMBER_SUMMARY+' AND m.user_id=ANY(CAST(:ids AS uuid[]))',
+                        ids=[str(u) for u in user_ids], **billing_params())).mappings().all()
+    return {r['user_id']: dict(r) for r in rows}
+
+
 @router.get('/v2/admin/members')
 async def member_list(req:Request,limit:int=Query(20,ge=1,le=100),uid=Depends(admin_member)):
     async with access(req,uid,{'admin'}) as c:
-        rows=(await execute(c,'''SELECT m.user_id,m.login_id,m.created_at,m.gender,
-            (extract(year FROM age(current_date,m.birth_date))::int/10)*10 AS age_decade,
-            coalesce(s.entitlement_end>now() AND s.billing_mode=:mode AND :enabled,false) AS subscribed,
-            (SELECT min(i.period_start) FROM app.invoices i JOIN app.payments p USING(invoice_id)
-                WHERE i.user_id=m.user_id AND p.status='succeeded') AS subscription_started_at
-            FROM app.members m LEFT JOIN app.subscriptions s USING(user_id)
-            WHERE m.deleted_at IS NULL ORDER BY m.created_at DESC,m.user_id DESC LIMIT :n''',n=limit,mode=os.getenv('BILLING_MODE','disabled'),enabled=os.getenv('APP_ENV','development')=='development')).mappings().all()
+        rows=(await execute(c,MEMBER_SUMMARY+' ORDER BY m.created_at DESC,m.user_id DESC LIMIT :n',
+                            n=limit,**billing_params())).mappings().all()
         return wrap([dict(r) for r in rows],req)
 
 

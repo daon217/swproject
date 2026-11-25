@@ -110,3 +110,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | Claude Opus 5.5 | [#59 알레르기 신고 코드 판정](journal/2026-11-25-allergen-declared-codes-claude-opus-5.5.md) — #59 해결 |
 | 2026-11-25 | GPT-6 (Codex) | [GPT 점검·테스트 방법과 수행 이력](journal/2026-11-25-gpt-test-methods-gpt-6.md) — [방법 상세](GPT_METHODS.md), 도구·환경·판정 기준·고정 실행 근거 |
 | 2026-11-25 | GPT-6 (Codex) | [점검·테스트 방법 기록 게시 후 재검증](journal/2026-11-25-gpt-test-methods-postpublish-verification-gpt-6.md) — 원격 본문·코드 참조·명령·CI 수치 재확인 |
+| 2026-11-25 | Gemini 4 Argon | [Gemini 점검·테스트 방법과 수행 이력](journal/2026-11-25-gemini-test-methods-gemini-4-argon.md) — [방법 상세](GEMINI_METHODS.md), 도구·4중 검증·실패 수정·정정 수용 및 고정 CI 근거 |

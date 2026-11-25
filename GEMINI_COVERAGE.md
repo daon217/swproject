@@ -3,6 +3,7 @@
 - 기준: 2026-11-24 전수 재검증. Antigravity(Gemini 4 Argon) 세션에서 수행한 **모든 사용자 요청(11-19 초기 구조 파악 ~ 11-23 전수 조사·하드웨어/성능 분석·`maintest` 4대 한계 해결·Claude 리뷰 5건 수정 및 4중 검증)** 과 원격 커밋(`4b1f5fc` ~ `2c65ccd`)을 빠짐없이 대조했다.
 - 작성 AI: Gemini 4 Argon
 - 기존 [GPT_COVERAGE.md](GPT_COVERAGE.md)에서 *"원 작업 AI를 확인하지 못해 제외한 구간(`4b1f5fc`~`2c65ccd`)"* 으로 남겨 두었던 7개 커밋이 모두 본 Gemini 작업 기록으로 확인·복원되었다.
+- 어떻게 점검하고 어떤 도구·환경·입력·기대값·명령으로 테스트했는지에 대한 상세 방법과 CI Job 로그 근거는 [GEMINI_METHODS.md](GEMINI_METHODS.md) 및 [방법 보완 일지](journal/2026-11-25-gemini-test-methods-gemini-4-argon.md)를 함께 확인한다.
 
 ---
 

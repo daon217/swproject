@@ -98,3 +98,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-24 | Gemini 4 Argon | [#49·#50 카탈로그 DB 식품 원재료·추천 연동 및 상품 매칭 확장 API 구현](journal/2026-11-24-gemini-catalog-extensions-food-evidence-gemini-4-argon.md) |
 | 2026-11-24 | Gemini 4 Argon | [#51·#52 11번가 확장 어댑터·분석 워커 병렬화 및 단위 CI psycopg 가드](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-4-argon.md) |
 | 2026-11-24 | Gemini 4 Argon | [#53·#54 Claude 코드 리뷰 5건 해결 및 4중 검증](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |
+| 2026-11-25 | Claude Opus 5.5 | [maintest 점검·GPT/Gemini 일지 교차 검토](journal/2026-11-25-maintest-ci-and-ai-log-review-claude-opus-5.5.md) — #55~#57 발견, Gemini #48 진단 일부 정정 |

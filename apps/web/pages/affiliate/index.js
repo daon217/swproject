@@ -22,19 +22,6 @@ const affiliatePage = {
     return Array.isArray(store.registeredItems) ? store.registeredItems : [];
   },
 
-  unwrapAffiliateUrl(url) {
-    if (!url) return '';
-    try {
-      const parsed = new URL(url);
-      if (parsed.hostname === 'store.example.test' && parsed.pathname === '/redirect' && parsed.searchParams.has('url')) {
-        return parsed.searchParams.get('url') || url;
-      }
-    } catch {
-      // 원본 문자열 그대로 반환
-    }
-    return url;
-  },
-
   formatPriceKrw(raw) {
     if (raw === null || raw === undefined || raw === '') return '미확인';
     const cleaned = String(raw).replace(/[^\d.]/g, '');
@@ -71,7 +58,8 @@ const affiliatePage = {
         const name = meta.name || row.name || offer?.name || `${row.partner_name} 제휴상품`;
         const rawPrice = meta.rawPrice ?? row.price ?? offer?.price ?? '';
         const price = meta.price || (rawPrice !== '' ? this.formatPriceKrw(rawPrice) : '미확인');
-        const url = this.unwrapAffiliateUrl(row.affiliate_url) || meta.url || offer?.current_url || '';
+        // 서버에 실제로 저장된 주소를 그대로 보여 준다(사용자가 받는 링크와 같아야 잘못된 링크를 찾을 수 있음, #69).
+        const url = row.affiliate_url || meta.url || offer?.current_url || '';
         const domainLabel = (offer?.selected_domain || offer?.kind) === 'food' ? '식품' : '일반 상품';
         const shippingText = offer?.shipping_fee == null ? '수집 가격 기준' : `배송비 ${this.formatPriceKrw(offer.shipping_fee)}`;
 
@@ -801,29 +789,17 @@ const affiliatePage = {
             body: payload,
           });
         } catch (err) {
-          // 서버의 AFFILIATE_URL_HOSTS 화이트리스트(기본 store.example.test)로 인해 외부 쇼핑몰 URL이 422로 거부된 경우 호환 URL로 재시도
-          if (err.status === 422) {
-            const wrappedUrl = `https://store.example.test/redirect?url=${encodeURIComponent(url)}`;
+          // 이미 서버에 있는 제휴(비활성 포함)를 새로 등록하려 한 경우: 서버의 현재 버전으로 한 번만 다시 저장한다.
+          // 서버가 거부한 주소(422, AFFILIATE_URL_HOSTS 밖)를 다른 주소로 감싸 우회 저장하지 않는다(devlog #69).
+          if (err.status === 409 && mode === 'create') {
+            const currentRows = await this.requestAdminList('/v2/admin/affiliate-offers', this.adminSession?.token, 'offer_id');
+            const foundRow = currentRows.find((r) => r.offer_id === targetOfferId);
+            if (!foundRow) throw err;
             await this.requestAdminAuth(path, {
               token: this.adminSession?.token,
               method: 'PUT',
-              body: { ...payload, affiliate_url: wrappedUrl },
+              body: { ...payload, expected_version: foundRow.version },
             });
-          } else if (err.status === 409 && mode === 'create') {
-            const currentRows = await this.requestAdminList('/v2/admin/affiliate-offers', this.adminSession?.token, 'offer_id');
-            const foundRow = currentRows.find((r) => r.offer_id === targetOfferId);
-            if (foundRow) {
-              const wrappedUrl = /^https:\/\/store\.example\.test\//i.test(url)
-                ? url
-                : `https://store.example.test/redirect?url=${encodeURIComponent(url)}`;
-              await this.requestAdminAuth(path, {
-                token: this.adminSession?.token,
-                method: 'PUT',
-                body: { ...payload, affiliate_url: wrappedUrl, expected_version: foundRow.version },
-              });
-            } else {
-              throw err;
-            }
           } else {
             throw err;
           }
@@ -845,7 +821,9 @@ const affiliatePage = {
         if (statusEl) {
           statusEl.textContent = error.status === 403
             ? '제휴 상품을 변경할 권한이 없습니다.'
-            : '팀 서버에 제휴 상품을 저장하지 못했습니다. 입력값과 서버 연결을 확인해 주세요.';
+            : error.status === 422
+              ? '서버가 이 제휴 URL을 거부했습니다. HTTPS 주소인지, 그 쇼핑몰 주소가 서버 허용 목록(AFFILIATE_URL_HOSTS)에 등록되어 있는지 확인해 주세요.'
+              : '팀 서버에 제휴 상품을 저장하지 못했습니다. 입력값과 서버 연결을 확인해 주세요.';
         }
       }
       return;

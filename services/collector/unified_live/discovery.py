@@ -88,7 +88,7 @@ class DiscoveryStore:
                 added.append(self.add(item,reference))
             except (ValueError,KeyError,TypeError):self.state['totals']['rejected_candidates']=self.state['totals'].get('rejected_candidates',0)+1
         self.save();return added
-    def evaluate(self,ident,approval=None):
+    def evaluate(self,ident,approval=None,*,persist=True):
         site=self.state['sites'][ident];approval=approval or {}
         site['adapter_name']=select_adapter(site,approval)
         okay=grant({'rights':approval},self.clock())
@@ -100,7 +100,8 @@ class DiscoveryStore:
         site['collection_permission']='storage_reuse_confirmed' if okay else 'unverified'
         if site['enabled']:site['verification_status']='activation_ready_backend_contract_still_required'
         elif site['product_quality_verified']:site['verification_status']='lookup_verified_storage_or_backend_permission_wait'
-        self.save();return site
+        if persist:self.save()
+        return site
     def record_product_check(self,ident,*,valid,held):
         site=self.state['sites'][ident]
         if type(valid) is not int or type(held) is not int or min(valid,held)<0:raise ValueError('verified_counts_required')

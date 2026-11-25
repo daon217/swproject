@@ -52,11 +52,12 @@ class FleetSupervisor:
             for ident in list(store.state['sites']):
                 approval=self.grants.get(ident,{})
                 try:
-                    site=store.evaluate(ident,approval)
+                    site=store.evaluate(ident,approval,persist=False)
                     cfg=registration(site,approval)
                 except (ValueError,KeyError,TypeError):
-                    store.state['sites'][ident].update(enabled=False,verification_status='local_grant_configuration_review',activation_wait_reasons=['local_grant_configuration_review']);store.save();continue
+                    store.state['sites'][ident].update(enabled=False,verification_status='local_grant_configuration_review',activation_wait_reasons=['local_grant_configuration_review']);continue
                 if cfg:wanted[ident]=cfg
+            store.save()
         return wanted
     def tick(self):
         try:wanted=self.desired();self.last_desired=wanted;self.state['discovery_busy']=False

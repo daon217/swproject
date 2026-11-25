@@ -1,0 +1,32 @@
+{
+  "shop.example.invalid": {
+    "test_allowed": false,
+    "activation_approved": false,
+    "allowed_hosts": [
+      "shop.example.invalid"
+    ],
+    "reference": "",
+    "terms_reference": "",
+    "expires_at": "2000-01-01T00:00:00+00:00",
+    "allowed_uses": [],
+    "start_urls": [
+      "https://shop.example.invalid/catalog"
+    ],
+    "selectors": {},
+    "currencies": [
+      "KRW"
+    ],
+    "requests_per_hour": 10,
+    "requests_per_24h": 20,
+    "request_interval_seconds": 3,
+    "provider_min_interval_seconds": 7200,
+    "backend_enabled": false,
+    "backend_owner_approved": false,
+    "price_semantics_confirmed": false,
+    "backend_delivery": {
+      "base_url": "https://team.example.invalid",
+      "max_pending": 100,
+      "max_attempts": 3
+    }
+  }
+}

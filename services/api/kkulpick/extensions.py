@@ -568,7 +568,7 @@ async def offer_matches(
             JOIN app.catalog_items i USING(item_id)
             LEFT JOIN app.products p USING(item_id)
             WHERE o.kind=:kind AND o.offer_id<>:id AND o.availability='available'
-              AND (:include_used OR o.condition='new')
+              AND (:include_used OR o.condition<>'used')
               AND ({where_filter})
             ORDER BY {order_priority} o.price ASC, o.offer_id ASC
             LIMIT :candidate_cap"""),

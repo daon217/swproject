@@ -87,7 +87,7 @@ async def ingest(run_id: UUID, obs: Observation, response: Response, req: Reques
 @app.get("/v2/offers")
 async def offers(req: Request, selected_domain: Literal["product","food"],
                  after: UUID | None = None, limit: int = Query(20,ge=1,le=100),
-                 condition: Literal["new", "used", "all"] = "new",
+                 condition: Literal["new", "used", "unknown", "all"] = "new",
                  availability: Literal["available", "out_of_stock", "ended", "suspect", "all"] = "available",
                  source: str | None = Query(None, max_length=64),
                  currency: str | None = Query(None, pattern=r"^[A-Z]{3}$")):

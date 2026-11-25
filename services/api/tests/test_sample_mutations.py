@@ -33,6 +33,7 @@ CASES = [
     ("out_of_stock", {"availability": "out_of_stock"}, 201, "updated", {"availability": "out_of_stock"}),
     ("sale_ended", {"availability": "ended"}, 201, "updated", {"availability": "ended"}),
     ("used_condition", {"condition": "used"}, 201, "updated", {"condition": "used"}),
+    ("unknown_keeps_known_condition", {"condition": "unknown"}, 201, "unchanged", {}),
     ("renamed", {"name": "Renamed sample"}, 201, "updated", {"name": "Renamed sample"}),
     ("description_added", {"description": "New detail"}, 201, "updated", {"description": "New detail"}),
     ("older_price", {"price": "0.5"}, 201, "stale", {}),

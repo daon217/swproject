@@ -46,7 +46,7 @@ class CollectedProduct:
     allergens_declared: list[str] | None = None  # 판매처가 신고한 알레르기 코드. 예: ["milk", "soybean"] (글자 매칭 안 함)
     description: str | None = None
     collected_at: str | None = None         # ISO-8601
-    condition: str | None = None            # "new" | "used" (없으면 new 로 봄)
+    condition: str | None = None            # "new" | "used" | "unknown"(판매처가 표시 안 함). 없으면 new 로 봄
     availability: str | None = None         # "available" | "out_of_stock" | "ended" | "suspect"
     checked_at: str | None = None           # 판매 상태를 마지막으로 확인한 시각 (ISO-8601)
     schema: str = PRODUCT_SCHEMA
@@ -80,8 +80,8 @@ class CollectedProduct:
             errors.append("price 와 currency 는 함께 보내야 함")
         if cur is not None and (not isinstance(cur, str) or not _CURRENCY.match(cur)):
             errors.append("currency 는 KRW 같은 3글자 대문자")
-        if data.get("condition") not in (None, "new", "used"):
-            errors.append("condition 은 new | used")
+        if data.get("condition") not in (None, "new", "used", "unknown"):
+            errors.append("condition 은 new | used | unknown")
         if data.get("availability") not in (None, "available", "out_of_stock", "ended", "suspect"):
             errors.append("availability 는 available | out_of_stock | ended | suspect")
         ing = data.get("ingredients")

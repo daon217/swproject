@@ -164,6 +164,39 @@ def test_omitted_condition_preserves_used(catalog):
     assert current()['condition'] == 'used'
 
 
+def test_condition_unknown_is_stored_listed_and_never_erases_a_known_condition(catalog):
+    """Shops that do not state new/used send condition=unknown (collector request, 2026-11-25)."""
+    api, post, current, _, source, db, base, start, path, headers = catalog
+    first = post(0, dict(condition='unknown'))
+    assert first.status_code == 201 and first.json()['state'] == 'applied'
+    assert current()['condition'] == 'unknown'
+    q = '/v2/offers?selected_domain=product&source=' + source
+    assert [i['condition'] for i in api.get(q + '&condition=unknown').json()['items']] == ['unknown']
+    assert api.get(q).json()['items'] == []                                   # default list is strictly new
+    assert len(api.get(q + '&condition=all').json()['items']) == 1
+    # Public basic recommendations show anything not confirmed used.
+    db.execute('UPDATE app.offers SET last_seen_at=now() WHERE source=%s', (source,))  # newest card first
+    basic = api.get('/v2/recommendations/basic?selected_domain=product&limit=30').json()['data']
+    assert first.json()['offer_id'] in {str(i['offer_id']) for i in basic}
+    # A later page that states the condition fills it in ...
+    assert post(10, dict(condition='new')).json()['change_kind'] == 'updated'
+    assert current()['condition'] == 'new'
+    # ... and a later unknown never erases it.
+    assert post(20, dict(condition='unknown')).json()['change_kind'] == 'unchanged'
+    assert current()['condition'] == 'new'
+    assert post(30, dict(condition='used')).json()['change_kind'] == 'updated'
+    assert post(40, dict(condition='unknown')).status_code == 201
+    assert current()['condition'] == 'used'
+    # Food may be unknown; used food stays rejected.
+    food = base | dict(observation_key=uuid4().hex, observed_at=start.isoformat(), selected_domain='food',
+                       source_listing_id='food-unknown', condition='unknown')
+    assert api.post(path, json=food, headers=headers).status_code == 201
+    used_food = food | dict(observation_key=uuid4().hex, source_listing_id='food-used', condition='used')
+    assert api.post(path, json=used_food, headers=headers).status_code == 422
+    bad = base | dict(observation_key=uuid4().hex, observed_at=start.isoformat(), condition='refurbished')
+    assert api.post(path, json=bad, headers=headers).status_code == 422
+
+
 def test_listing_extension_matching_and_food_evidence(catalog):
     api, post, _, _, source, _, base, start, path, headers = catalog
     first_id = post(0).json()['offer_id']

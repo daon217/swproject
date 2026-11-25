@@ -119,43 +119,6 @@ async function handleAuth(request, response, route) {
   return respond(response, 404, 'NOT_FOUND');
 }
 
-async function handleRunCrawlCycle(request, response) {
-  if (request.method !== 'POST') return respond(response, 405, 'METHOD_NOT_ALLOWED');
-  const { execFile } = require('node:child_process');
-  const repoRoot = path.resolve(__dirname, '../..');
-  const collectorDir = path.join(repoRoot, 'services', 'collector', 'domeggook_live');
-  const venvPython = path.join(repoRoot, '.venv', 'Scripts', 'python.exe');
-  const pythonBin = fs.existsSync(venvPython) ? venvPython : 'python';
-
-  if (fs.existsSync(collectorDir)) {
-    const output = await new Promise((resolve) => {
-      execFile(
-        pythonBin,
-        ['-m', 'services.collector.domeggook_live', '--watch', '--cycles', '1'],
-        { cwd: repoRoot, timeout: 45000 },
-        (error, stdout, stderr) => {
-          resolve({
-            ok: !error,
-            stdout: String(stdout || '').trim(),
-            stderr: String(stderr || '').trim(),
-          });
-        }
-      );
-    });
-    return respond(response, 200, {
-      mode: 'collector_cycle',
-      executedAt: new Date().toISOString(),
-      ...output,
-    });
-  }
-
-  return respond(response, 200, {
-    mode: 'api_sync_cycle',
-    executedAt: new Date().toISOString(),
-    ok: true,
-  });
-}
-
 async function handleBackendProxy(request, response, url) {
   const apiPath = url.pathname.slice('/backend'.length) + url.search;
   const headers = { 'Content-Type': 'application/json' };
@@ -202,9 +165,6 @@ const server = http.createServer(async (request, response) => {
 
   try {
     const url = new URL(request.url, `http://${host}`);
-    if (url.pathname === '/__run-crawl-cycle') {
-      return await handleRunCrawlCycle(request, response);
-    }
     if (!demo && url.pathname.startsWith('/backend/')) {
       return await handleBackendProxy(request, response, url);
     }

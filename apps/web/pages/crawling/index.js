@@ -8,8 +8,6 @@ const crawlingPage = {
   liveCatalogPeriodFilter: '', // '' = 전체 기간, 'YYYY.MM.DD ~ YYYY.MM.DD' = 기간 필터
   liveCatalogPage: 1,
   liveCatalogPageSize: 50,
-  crawlCycleRunning: false,
-  lastCrawlCycleAt: '',
   crawlDeletionRunning: false,
 
   // Older builds hid "deleted" offers only in this browser. Deletion is server-side now; drop that list
@@ -68,38 +66,6 @@ const crawlingPage = {
     }
   },
 
-  async runImmediateCrawlCycle() {
-    if (this.crawlCycleRunning) return;
-    this.crawlCycleRunning = true;
-    this.renderContent();
-
-    try {
-      try {
-        await fetch('/__run-crawl-cycle', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(45000),
-        });
-      } catch {
-        // 로컬 웹 서버가 구버전이거나 단독 실행 환경인 경우 서버 API 직접 재수집·동기화 진행
-      }
-
-      await Promise.all([
-        this.refreshLiveOverview(),
-        this.refreshLiveCatalog(),
-      ]);
-
-      this.lastCrawlCycleAt = this.formatKstDateTime(Date.now());
-      const totalCount = this.liveCatalog?.items?.length || 0;
-      this.showToast(`크롤링을 실행하여 총 ${totalCount.toLocaleString()}건의 카탈로그 상품을 동기화했습니다.`);
-    } catch {
-      this.showToast('크롤링 즉시 수집 실행 중 오류가 발생했습니다. 서버 연결을 확인해 주세요.');
-    } finally {
-      this.crawlCycleRunning = false;
-      this.renderContent();
-    }
-  },
-
   changeLiveCatalogDomain(domain) {
     if (!['all', 'product', 'food'].includes(domain)) return;
     this.liveCatalogDomain = domain;
@@ -123,11 +89,8 @@ const crawlingPage = {
   handleCatalogSearchInput(value) {
     this.liveCatalogSearch = value || '';
     this.liveCatalogPage = 1;
-    this.renderContent();
-    const input = document.getElementById('catalog-search-input');
-    if (input) {
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
+    if (!this.updateCatalogResultsDom()) {
+      this.renderContent();
     }
   },
 
@@ -213,6 +176,9 @@ const crawlingPage = {
           );
           targetView.phase = 'ready';
           if (this.state.currentPage === 'crawling') {
+            if (document.activeElement?.id === 'catalog-search-input' && this.updateCatalogResultsDom()) {
+              return;
+            }
             this.renderContent();
           }
         }
@@ -299,15 +265,12 @@ const crawlingPage = {
     });
   },
 
-  getCrawlingHtml() {
-    const demo = this.isLocalAuthDemo();
+  computeCrawlingViewState() {
     const view = this.liveCatalog;
-    const domain = this.liveCatalogDomain;
     const source = this.liveCatalogSource;
     const availability = this.liveCatalogAvailability;
     const searchQuery = this.liveCatalogSearch.trim().toLowerCase();
     const selectedDate = this.liveCatalogDate;
-    const states = { available: '판매 중', out_of_stock: '품절', ended: '종료', suspect: '확인 필요' };
     const sourceNames = { domeggook: '도매꾹', '11st': '11번가', elevenst: '11번가', coupang: '쿠팡', naver: '네이버' };
 
     const allCatalogItems = view?.items || [];
@@ -362,6 +325,166 @@ const crawlingPage = {
     }
 
     const totalCountByDate = new Map(dateSummary);
+    return {
+      view,
+      rows,
+      totalDays,
+      totalProductCount,
+      availableSources,
+      baseFilteredItems,
+      dateSummary,
+      filteredCatalogItems,
+      totalPages,
+      currentPage,
+      groupedByDate,
+      totalCountByDate,
+    };
+  },
+
+  getCatalogDateOptionsHtml(baseFilteredItems, dateSummary, selectedDate) {
+    return `
+      <option value="" ${selectedDate === '' ? 'selected' : ''}>전체 날짜 (${baseFilteredItems.length.toLocaleString()}건)</option>
+      ${dateSummary.map(([dateKey, count]) => `
+        <option value="${this.escapeHtml(dateKey)}" ${selectedDate === dateKey ? 'selected' : ''}>${this.escapeHtml(dateKey)} (${count.toLocaleString()}건)</option>
+      `).join('')}
+    `;
+  },
+
+  getCatalogResultsBodyHtml(computed) {
+    const { view, groupedByDate, totalCountByDate, totalPages, currentPage } = computed;
+    const selectedDate = this.liveCatalogDate;
+    const states = { available: '판매 중', out_of_stock: '품절', ended: '종료', suspect: '확인 필요' };
+    const sourceNames = { domeggook: '도매꾹', '11st': '11번가', elevenst: '11번가', coupang: '쿠팡', naver: '네이버' };
+
+    if (view?.phase !== 'ready') {
+      return this.renderAdminDataStatus(view, '<button type="button" class="btn-secondary" onclick="app.refreshLiveCatalog()">다시 시도</button>');
+    }
+
+    return `
+      ${groupedByDate.length ? `
+        <form onchange="app.updateCrawlSelection(this)" onsubmit="app.deleteSelectedCrawlOffers(event)">
+          <div class="mb-3 flex items-center justify-end gap-3">
+            <span data-selection-count role="status" class="text-xs text-slate-600">0건 선택</span>
+            <button type="submit" disabled class="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40">
+              선택 삭제
+            </button>
+          </div>
+        <div class="space-y-5">
+          ${groupedByDate.map((group) => {
+      const dayTotal = totalCountByDate.get(group.date) ?? group.items.length;
+      return `
+              <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-slate-900">${this.escapeHtml(group.date)}</span>
+                    <span class="rounded-full bg-[#ebf3ff] px-2.5 py-0.5 text-xs font-semibold text-[#0066ff]">${dayTotal.toLocaleString()}건</span>
+                  </div>
+                  ${selectedDate !== group.date && group.date !== '날짜 미확인' ? `<button type="button" class="text-xs font-semibold text-[#0066ff] hover:underline" onclick="app.changeLiveCatalogDate('${this.escapeHtml(group.date)}')">이 날짜만 보기</button>` : ''}
+                </div>
+                <div class="overflow-x-auto">
+                  <table class="w-full min-w-[820px] text-left text-sm">
+                    <thead class="border-b border-slate-200 text-xs text-slate-600"><tr>
+                      <th class="p-4"><span class="sr-only">선택</span></th>
+                      <th class="p-4">구분</th><th class="p-4">상품명</th><th class="p-4">수집처</th><th class="p-4">가격</th>
+                      <th class="p-4">URL</th><th class="p-4">상품 상태</th><th class="p-4">현재 상태</th><th class="p-4">마지막 확인 · KST</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-slate-200">
+                      ${group.items.map((offer) => {
+        const rawUrl = offer.current_url || '';
+        const safeUrl = /^https?:\/\//i.test(rawUrl) ? this.escapeHtml(rawUrl) : '';
+        return `
+                        <tr>
+                          <td class="p-4">
+                            <input type="checkbox" name="offer_id" class="h-4 w-4 accent-blue-600"
+                              value="${this.escapeHtml(offer.offer_id)}"
+                              aria-label="${this.escapeHtml(offer.name || offer.offer_id)} 선택"
+                              ${this.crawlDeletionRunning ? "disabled" : ""} />
+                          </td>
+                          <td class="p-4 whitespace-nowrap text-xs text-slate-500">${offer.selected_domain === 'food' ? '식품' : '일반'}</td>
+                          <td class="p-4 font-semibold">${this.escapeHtml(offer.name || '—')}</td>
+                          <td class="p-4 whitespace-nowrap">${this.escapeHtml(sourceNames[offer.source] || offer.source || '—')}</td>
+                          <td class="p-4 whitespace-nowrap">${this.escapeHtml(this.formatOfferPrice ? this.formatOfferPrice(offer) : `${offer.price || 0}원`)}</td>
+                          <td class="p-4 max-w-[220px] truncate text-xs text-slate-500" title="${this.escapeHtml(rawUrl || '—')}">
+                            ${safeUrl ? `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-[#0066ff] hover:underline">${safeUrl}</a>` : '—'}
+                          </td>
+                          <td class="p-4 whitespace-nowrap">${this.escapeHtml(({ new: '새 상품', used: '중고', unknown: '미확인' })[offer.condition] || '미확인')}</td>
+                          <td class="p-4 whitespace-nowrap">${this.escapeHtml(states[offer.availability] || '—')}</td>
+                          <td class="whitespace-nowrap p-4">${this.escapeHtml(this.formatKstDateTime(offer.last_checked_at || offer.last_seen_at || offer.price_observed_at) || '—')}</td>
+                        </tr>
+                      `;
+      }).join('')}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+    }).join('')}
+        </div>
+        </form>
+      ` : `
+        <div class="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
+          ${selectedDate ? `${this.escapeHtml(selectedDate)} 날짜에 확인된 카탈로그 상품이 없습니다.` : '조건에 일치하는 카탈로그 상품이 없습니다.'}
+        </div>
+      `}
+
+      ${totalPages > 1 ? `
+        <div class="mt-4 flex items-center justify-between gap-2 text-sm">
+          <span class="text-slate-500">페이지 ${currentPage} / ${totalPages}</span>
+          <div class="flex items-center gap-2">
+            <button type="button" class="btn-secondary disabled:opacity-50" ${currentPage <= 1 ? 'disabled' : ''} onclick="app.changeLiveCatalogPage(${currentPage - 1})">이전</button>
+            <button type="button" class="btn-secondary disabled:opacity-50" ${currentPage >= totalPages ? 'disabled' : ''} onclick="app.changeLiveCatalogPage(${currentPage + 1})">다음</button>
+          </div>
+        </div>
+      ` : ''}
+    `;
+  },
+
+  updateCatalogResultsDom() {
+    const bodyEl = document.getElementById('catalog-results-body');
+    if (!bodyEl) return false;
+    const computed = this.computeCrawlingViewState();
+    const selectedDate = this.liveCatalogDate;
+
+    const summaryEl = document.getElementById('catalog-total-summary');
+    if (summaryEl) {
+      summaryEl.textContent = computed.view?.phase === 'ready'
+        ? `총 ${computed.filteredCatalogItems.length.toLocaleString()}건${selectedDate ? ` (${selectedDate})` : ` · ${computed.dateSummary.length}개 일자`}`
+        : '';
+    }
+
+    const dateSelectEl = document.getElementById('catalog-date-select');
+    if (dateSelectEl) {
+      dateSelectEl.innerHTML = this.getCatalogDateOptionsHtml(
+        computed.baseFilteredItems,
+        computed.dateSummary,
+        selectedDate
+      );
+    }
+
+    bodyEl.innerHTML = this.getCatalogResultsBodyHtml(computed);
+    return true;
+  },
+
+  getCrawlingHtml() {
+    const demo = this.isLocalAuthDemo();
+    const domain = this.liveCatalogDomain;
+    const source = this.liveCatalogSource;
+    const availability = this.liveCatalogAvailability;
+    const selectedDate = this.liveCatalogDate;
+    const sourceNames = { domeggook: '도매꾹', '11st': '11번가', elevenst: '11번가', coupang: '쿠팡', naver: '네이버' };
+
+    const computed = this.computeCrawlingViewState();
+    const {
+      view,
+      rows,
+      totalDays,
+      totalProductCount,
+      availableSources,
+      baseFilteredItems,
+      dateSummary,
+      filteredCatalogItems,
+    } = computed;
+
     const dateInputValue = selectedDate ? selectedDate.replaceAll('.', '-') : '';
 
     return `
@@ -375,36 +498,20 @@ const crawlingPage = {
       <section aria-label="일자별 상품 수집 현황" class="mb-8">
         <div class="mb-5">
           <label class="block text-xs font-bold text-slate-600 mb-1.5">조회 기간 (전체 기간 · KST)</label>
-          <div class="flex flex-wrap items-center justify-between gap-2.5">
-            <div class="flex flex-wrap items-center gap-2.5">
-              <input
-                id="crawling-period-input"
-                type="text"
-                value="${this.escapeHtml(this.liveCatalogPeriodFilter)}"
-                placeholder="전체 기간 (기간 지정 시 YYYY.MM.DD ~ YYYY.MM.DD)"
-                class="form-input max-w-full w-[380px]"
-                onkeydown="if(event.key==='Enter') app.handleCrawlingSearch()"
-              />
-              <button type="button" onclick="app.handleCrawlingSearch()" class="btn-primary">
-                조회
-              </button>
-              ${this.liveCatalogPeriodFilter ? '<button type="button" onclick="app.resetCrawlingPeriod()" class="btn-secondary">전체 기간 보기</button>' : ''}
-            </div>
-            <button
-              id="run-crawl-cycle-btn"
-              type="button"
-              onclick="app.runImmediateCrawlCycle()"
-              class="btn-secondary disabled:opacity-50"
-              ${this.crawlCycleRunning ? 'disabled' : ''}
-            >
-              ${this.crawlCycleRunning ? '크롤링 수집 중...' : '크롤링 실행'}
+          <div class="flex flex-wrap items-center gap-2.5">
+            <input
+              id="crawling-period-input"
+              type="text"
+              value="${this.escapeHtml(this.liveCatalogPeriodFilter)}"
+              placeholder="전체 기간 (기간 지정 시 YYYY.MM.DD ~ YYYY.MM.DD)"
+              class="form-input max-w-full w-[380px]"
+              onkeydown="if(event.key==='Enter') app.handleCrawlingSearch()"
+            />
+            <button type="button" onclick="app.handleCrawlingSearch()" class="btn-primary">
+              조회
             </button>
+            ${this.liveCatalogPeriodFilter ? '<button type="button" onclick="app.resetCrawlingPeriod()" class="btn-secondary">전체 기간 보기</button>' : ''}
           </div>
-          ${this.crawlCycleRunning
-        ? '<p class="mt-2 text-xs font-medium text-[#0066ff]" role="status">크롤링 작업을 실행하여 카탈로그 DB를 동기화하고 있습니다...</p>'
-        : (this.lastCrawlCycleAt
-          ? `<p class="mt-2 text-xs text-slate-500" role="status">크롤링 실행 완료: ${this.escapeHtml(this.lastCrawlCycleAt)} · KST</p>`
-          : '')}
         </div>
 
         <div class="w-full">
@@ -445,7 +552,7 @@ const crawlingPage = {
       <section aria-label="카탈로그 등록 상품 검토">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
           <h2 class="text-base font-bold text-slate-900">카탈로그 등록 상품 목록</h2>
-          ${view?.phase === 'ready' ? `<span class="text-xs text-slate-500">총 ${filteredCatalogItems.length.toLocaleString()}건${selectedDate ? ` (${this.escapeHtml(selectedDate)})` : ` · ${dateSummary.length}개 일자`}</span>` : ''}
+          <span id="catalog-total-summary" class="text-xs text-slate-500">${view?.phase === 'ready' ? `총 ${filteredCatalogItems.length.toLocaleString()}건${selectedDate ? ` (${this.escapeHtml(selectedDate)})` : ` · ${dateSummary.length}개 일자`}` : ''}</span>
         </div>
 
         <div class="mb-4 flex flex-wrap items-end gap-3">
@@ -474,11 +581,8 @@ const crawlingPage = {
             </select>
           </label>
           <label class="text-xs font-bold text-slate-600">날짜별 보기
-            <select class="form-input mt-1.5 block font-normal min-w-[190px]" onchange="app.changeLiveCatalogDate(this.value)">
-              <option value="" ${selectedDate === '' ? 'selected' : ''}>전체 날짜 (${baseFilteredItems.length.toLocaleString()}건)</option>
-              ${dateSummary.map(([dateKey, count]) => `
-                <option value="${this.escapeHtml(dateKey)}" ${selectedDate === dateKey ? 'selected' : ''}>${this.escapeHtml(dateKey)} (${count.toLocaleString()}건)</option>
-              `).join('')}
+            <select id="catalog-date-select" class="form-input mt-1.5 block font-normal min-w-[190px]" onchange="app.changeLiveCatalogDate(this.value)">
+              ${this.getCatalogDateOptionsHtml(baseFilteredItems, dateSummary, selectedDate)}
             </select>
           </label>
           <label class="text-xs font-bold text-slate-600">날짜 직접 선택
@@ -502,76 +606,9 @@ const crawlingPage = {
           ${selectedDate ? '<button type="button" class="btn-secondary" onclick="app.changeLiveCatalogDate(\'\')">전체 날짜 보기</button>' : ''}
         </div>
 
-        ${view?.phase !== 'ready' ? this.renderAdminDataStatus(view, '<button type="button" class="btn-secondary" onclick="app.refreshLiveCatalog()">다시 시도</button>') : `
-          ${groupedByDate.length ? `
-            <form onchange="app.updateCrawlSelection(this)" onsubmit="app.deleteSelectedCrawlOffers(event)">
-              <div class="mb-3 flex items-center justify-end gap-3">
-                <span data-selection-count role="status" class="text-xs text-slate-600">0건 선택</span>
-                <button type="submit" disabled class="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40">
-                  선택 삭제
-                </button>
-              </div>
-            <div class="space-y-5">
-              ${groupedByDate.map((group) => {
-          const dayTotal = totalCountByDate.get(group.date) ?? group.items.length;
-          return `
-                  <div class="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-                      <div class="flex items-center gap-2">
-                        <span class="text-sm font-bold text-slate-900">${this.escapeHtml(group.date)}</span>
-                        <span class="rounded-full bg-[#ebf3ff] px-2.5 py-0.5 text-xs font-semibold text-[#0066ff]">${dayTotal.toLocaleString()}건</span>
-                      </div>
-                      ${selectedDate !== group.date && group.date !== '날짜 미확인' ? `<button type="button" class="text-xs font-semibold text-[#0066ff] hover:underline" onclick="app.changeLiveCatalogDate('${this.escapeHtml(group.date)}')">이 날짜만 보기</button>` : ''}
-                    </div>
-                    <div class="overflow-x-auto">
-                      <table class="w-full min-w-[680px] text-left text-sm">
-                        <thead class="border-b border-slate-200 text-xs text-slate-600"><tr>
-                          <th class="p-4"><span class="sr-only">선택</span></th>
-                          <th class="p-4">구분</th><th class="p-4">상품명</th><th class="p-4">수집처</th><th class="p-4">가격</th>
-                          <th class="p-4">상품 상태</th><th class="p-4">현재 상태</th><th class="p-4">마지막 확인 · KST</th>
-                        </tr></thead>
-                        <tbody class="divide-y divide-slate-200">
-                          ${group.items.map((offer) => `
-                            <tr>
-                              <td class="p-4">
-                                <input type="checkbox" name="offer_id" class="h-4 w-4 accent-blue-600"
-                                  value="${this.escapeHtml(offer.offer_id)}"
-                                  aria-label="${this.escapeHtml(offer.name || offer.offer_id)} 선택"
-                                  ${this.crawlDeletionRunning ? "disabled" : ""} />
-                              </td>
-                              <td class="p-4 whitespace-nowrap text-xs text-slate-500">${offer.selected_domain === 'food' ? '식품' : '일반'}</td>
-                              <td class="p-4 font-semibold">${this.escapeHtml(offer.name || '—')}</td>
-                              <td class="p-4">${this.escapeHtml(sourceNames[offer.source] || offer.source || '—')}</td>
-                              <td class="p-4 whitespace-nowrap">${this.escapeHtml(this.formatOfferPrice ? this.formatOfferPrice(offer) : `${offer.price || 0}원`)}</td>
-                              <td class="p-4 whitespace-nowrap">${this.escapeHtml(({ new: '새 상품', used: '중고', unknown: '미확인' })[offer.condition] || '미확인')}</td>
-                              <td class="p-4">${this.escapeHtml(states[offer.availability] || '—')}</td>
-                              <td class="whitespace-nowrap p-4">${this.escapeHtml(this.formatKstDateTime(offer.last_checked_at || offer.last_seen_at || offer.price_observed_at) || '—')}</td>
-                            </tr>
-                          `).join('')}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                `;
-        }).join('')}
-            </div>
-            </form>
-          ` : `
-            <div class="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-              ${selectedDate ? `${this.escapeHtml(selectedDate)} 날짜에 확인된 카탈로그 상품이 없습니다.` : '조건에 일치하는 카탈로그 상품이 없습니다.'}
-            </div>
-          `}
-
-          ${totalPages > 1 ? `
-            <div class="mt-4 flex items-center justify-between gap-2 text-sm">
-              <span class="text-slate-500">페이지 ${currentPage} / ${totalPages}</span>
-              <div class="flex items-center gap-2">
-                <button type="button" class="btn-secondary disabled:opacity-50" ${currentPage <= 1 ? 'disabled' : ''} onclick="app.changeLiveCatalogPage(${currentPage - 1})">이전</button>
-                <button type="button" class="btn-secondary disabled:opacity-50" ${currentPage >= totalPages ? 'disabled' : ''} onclick="app.changeLiveCatalogPage(${currentPage + 1})">다음</button>
-              </div>
-            </div>
-          ` : ''}
-        `}
+        <div id="catalog-results-body">
+          ${this.getCatalogResultsBodyHtml(computed)}
+        </div>
       </section>
       `}
     `;

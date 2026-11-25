@@ -30,9 +30,23 @@ def serving_models(conn):
     return [config.validate(conn, k) for k in ('product', 'food')]
 
 
+def park_lost(conn, models):
+    """Jobs whose worker died while holding them already used up their attempts at claim time.
+    Without this they would keep attempts>=MAX with no exhausted mark: never claimed again and
+    invisible to --requeue-failed (#71). Park them the same way retry() parks a failing job."""
+    parked = conn.execute('''UPDATE app.embedding_jobs SET available_at='infinity',lease_token=NULL,lease_until=NULL,
+        last_error=%s WHERE model_id=ANY(%s) AND attempts>=%s AND lease_until IS NOT NULL AND lease_until<now()''',
+        (EXHAUSTED_PREFIX + 'WorkerLost', models, MAX_ATTEMPTS)).rowcount
+    if parked:
+        log.error('%d embedding jobs parked after their worker was lost %d times; run --requeue-failed after fixing the cause',
+                  parked, MAX_ATTEMPTS)
+    return parked
+
+
 def claim_many(conn, limit=BATCH_SIZE, models=None):
     models = models or serving_models(conn)
     with conn.transaction(), conn.cursor(row_factory=dict_row) as cursor:
+        park_lost(conn, models)
         cursor.execute('''WITH ready AS (
             SELECT j.item_id,j.model_id FROM app.embedding_jobs j
             WHERE j.model_id=ANY(%s) AND available_at<=now() AND attempts<%s

@@ -373,6 +373,23 @@ def test_batch_commit_isolates_a_failing_write(db, monkeypatch):
     assert conn.execute('SELECT attempts,last_error FROM app.embedding_jobs WHERE item_id=%s', (bad,)).fetchone() == (1, 'DivisionByZero')
 
 
+def test_job_whose_worker_kept_dying_is_parked_and_requeueable(db):
+    """#71: attempts are counted at claim time, so a worker killed MAX times left a job that was
+    neither claimable nor visible to --requeue-failed."""
+    _, conn, source = db
+    drain(conn)
+    item, _, _ = seed(conn, source, name='반복 종료 상품')
+    conn.execute('''UPDATE app.embedding_jobs SET attempts=%s, lease_token=gen_random_uuid(),
+        lease_until=now()-interval '1 second' WHERE item_id=%s''', (worker.MAX_ATTEMPTS, item))
+    worker.once(conn, HashEmbedder())
+    row = conn.execute("SELECT last_error, available_at='infinity' FROM app.embedding_jobs WHERE item_id=%s", (item,)).fetchone()
+    assert row == ('exhausted:WorkerLost', True)
+    assert worker.pending_counts(conn)[1] >= 1                  # reported as parked, not silently pending
+    assert worker.requeue_failed(conn) >= 1
+    drain(conn)
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (item,)).fetchone()
+
+
 def test_brand_and_category_changes_reembed_and_enter_text(db):
     _, conn, source = db
     item, offer, _ = seed(conn, source)

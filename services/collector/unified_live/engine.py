@@ -135,7 +135,7 @@ class URLWorker:
             if self.cfg['evidence_storage'] and 'evidence_storage' in self.cfg['rights']['allowed_uses']:
                 side=self.root/'evidence'/ (hashlib.sha256(task['url'].encode()).hexdigest()+'.json')
                 atomic(side,ev);known['evidence_hash']=ev['raw_sha256']
-            if self.cfg['evidence_storage'] and 'evidence_storage' in self.cfg['rights']['allowed_uses'] and result['observation'] and result['observation']['condition']=='new':
+            if self.cfg['evidence_storage'] and 'evidence_storage' in self.cfg['rights']['allowed_uses'] and result['observation'] and result['observation']['condition'] in ('new','unknown'):
                 result['food_evidence']=dict(ev)
                 result['observation']['selected_domain']='food'
                 from .changes import rekey

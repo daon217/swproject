@@ -90,7 +90,10 @@ class RoutedBackend(RetryAwareBackend):
 
 
 def build_backend(base_url,token,clock):
-    # Only backend destination is overridden. Product/API URLs never read these variables.
+    # Collector ingestion only: COLLECTOR_BACKEND_BASE_URL overrides the source config.
+    # KKULPICK_API_BASE belongs to the independent reader/legacy CLI entry points;
+    # intentionally never use it as a fallback for this collector's destination.
+    # Product/provider API URLs never read either variable.
     target=os.environ.get('COLLECTOR_BACKEND_BASE_URL') or base_url
     return RoutedBackend(target,token,clock)
 

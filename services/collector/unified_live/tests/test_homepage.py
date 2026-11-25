@@ -54,7 +54,7 @@ class HomepageTests(unittest.TestCase):
   w,h,b=self.setup_worker();h.pages[BASE+'/']=(200,'<title>CAPTCHA</title><a href="/products/one">one</a>');w.step();w.step();self.assertEqual(w.state['hold'],'access_challenge_stop');self.assertEqual(len(h.state['requests']),1);w.close()
  def test_native_table_condition_is_used_but_not_defaulted(self):
   html=item().replace('https://schema.org/UsedCondition','')+'<table><tr><th>Condition</th><td>New</td></tr></table>';r=normalize(html,BASE+'/products/one',self.now.isoformat(),self.cfg);self.assertEqual(r['condition'],'new')
-  r=normalize(item().replace('https://schema.org/UsedCondition',''),BASE+'/products/one',self.now.isoformat(),self.cfg);self.assertIsNone(r['observation'])
+  r=normalize(item().replace('https://schema.org/UsedCondition',''),BASE+'/products/one',self.now.isoformat(),self.cfg);self.assertEqual(r['observation']['condition'],'unknown')
  def test_missing_image_is_held_in_homepage_mode(self):
   r=normalize(item().replace('https://store.example.test/image/1.jpg',''),BASE+'/products/one',self.now.isoformat(),self.cfg);self.assertIsNone(r['observation']);self.assertIn('image_url',r['missing_fields'])
  def test_platform_CSS_keeps_native_price_currency_condition(self):
@@ -76,7 +76,7 @@ class HomepageTests(unittest.TestCase):
 
  def test_native_OG_aliases_and_product_image_alt_are_not_guessed(self):
   html='<meta property="og:price" content="91.99"><meta property="og:currency" content="EUR"><meta property="og:availability" content="In stock"><div class="product-info-wrapper"><h2 class="title">Native game</h2></div><img alt="Native game" src="/game.jpg">'
-  cfg=dict(self.cfg,currencies=['EUR']);r=normalize(html,BASE+'/products/one',self.now.isoformat(),cfg);self.assertEqual(r['price'],'91.99');self.assertEqual(r['currency'],'EUR');self.assertEqual(r['availability'],'available');self.assertEqual(r['metadata']['image_url'],BASE+'/game.jpg');self.assertIsNone(r['condition']);self.assertIsNone(r['observation'])
+  cfg=dict(self.cfg,currencies=['EUR']);r=normalize(html,BASE+'/products/one',self.now.isoformat(),cfg);self.assertEqual(r['price'],'91.99');self.assertEqual(r['currency'],'EUR');self.assertEqual(r['availability'],'available');self.assertEqual(r['metadata']['image_url'],BASE+'/game.jpg');self.assertEqual(r['condition'],'unknown');self.assertEqual(r['observation']['condition'],'unknown')
 
  def test_browser_abort_keeps_original_budget_wait_for_worker_retry(self):
   import types

@@ -133,6 +133,9 @@ def normalize(html,base,at,cfg,*,allow_partial_update=False):
     native_condition=code(p.get('itemCondition') or offers.get('itemCondition'))
     condition={'NewCondition':'new','UsedCondition':'used','new':'new','used':'used','신품':'new','새상품':'new','중고':'used'}.get(native_condition)
     if condition is None:condition={'new':'new','used':'used'}.get(native_condition.casefold())
+    if condition is None and cfg.get('homepage_crawl') and not native_condition:
+        condition='unknown'  # Explicit absence, never the legacy default new.
+    if cfg.get('homepage_crawl') and native_condition.casefold()=='unknown':condition='unknown'
     native_state=code(offers.get('availability'))
     state={'InStock':'available','LimitedAvailability':'available','OutOfStock':'out_of_stock','SoldOut':'ended',
            'in stock':'available','재고있음':'available','판매중':'available','품절':'out_of_stock','판매완료':'ended','available':'available','out_of_stock':'out_of_stock','ended':'ended'}.get(native_state)

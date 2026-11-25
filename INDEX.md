@@ -36,7 +36,7 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 
 ## 미해결 (상세는 OPEN_ISSUES.md)
 
-04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33
+04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 59~61
 
 ## GPT 작업 회고 — 당시 완료 범위
 
@@ -106,3 +106,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | Claude Opus 5.5 | [maintest 점검·GPT/Gemini 일지 교차 검토](journal/2026-11-25-maintest-ci-and-ai-log-review-claude-opus-5.5.md) — #55~#57 발견, Gemini #48 진단 일부 정정 |
 | 2026-11-25 | Claude Opus 5.5 | [관리자 웹 404·덮어쓰기 계층 정리, 코드 점검](journal/2026-11-25-web-fix-cleanup-claude-opus-5.5.md) — #55~#57 해결 |
 | 2026-11-25 | Claude Opus 5.5 | [김호진 웹 브랜치 maintest 병합](journal/2026-11-25-web-branch-merge-claude-opus-5.5.md) — #20·#58 해결 |
+| 2026-11-25 | Claude Opus 5.5 | [maintest 최신화(82a81db) 후 재점검](journal/2026-11-25-maintest-sync-recheck-claude-opus-5.5.md) — #59~#61 발견 |

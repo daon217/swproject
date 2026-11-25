@@ -161,9 +161,9 @@ class MatchingStore:
         maximum=min(cfg.get('max_tracked_items',10000),100000)
         if not old and len(self.data['items'])>=maximum:return
         signature=digest(mp);at=body['observed_at']
-        content=digest([mp,body.get('price'),body.get('currency'),body['condition'],body['availability'],body['url'],normalized.get('seller')])
+        content=digest([mp,body.get('price'),body.get('currency'),body['condition'],body.get('availability'),body['url'],normalized.get('seller')])
         self.data['items'][key]={'source':body['source'],'source_listing_id':body['source_listing_id'],'variant_key':body['variant_key'],
-            'product_url':body['url'],'condition':body['condition'],'availability':body['availability'],
+            'product_url':body['url'],'condition':body['condition'],'availability':body.get('availability'),
             'price':body.get('price'),'currency':body.get('currency'),'seller':normalized.get('seller'),
             'profile':mp,'profile_sha256':signature,'content_sha256':content,'collected_at':old.get('collected_at',at),'last_checked_at':at,
             'last_changed_at':at if content!=old.get('content_sha256') else old.get('last_changed_at',at),

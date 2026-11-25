@@ -21,13 +21,16 @@ def validate_body(body,cfg):
     if len(json.dumps(body,ensure_ascii=False).encode())>65536:raise ValueError('observation_too_large')
     return body
 
-def finish(source,values,seller,raw_status,at,cfg):
+def finish(source,values,seller,raw_status,at,cfg,*,allow_absent_availability=False):
     missing=[k for k in ('source_listing_id','variant_key','name','price','currency','url','condition','availability')
              if values.get(k) is None or values.get(k)=='']
     result={'source':source,'product_number':values.get('source_listing_id'),'name':values.get('name'),
             'price':values.get('price'),'currency':values.get('currency'),'seller':seller,'url':values.get('url'),
             'condition':values.get('condition'),'availability':values.get('availability'),
             'native_status':raw_status,'missing_fields':missing,'observation':None}
+    if allow_absent_availability and values.get('availability') is None:
+        missing=[k for k in missing if k!='availability'];result['missing_fields']=missing
+        values={k:v for k,v in values.items() if k!='availability'}
     if missing:return result
     body=dict(schema_version=2,source=source,observed_at=at,result='success',selected_domain='product',**values)
     body['field_presence']=sorted(k for k in ('name','price','currency','availability','url') if k in body)

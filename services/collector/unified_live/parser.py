@@ -74,7 +74,7 @@ def links(html,base,cfg):
 def css_product(soup,selectors):
     def value(field):
         return native_value(soup,field,selectors)
-    product={'@type':'Product','productID':value('id'),'name':value('name'),'description':value('description'),
+    product={'@type':'Product','sku':value('sku'),'url':value('url'),'productID':value('id'),'name':value('name'),'description':value('description'),
         'category':value('category'),'image':value('image'),'brand':value('brand'),'manufacturer':value('manufacturer'),
         'itemCondition':value('condition'),'offers':{'@type':'Offer','price':value('price'),'priceCurrency':value('currency'),
         'availability':value('availability'),'seller':{'name':value('seller')}}}
@@ -102,7 +102,7 @@ def label(value):
     if isinstance(value,dict):value=value.get('name')
     return plain(value,500)
 
-def normalize(html,base,at,cfg):
+def normalize(html,base,at,cfg,*,allow_partial_update=False):
     soup=document(html);products=structured(soup)
     # Multiple independent products or variant offers require a site adapter.
     if len(products)>1 or not products and len(soup.select('[itemtype$="/Product"]'))>1:raise ValueError('multiple_product_details_require_adapter')
@@ -112,6 +112,9 @@ def normalize(html,base,at,cfg):
     p=dict(p)
     for key,value in fallback.items():
         if key!='offers' and not p.get(key) and value:p[key]=value
+    # Newly recognized Microdata URL/SKU must not silently change old delivered identities.
+    native_page_url=p.get('url')
+    if not products and not cfg.get('selectors',{}).get('url'):p['url']=None
     offers=p.get('offers') or {}
     if isinstance(offers,list):
         if len(offers)!=1:raise ValueError('multiple_offers_require_adapter')
@@ -128,14 +131,22 @@ def normalize(html,base,at,cfg):
     native_state=code(offers.get('availability'))
     state={'InStock':'available','LimitedAvailability':'available','OutOfStock':'out_of_stock','SoldOut':'ended',
            'in stock':'available','재고있음':'available','판매중':'available','품절':'out_of_stock','판매완료':'ended','available':'available','out_of_stock':'out_of_stock','ended':'ended'}.get(native_state)
+    from .normalization_evidence import price_evidence,stock_evidence,storefront_evidence
+    amount,currency,price_info=price_evidence(offers.get('price'),offers.get('priceCurrency'),cfg['currencies'],native_money)
+    quantity,quantity_kind,label_state=stock_evidence(native_state,offers.get('inventoryLevel'))
+    if label_state:state=label_state
+    if quantity_kind=='conflicting_native_stock':state=None
+    storefront=storefront_evidence(cfg,at)
     ident=p.get('productID') or 'url:'+hashlib.sha256(target.encode()).hexdigest()
-    variant=str(p.get('sku') or ident)
+    use_sku=bool(products or cfg.get('selectors',{}).get('sku'))
+    variant=str(p.get('sku') if use_sku and p.get('sku') else ident)
     seller=offers.get('seller') or p.get('seller') or {}
     seller=seller.get('name') if isinstance(seller,dict) else seller if isinstance(seller,str) else None
     result=finish(cfg['source'],dict(source_listing_id=str(ident),variant_key=variant,name=plain(p.get('name'),500),
-        price=native_money(offers['price'],offers.get('priceCurrency')) if offers.get('price') is not None else None,currency=offers.get('priceCurrency'),
-        url=target,condition=condition,availability=state),plain(seller,200),native_state,at,cfg)
-    if not seller:result['missing_fields'].append('seller');result['observation']=None
+        price=amount,currency=currency,
+        url=target,condition=condition,availability=state),plain(seller,200),native_state,at,cfg,allow_absent_availability=allow_partial_update and not native_state)
+    if condition is None:result['missing_fields'].append('condition_unknown_contract_required')
+    if not seller and not storefront['accepted_as_seller_identity']:result['missing_fields'].append('seller');result['observation']=None
     if native_state in ('reserved','예약중','예약'):result['missing_fields'].append('reserved_status_contract_required');result['observation']=None
     if cfg.get('mode')=='used' and condition!='used':result['missing_fields'].append('used_condition_required');result['observation']=None
     image=p.get('image') or native_value(soup,'image',cfg.get('selectors',{}));image=image[0] if isinstance(image,list) and image else image
@@ -145,8 +156,6 @@ def normalize(html,base,at,cfg):
         from services.collector.marketplace_live.normalize import validate_body
         from .changes import rekey
         body=result['observation'];body['description']=description;body['field_presence'].append('description');rekey(body);validate_body(body,cfg)
-    quantity=offers.get('inventoryLevel');quantity=quantity.get('value') if isinstance(quantity,dict) else None
-    if type(quantity) is not int or quantity<0:quantity=None
     try:image=url(urljoin(base,image)) if isinstance(image,str) else None
     except ValueError:image=None
     category=label(p.get('category'));mapping=cfg.get('category_mapping',{})
@@ -159,6 +168,7 @@ def normalize(html,base,at,cfg):
         else:
             if canonical not in [g['value'] for g in gtins]:gtins.append({'value':canonical,'source_field':field})
     metadata={'seller':plain(seller,200),'image_url':image,'description':description,'category':category,
+        'normalization_evidence':{'price':price_info,'condition':condition or 'unknown','availability':state or 'unknown','quantity_kind':quantity_kind,'storefront_identity':storefront,'native_sku':p.get('sku'),'native_page_url':native_page_url,'variant_key_kind':'native_sku' if use_sku and p.get('sku') else 'listing_fallback','options_status':'native_values_present' if p.get('color') or p.get('size') else 'not_exposed'},
         'native_gtins':gtins,'gtin_fields_requiring_review':gtin_review,
         'category_mapped':mapping.get(category),'category_mapping_authority':'operator_supplied' if category in mapping else None,
         'brand':label(p.get('brand')),'manufacturer':label(p.get('manufacturer')),'region':cfg.get('region','unknown'),'country':cfg.get('country'),

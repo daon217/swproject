@@ -31,6 +31,10 @@ class ReceiptStore:
             old=c.execute('SELECT hash,ack FROM observations WHERE source=? AND event_key=?',event).fetchone()
             if old:return (200,json.loads(old[1])) if old[0]==sha else (409,{})
             item=c.execute('SELECT hash FROM listings WHERE source=? AND id=? AND variant=?',identity).fetchone()
+            if item is None and not {'price','currency','availability','url','name'}<=set(body.get('field_presence',[])):
+                ack={'state':'quarantine','change_kind':'quarantined','reason':'INCOMPLETE_FIRST_OBSERVATION'}
+                c.execute('INSERT INTO observations VALUES(?,?,?,?)',(*event,sha,json.dumps(ack)));c.commit()
+                return 201,ack
             kind='created' if item is None else 'unchanged' if item[0]==semantic else 'updated'
             ack={'state':'applied','change_kind':kind}
             c.execute('INSERT INTO listings VALUES(?,?,?,?) ON CONFLICT(source,id,variant) DO UPDATE SET hash=excluded.hash',(*identity,semantic))

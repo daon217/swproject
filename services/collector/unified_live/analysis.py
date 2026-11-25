@@ -17,11 +17,12 @@ PROPERTIES={
     'image':'[itemprop="image"],meta[property="og:image"]',
     'description':'[itemprop="description"],meta[property="og:description"],meta[name="description"]',
     'category':'[itemprop="category"],meta[property="product:category"]',
-    'brand':'[itemprop="brand"] [itemprop="name"],[itemprop="brand"]',
+    'brand':'[itemprop="brand"] [itemprop="name"],[itemprop="brand"],meta[property="product:brand"]',
     'manufacturer':'[itemprop="manufacturer"] [itemprop="name"],[itemprop="manufacturer"]',
     'model':'[itemprop="model"]','model_number':'[itemprop="modelNumber"]','mpn':'[itemprop="mpn"]',
     'gtin':'[itemprop="gtin"],[itemprop="gtin13"],[itemprop="gtin14"]',
     'color':'[itemprop="color"]','size':'[itemprop="size"]',
+    'sku':'[itemprop="sku"]','url':'[itemprop="url"],meta[property="og:url"]',
 }
 
 def node_value(node):
@@ -32,6 +33,20 @@ def value(soup,field,selectors=None):
     selector=(selectors or {}).get(field) or PROPERTIES.get(field)
     if not selector:return None
     nodes=soup.select(selector)
+    if not (selectors or {}).get(field):
+        # Native product Microdata outranks page-level OG/social share metadata.
+        native=','.join(part for part in selector.split(',') if '[itemprop=' in part)
+        native_nodes=soup.select(native) if native else []
+        if field=='name':
+            native_nodes=[n for n in native_nodes if n.find_parent(attrs={'itemprop':re.compile(r'^(seller|brand|manufacturer)$')}) is None]
+        if native_nodes:nodes=native_nodes
+        elif field in ('name','image','description','url'):
+            # A single explicit product OG block can follow generic website OG tags.
+            tags=list(soup.select('meta[property]'))
+            boundaries=[i for i,n in enumerate(tags) if n.get('property')=='og:type' and n.get('content')=='product']
+            if len(boundaries)==1:
+                begin=boundaries[0];end=next((i for i in range(begin+1,len(tags)) if tags[i].get('property')=='og:type'),len(tags))
+                block={id(n) for n in tags[begin:end]};nodes=[n for n in nodes if id(n) in block]
     if not (selectors or {}).get(field) and field in ('seller','brand','manufacturer'):
         inner=soup.select(f'[itemprop="{field}"] [itemprop="name"]')
         if inner:nodes=inner

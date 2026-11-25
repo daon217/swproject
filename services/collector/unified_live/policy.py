@@ -45,7 +45,7 @@ def grant(cfg,now,storage=True):
     except (KeyError,ValueError,TypeError):return False
 
 def validate(cfg):
-    allowed={'start_urls','source','base_url','search_url_template','queries','mode','enabled','rights','provider_min_interval_seconds',
+    allowed={'storefront_identity','start_urls','source','base_url','search_url_template','queries','mode','enabled','rights','provider_min_interval_seconds',
         'requests_per_hour','requests_per_24h','request_interval_seconds','max_pages_per_cycle','max_products_per_cycle',
         'refresh_items_per_cycle','max_tracked_items','max_attempts','selectors','render_javascript','evidence_storage',
         'allowed_product_hosts','currencies','backend_enabled','backend_owner_approved','price_semantics_confirmed','backend_delivery','region','country','category_mapping'}
@@ -75,7 +75,12 @@ def validate(cfg):
         url(template.replace('{query}','test').replace('{page}','1'),host)
     if not isinstance(cfg.get('currencies'),list) or not cfg['currencies'] or any(not re.fullmatch('[A-Z]{3}',c) for c in cfg['currencies']):raise ValueError('currency_allowlist_required')
     selectors=cfg.get('selectors',{})
-    if not isinstance(selectors,dict) or set(selectors)-{'product_links','next_page','card','id','name','price','currency','seller','condition','availability','image','description','category','ingredients','allergens','cross_contact','brand','manufacturer','model','model_number','mpn','gtin','color','size'}:
+    if not isinstance(selectors,dict) or set(selectors)-{'sku','url','product_links','next_page','card','id','name','price','currency','seller','condition','availability','image','description','category','ingredients','allergens','cross_contact','brand','manufacturer','model','model_number','mpn','gtin','color','size'}:
         raise ValueError('unsupported_selectors')
     if any(not isinstance(v,str) or len(v)>200 for v in selectors.values()):raise ValueError('bounded_CSS_required')
+    identity=cfg.get('storefront_identity')
+    if identity is not None:
+        if not isinstance(identity,dict) or set(identity)!={'domain','single_merchant','reference','expires_at'} or identity.get('domain')!=host or identity.get('single_merchant') is not True:
+            raise ValueError('explicit_same_domain_single_merchant_evidence_required')
+        url(identity['reference'],host);stamp(identity['expires_at'])
     return cfg

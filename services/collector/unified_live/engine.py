@@ -19,6 +19,7 @@ class URLWorker:
         self.synthetic=getattr(transport,'synthetic_only',False) is True
         context={k:cfg.get(k,[] if k=='queries' else '') for k in ('source','base_url','search_url_template','queries','mode','selectors','render_javascript')}
         if cfg.get('start_urls'):context['start_urls']=cfg['start_urls']
+        if cfg.get('storefront_identity'):context['storefront_identity']=cfg['storefront_identity']
         self.context=digest(context)
         self.state=load(self.path,{'version':1,'synthetic_only':self.synthetic,'context':self.context,'tasks':[],'known':{},'cycle_seen':[], 'cycle_products':0,
             'next_cycle_at':None,'next_action_at':None,'hold':None,'totals':{},'cycle':0,'inflight':False,'shape':{},'checkpoint_outbox_seen':False})

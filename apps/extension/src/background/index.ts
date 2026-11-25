@@ -135,7 +135,33 @@ async function isStale(tabId: number, state: TabState): Promise<boolean> {
   return !!reason;
 }
 
-async function analyze(tabId: number, url: string) {
+/** 탭별로 지금 분석 중인 URL. 같은 페이지 분석이 겹쳐 서로 취소하지 않게 한다. */
+const inflight = new Map<number, string>();
+
+/**
+ * 같은 페이지는 한 번만 분석한다. 쇼핑몰은 로드 중 URL 변경·로드 완료 이벤트가 여러 번 와서,
+ * 그대로 두면 분석을 여러 번 접수하고 앞의 것을 취소한다. 취소된 분석도 Vision 처리는 계속돼
+ * 실제 분석이 밀리고 시간 초과(OCR_FAILED)로 실패한다.
+ * force: 다시 시도·로그인/설정 변경처럼 결과를 새로 받아야 할 때.
+ */
+async function analyze(tabId: number, url: string, force = false) {
+  if (!force) {
+    if (inflight.get(tabId) === url) return dlog('analyze', '건너뜀: 같은 페이지 분석 진행 중', { tabId, url });
+    const prev = await readState(tabId);
+    // 진행 중 여부는 메모리(inflight)로만 본다. 서비스 워커가 내려가 'analyzing'이 남아도 다시 분석할 수 있게.
+    if (prev?.url === url && prev.status === 'done') {
+      return dlog('analyze', '건너뜀: 같은 페이지 결과 재사용', { tabId, url });
+    }
+  }
+  inflight.set(tabId, url);
+  try {
+    await runAnalyze(tabId, url);
+  } finally {
+    if (inflight.get(tabId) === url) inflight.delete(tabId);
+  }
+}
+
+async function runAnalyze(tabId: number, url: string) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab || tab.url !== url) return;
   const token = await getAuthToken();
@@ -148,7 +174,7 @@ async function analyze(tabId: number, url: string) {
   dlog('filter', `② 페이지 규칙: ${rule ?? '대상 아님'}`, { url, rule });
   if (!rule) return skip('상품 페이지 아님(pageFilter)'); // 상품 페이지가 아니면 'none' 상태(E01 빈 화면)
 
-  if (!isMockApi && !(await getAuthToken())) return skip('로그인 안 됨'); // 로그인 전에 화면을 업로드하지 않음
+  // 로그인하지 않아도 분석한다(서버가 기기별 비회원 키로 기본 설정 추천). 회원 전용은 개인 설정·기록뿐이다.
   if (!tab.active) return skip('비활성 탭'); // 비활성 탭은 활성화될 때 다시 시도
   // 쇼핑몰이 아닌 사이트는 페이지에 상품 표시가 있을 때만 캡처한다(학습포털 등 제외).
   if (rule === 'needs-signal' && !(await confirmProductSignal(tabId))) return skip('상품 신호 없음');
@@ -162,15 +188,21 @@ async function analyze(tabId: number, url: string) {
   if (await isStale(tabId, state)) return skip('캡처 중 탭/URL 변경됨'); // 캡처 전후 탭/URL이 바뀌면 폐기
 
   await writeState({ ...state, status: 'analyzing' }, token);
-  const page_product = (await readPageScan(tabId))?.product ?? null;
+  const scan = await readPageScan(tabId);
+  const page_product = scan?.product ?? null;
+  // 페이지에 적힌 상품명·카테고리로 식품이 확실하면 알려 준다(OCR이 리뷰 문장을 상품명으로 읽어 일반 상품으로 판단하는 문제 방지).
+  // 페이지 주소·상품명은 보내지 않고 '식품'이라는 구분만 보낸다. 확실하지 않으면 서버가 캡처로 판단한다.
+  const selected_domain = scan?.domain ?? undefined;
+  dlog('analyze', '④-1 페이지로 본 상품 종류', selected_domain ?? '(서버 판단)');
   dlog('analyze', '④ 페이지에서 읽은 상품 정보', page_product);
   if (await isStale(tabId, state)) return skip('탭/URL 변경됨');
   try {
-    // 분석 종류(상품/식품)는 보내지 않는다. 서버가 캡처 내용으로 판단한다.
+    // 분석 종류는 페이지로 식품이 확실할 때만 보낸다. 그 밖에는 서버가 캡처 내용으로 판단한다.
     dlog('analyze', '⑤ 분석 접수 요청 POST /analyses (캡처만 전송, page_url·분석 종류 미전송)', { image, page_revision: state.page_revision });
     const created = await api.createAnalysis({
       image,
       page_product,
+      selected_domain,
       page_url: url,
       page_session_id: state.page_session_id,
       page_revision: state.page_revision,
@@ -233,7 +265,7 @@ async function activeTab(): Promise<chrome.tabs.Tab | null> {
 
 async function reanalyzeActive() {
   const tab = await activeTab();
-  if (tab?.id !== undefined && tab.url) void analyze(tab.id, tab.url);
+  if (tab?.id !== undefined && tab.url) void analyze(tab.id, tab.url, true);
 }
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
@@ -306,7 +338,7 @@ chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {
     case 'retry': {
       const p = raw.tabId !== undefined ? chrome.tabs.get(raw.tabId) : activeTab();
       Promise.resolve(p).then((tab) => {
-        if (tab?.id !== undefined && tab.url) void analyze(tab.id, tab.url);
+        if (tab?.id !== undefined && tab.url) void analyze(tab.id, tab.url, true);
       });
       return false;
     }

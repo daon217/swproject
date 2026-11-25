@@ -311,7 +311,7 @@ def test_analysis_idempotency_limit_cancel_and_bola(client,worker_headers):
 
 def test_worker_result_subscription_gate_and_history(client,worker_headers):
     h,_,_=account(client)
-    offers=[new_offer(client) for _ in range(3)]
+    offers=[new_offer(client) for _ in range(6)]
     ident=job(client,h).json()['data']['analysis_id']
     task=claim(client,worker_headers);assert task['analysis_id']==ident
     data={'lease_token':task['lease_token'],'selected_domain':'product','offer_ids':offers}
@@ -323,11 +323,11 @@ def test_worker_result_subscription_gate_and_history(client,worker_headers):
     assert client.post(path+'/complete',headers=worker_headers,json=data).status_code==200
     assert client.post(path+'/complete',headers=worker_headers,json=data|{'offer_ids':[]}).status_code==409
     result=client.get('/analyses/'+ident,headers=h).json()['data']
-    assert len(result['sections'][0]['items'])==1 and result['sections'][0]['locked_count']==2
-    assert offers[1] not in str(result) and task['lease_token'] not in str(result)
+    assert len(result['sections'][0]['items'])==3 and result['sections'][0]['locked_count']==2
+    assert offers[3] not in str(result) and task['lease_token'] not in str(result)
     assert pay(client,h).status_code==201
     result=client.get('/analyses/'+ident,headers=h).json()['data']
-    assert len(result['sections'][0]['items'])==3
+    assert len(result['sections'][0]['items'])==5
     assert len(client.get('/v2/me/analyses',headers=h).json()['data'])==1
     assert client.post('/v2/me/data-deletions',headers=h,json={'scope':'history'}).status_code==200
     assert client.get('/analyses/'+ident,headers=h).status_code==404

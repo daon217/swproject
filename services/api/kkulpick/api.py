@@ -49,7 +49,7 @@ for router in (member_router, account_router, admin_auth_router, support_router,
     app.include_router(router)
 app.add_middleware(RequestBodyLimit)
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("DEV_ORIGINS","http://localhost:3000").split(","),
-                   allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"], allow_headers=["Content-Type", "Authorization", "Idempotency-Key"],
+                   allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"], allow_headers=["Content-Type", "Authorization", "Idempotency-Key", "X-Guest-Key"],
                    expose_headers=["X-Request-ID", "Retry-After"])
 bearer = HTTPBearer(auto_error=False)
 

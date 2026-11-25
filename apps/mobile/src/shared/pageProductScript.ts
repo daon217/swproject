@@ -19,13 +19,30 @@ export interface PageProductMessage {
   /** 페이지에 상품 표시가 있는지(구조화 데이터·상품 메타 태그·가격 마크업) */
   signal: boolean;
   product: PageProduct | null;
+  /** 페이지 상품명·카테고리·경로로 본 식품 여부(확실할 때만 'food') */
+  domain?: 'food' | null;
 }
 
 /** 주소별로 앱에 보관하는 값 */
 export interface PageScan {
   signal: boolean;
   product: PageProduct | null;
+  /** 확실할 때만 'food'. 아니면 null(서버가 캡처로 판단) */
+  domain: 'food' | null;
 }
+
+// 식품 판별 단어(확장 pageProduct.ts FOOD_WORDS·NON_FOOD_WORDS와 같다. 애매하면 판단하지 않는다).
+// 화면 캡처 OCR이 리뷰 문장을 상품명으로 읽어 식품을 일반 상품으로 판단하는 문제를 막는다.
+export const FOOD_WORDS = /라면|과자|스낵|쿠키|비스킷|초콜릿|초코|젤리|사탕|캔디|아이스크림|케이크|만두|국수|파스타|우동|냉면|짜장|짬뽕|즉석밥|햇반|도시락|밀키트|반찬|김치|소스|양념|간장|된장|고추장|케첩|마요네즈|드레싱|식용유|참기름|우유|두유|요거트|요구르트|치즈|버터|분유|커피|원두|음료|주스|탄산|생수|녹차|홍차|티백|견과|땅콩|아몬드|호두|캐슈|시리얼|그래놀라|오트밀|소시지|베이컨|참치|어묵|두부|계란|달걀|정육|한우|돼지고기|닭가슴살|닭고기|소고기|현미|잡곡|과일|사과|딸기|복숭아|오징어|새우|멸치|식품|간식|영양제|홍삼|프로틴|건강기능식품|가공식품|신선식품|생수·음료|커피·차/;
+export const NON_FOOD_WORDS = /화장품|스킨|토너|로션|에센스|세럼|앰플|선크림|썬크림|클렌징|폼클렌저|샴푸|린스|컨디셔너|트리트먼트|바디워시|핸드크림|립밤|립스틱|파운데이션|쿠션|마스크팩|향수|세제|섬유유연제|치약|커피머신|커피메이커|커피포트|에스프레소머신|믹서기|블렌더|착즙기|원액기|그라인더|우유거품기|에어프라이어|전자레인지|냉장고|토스터기|전기밥솥|밥솥|보관용기|밀폐용기|텀블러|프라이팬|냄비|햄스터|사료|반려|강아지|고양이|애견|애묘|오픈소스|소스코드|리소스|아두이노|라즈베리|개발보드|노트북|컴퓨터|그래픽카드|메인보드|프로세서|CPU|SSD|HDD|키보드|마우스|모니터|프린터|케이블|충전기|이어폰|헤드폰|스피커|스마트폰|태블릿|패딩|자켓|재킷|티셔츠|바지|신발|운동화|가방|의류/;
+
+// 상품 표시(구조화 데이터)가 없는 국내 쇼핑몰용 보조 판단(확장 pageProduct.ts hasCommerceSignal과 같다).
+// 상품 상세처럼 보이는 주소 + 구매 버튼 + 가격이 모두 있을 때만 상품 페이지로 본다(목록·검색 화면 제외).
+export const PRODUCT_URL_HINT = /(goods|product|item|detail|prd|view)/i;
+export const PRODUCT_QUERY_HINT = /(product_?no|goods_?no|goods_?code|item_?(id|no)|prd_?no|[?&]no=\d|[?&]pno=\d)/i;
+export const LIST_PATH = /(list|search|category|catalog|cart|basket|order|event|board|review)/i;
+export const BUY_TEXT = /바로\s*구매|구매\s*하기|장바구니|buy\s*now|add\s*to\s*(cart|bag)/i;
+export const PRICE_TEXT = /\d[\d,]{2,}\s*원|₩\s*\d|\d{1,3}(,\d{3})+/;
 
 export const PAGE_PRODUCT_SCRIPT = `
 (function () {
@@ -46,7 +63,19 @@ export const PAGE_PRODUCT_SCRIPT = `
     return nodes;
   }
   function isProduct(n) { var t = [].concat(n && n['@type']); return t.indexOf('Product') >= 0 || t.indexOf('ProductGroup') >= 0; }
+  var URL_HINT = new RegExp(${JSON.stringify(PRODUCT_URL_HINT.source)}, 'i');
+  var QUERY_HINT = new RegExp(${JSON.stringify(PRODUCT_QUERY_HINT.source)}, 'i');
+  var LIST = new RegExp(${JSON.stringify(LIST_PATH.source)}, 'i');
+  var BUY = new RegExp(${JSON.stringify(BUY_TEXT.source)}, 'i');
+  var PRICE = new RegExp(${JSON.stringify(PRICE_TEXT.source)});
+  function commerce() {
+    if (!(URL_HINT.test(location.pathname) || QUERY_HINT.test(location.search)) || LIST.test(location.pathname)) return false;
+    var els = Array.prototype.slice.call(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'), 0, 400);
+    var canBuy = els.some(function (el) { return BUY.test(el.value || el.textContent || ''); });
+    return canBuy && PRICE.test(((document.body && document.body.innerText) || '').slice(0, 20000));
+  }
   function signal() {
+    if (commerce()) return true;
     if (ldNodes().some(isProduct)) return true;
     if (/product/i.test(meta('og:type'))) return true;
     if (document.querySelector('meta[property="product:price:amount"], meta[property="og:price:amount"]')) return true;
@@ -81,10 +110,26 @@ export const PAGE_PRODUCT_SCRIPT = `
     name = name.replace(/\\s+[:|]\\s+[^:|]+$/, '').slice(0, 80);
     return name ? { name: name, price: price, currency: currency || 'KRW' } : null;
   }
+  var FOOD = new RegExp(${JSON.stringify(FOOD_WORDS.source)});
+  var NON_FOOD = new RegExp(${JSON.stringify(NON_FOOD_WORDS.source)});
+  function domain() {
+    var parts = [];
+    ldNodes().forEach(function (n) {
+      if (isProduct(n)) parts.push(String(n.name || ''), String(n.category || ''));
+      if ([].concat(n && n['@type']).indexOf('BreadcrumbList') >= 0) {
+        [].concat(n.itemListElement || []).forEach(function (it) { parts.push(String((it && (it.name || (it.item && it.item.name))) || '')); });
+      }
+    });
+    parts.push(meta('og:title'), meta('product:category'), document.title || '');
+    var text = clean(parts.join(' '));
+    if (!text || NON_FOOD.test(text)) return null;
+    return FOOD.test(text) ? 'food' : null;
+  }
   function send() {
     try {
       var s = signal();
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'kp-product', url: location.href, signal: s, product: extract(s || SHOP.test(location.hostname)) }));
+      var shop = SHOP.test(location.hostname);
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'kp-product', url: location.href, signal: s, product: extract(s || shop), domain: s || shop ? domain() : null }));
     } catch (e) {}
   }
   send();

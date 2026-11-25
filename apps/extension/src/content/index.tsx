@@ -6,6 +6,7 @@ import floatingCss from './floating.css?inline';
 import { Floating } from './Floating';
 import { scanPage } from '../shared/pageProduct';
 import { dlog } from '../shared/debug';
+import { useDragPosition } from './drag';
 
 dlog('content', 'content script 주입됨', { url: location.href });
 
@@ -30,6 +31,7 @@ function ContentApp() {
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [openError, setOpenError] = useState(false);
+  const drag = useDragPosition();
 
   useEffect(() => {
     void sendMessage<TabState | null>({ type: 'getTabState' }).then((s) => setState(s ?? null));
@@ -51,7 +53,8 @@ function ContentApp() {
   }, []);
 
   return (
-    <div className="kp-root fl-root">
+    // 카드를 끌어서 옮길 수 있다(drag.ts). 짧게 누르면 평소처럼 사이드 패널이 열린다.
+    <div className="kp-root fl-root" ref={drag.ref} style={drag.style} onPointerDown={drag.onPointerDown} onClickCapture={drag.onClickCapture}>
       {/* 사이드 패널은 사용자 클릭 직후에만 열 수 있어 클릭 핸들러에서 바로 메시지를 보낸다 */}
       <Floating
         state={state}

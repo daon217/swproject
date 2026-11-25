@@ -2,10 +2,12 @@ import { Redirect, router, usePreventRemove } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { useSession } from '../session';
+import { knownAllergens } from '../shared/allergens';
+import { bodySizeErrors, bodySizeForm, bodySizes, type BodySizeForm } from '../shared/validation';
 import { api } from '../shared/api';
 import { todaySeoul } from '../shared/format';
 import { ApiError, type Gender } from '../shared/types';
-import { AllergyPicker, BirthDateField, Button, ConfirmDialog, ErrorText, GenderSelect, H2, Note, Page, SubHeader, Toast } from '../ui/components';
+import { AllergyPicker, BirthDateField, BodySizeFields, Button, ConfirmDialog, ErrorText, GenderSelect, H2, Note, Page, SubHeader, Toast } from '../ui/components';
 import { C } from '../ui/theme';
 
 // 개인정보 수정 (Figma U13) — 저장 성공 응답 후에만 완료 표시, 미저장 이탈 시 버리기/계속 편집 선택(명세 F-PROF-02)
@@ -20,7 +22,9 @@ function ProfileForm() {
   const { me, loading, setMe, refresh } = useSession();
   const [birth, setBirth] = useState(me?.profile.birth_date ?? '');
   const [gender, setGender] = useState<string>(me?.profile.gender ?? '');
-  const [allergies, setAllergies] = useState<string[]>(me?.profile.allergies ?? []);
+  const [allergies, setAllergies] = useState<string[]>(knownAllergens(me?.profile.allergies ?? []));
+  const [body, setBody] = useState<BodySizeForm>(bodySizeForm(me?.profile));
+  const [bodyErrors, setBodyErrors] = useState<Partial<Record<keyof BodySizeForm, string>>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -30,7 +34,7 @@ function ProfileForm() {
 
   const dirty =
     !!me &&
-    (birth !== (me.profile.birth_date ?? '') || gender !== (me.profile.gender ?? '') || [...allergies].sort().join() !== [...me.profile.allergies].sort().join());
+    (birth !== (me.profile.birth_date ?? '') || gender !== (me.profile.gender ?? '') || JSON.stringify(body) !== JSON.stringify(bodySizeForm(me.profile)) || [...allergies].sort().join() !== [...me.profile.allergies].sort().join());
 
   usePreventRemove(dirty && !discarded, ({ repeat }) => {
     repeatRef.current = repeat;
@@ -46,10 +50,13 @@ function ProfileForm() {
 
   const save = async () => {
     if (birth && birth > todaySeoul()) return setError('미래 날짜는 입력할 수 없어요.');
+    const be = bodySizeErrors(body);
+    setBodyErrors(be);
+    if (Object.keys(be).length) return;
     setBusy(true);
     setError(null);
     try {
-      setMe(await api.updateProfile({ expected_version: me.profile.version, birth_date: birth || null, gender: (gender || null) as Gender | null, allergies }));
+      setMe(await api.updateProfile({ expected_version: me.profile.version, birth_date: birth || null, gender: (gender || null) as Gender | null, ...bodySizes(body), allergies }));
       setToast('변경사항을 저장했어요.');
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장하지 못했어요.');
@@ -67,6 +74,8 @@ function ProfileForm() {
         <Button variant="outline" label="비밀번호 변경" onPress={() => router.push('/password')} style={{ marginBottom: 16 }} />
         <BirthDateField value={birth} onChange={setBirth} />
         <GenderSelect value={gender} onChange={setGender} />
+        <H2>신체 정보 (선택)</H2>
+        <BodySizeFields value={body} onChange={setBody} errors={bodyErrors} />
         <H2>알레르기 설정</H2>
         <AllergyPicker value={allergies} onChange={setAllergies} />
         <Note>알레르기 선택 항목은 회원가입과 동일해요. 저장한 내용은 다음 추천부터 반영돼요.</Note>

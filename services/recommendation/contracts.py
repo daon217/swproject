@@ -111,6 +111,7 @@ class UserProfile:
     exclude_cross_contact: bool = True   # "같은 시설 제조" 표시도 제외할지
     exclude_unknown: bool = True         # 성분 정보 없는 상품을 제외할지 (알레르기가 있을 때만 적용)
     include_used: bool = False           # 중고 포함 (member DB user_profiles.include_used, 식품에는 적용 안 함)
+    include_overseas: bool = True        # 해외 판매처(원화가 아닌 가격) 포함 (member DB members.include_overseas)
     schema: str = PROFILE_SCHEMA
 
     @classmethod

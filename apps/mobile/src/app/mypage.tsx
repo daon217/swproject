@@ -1,8 +1,8 @@
 import { Redirect, router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSession } from '../session';
-import { allergenLabel } from '../shared/allergens';
-import { ageGroupLabel, GENDER_LABEL } from '../shared/format';
+import { allergenLabel, knownAllergens } from '../shared/allergens';
+import { ageGroupLabel, bodySizeLabel, GENDER_LABEL } from '../shared/format';
 import { Button, H1, H2, Page, SubHeader } from '../ui/components';
 import { SubscriptionCard } from '../ui/SubscriptionCard';
 import { C } from '../ui/theme';
@@ -24,10 +24,11 @@ export default function MyPageScreen() {
           <Text style={st.meta}>
             연령 {ageGroupLabel(p.birth_date)} · 성별 {p.gender ? GENDER_LABEL[p.gender] : '미입력'}
           </Text>
+          <Text style={st.meta}>{bodySizeLabel(p)}</Text>
         </View>
         <H2>선택한 알레르기</H2>
         <View style={st.chipbox}>
-          <Text style={{ color: C.sub, fontSize: 13 }}>{p.allergies.length ? p.allergies.map(allergenLabel).join(' · ') : '선택한 알레르기가 없어요'}</Text>
+          <Text style={{ color: C.sub, fontSize: 13 }}>{knownAllergens(p.allergies).map(allergenLabel).join(' · ') || '선택한 알레르기가 없어요'}</Text>
         </View>
         <Button variant="outline" label="개인정보 수정" onPress={() => router.push('/profile-edit')} style={{ marginTop: 16 }} />
         {me.premium ? <SubscriptionCard /> : <Button label="프리미엄 알아보기" onPress={() => router.push('/premium')} style={{ marginTop: 16 }} />}

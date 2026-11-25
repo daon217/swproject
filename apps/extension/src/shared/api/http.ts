@@ -1,4 +1,4 @@
-import { getAuthToken } from '../auth';
+import { getAuthToken, getGuestKey } from '../auth';
 import { ApiError } from '../types';
 import type { KkulpickApi } from './index';
 import { dlog } from '../debug';
@@ -9,6 +9,8 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
     const token = await getAuthToken();
     const init: RequestInit = { method, headers: { ...headers } };
     if (token) (init.headers as Record<string, string>).Authorization = `Bearer ${token}`;
+    // 비회원도 화면 분석을 받을 수 있게 분석 요청에는 기기 키를 보낸다(로그인하면 토큰만 보낸다).
+    else if (path.startsWith('/analyses')) (init.headers as Record<string, string>)['X-Guest-Key'] = await getGuestKey();
     if (body instanceof FormData) init.body = body;
     else if (body !== undefined) {
       (init.headers as Record<string, string>)['Content-Type'] = 'application/json';
@@ -71,6 +73,7 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
     cancelRenewal: () => request('POST', '/v2/me/subscription/cancel'),
 
     getSupportConversation: () => request('POST', '/v2/support/conversations'),
+    listSupportConversations: () => request('GET', '/v2/support/conversations?limit=5'),
     listSupportMessages: (id) => request('GET', `/v2/support/conversations/${encodeURIComponent(id)}/messages?limit=50`),
     sendSupportMessage: (id, body, client_message_id) =>
       request('POST', `/v2/support/conversations/${encodeURIComponent(id)}/messages`, { body, client_message_id }),

@@ -64,7 +64,7 @@ async def withdraw(data:Withdrawal,req:Request,uid=Depends(member)):
         if pending:
             fail(409,'PAYMENT_PENDING')
         await execute(c,'''UPDATE app.members SET deleted_at=now(),login_id=:l,password_hash='withdrawn',
-            gender=NULL,birth_date=NULL,include_used=false,consent_version='withdrawn',profile_version=profile_version+1
+            gender=NULL,birth_date=NULL,include_used=false,include_overseas=true,height_cm=NULL,weight_kg=NULL,foot_mm=NULL,consent_version='withdrawn',profile_version=profile_version+1
             WHERE user_id=:u''',u=uid,l='x'+secrets.token_hex(8)[:15])
         await execute(c,'DELETE FROM app.member_preferences WHERE user_id=:u',u=uid)
         await execute(c,'DELETE FROM app.sessions WHERE user_id=:u',u=uid)

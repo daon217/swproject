@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { ALLERGEN_GROUPS } from '../shared/allergens';
 import { IconBack, IconCheck, IconChevronDown, IconChevronRight } from '../shared/ui/icons';
+import type { BodySizeForm } from '../shared/validation';
 import { useNav } from './nav';
 
 export function SubHeader({ title, onBack }: { title: string; onBack?: () => void }) {
@@ -32,6 +33,26 @@ export function Field({ label, error, ...input }: { label: string; error?: strin
       <label htmlFor={id}>{label}</label>
       <input id={id} className={`sp-input ${error ? 'is-error' : ''}`} aria-invalid={!!error} {...input} />
       {error && <p className="sp-error">{error}</p>}
+    </div>
+  );
+}
+
+/** 키·몸무게·발 사이즈(선택 입력). 가입·개인정보 수정 공용 */
+export function BodySizeFields({
+  value,
+  onChange,
+  errors = {},
+}: {
+  value: BodySizeForm;
+  onChange: (v: BodySizeForm) => void;
+  errors?: Partial<Record<keyof BodySizeForm, string>>;
+}) {
+  const set = (k: keyof BodySizeForm) => (e: { target: { value: string } }) => onChange({ ...value, [k]: e.target.value });
+  return (
+    <div className="sp-grid3">
+      <Field label="키(cm)" inputMode="decimal" placeholder="예: 170" value={value.height} onChange={set('height')} error={errors.height} />
+      <Field label="몸무게(kg)" inputMode="decimal" placeholder="예: 60" value={value.weight} onChange={set('weight')} error={errors.weight} />
+      <Field label="발 사이즈(mm)" inputMode="numeric" placeholder="예: 260" value={value.foot} onChange={set('foot')} error={errors.foot} />
     </div>
   );
 }

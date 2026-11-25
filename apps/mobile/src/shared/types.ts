@@ -18,6 +18,12 @@ export interface Profile {
   gender: Gender | null;
   birth_date: string | null; // YYYY-MM-DD
   include_used: boolean;
+  /** 해외 판매처(원화가 아닌 가격) 상품을 추천에 넣을지. 기본 켜짐 */
+  include_overseas: boolean;
+  /** 선택 입력(옷·신발 추천용). 키 cm, 몸무게 kg, 발 사이즈 mm */
+  height_cm: number | null;
+  weight_kg: number | null;
+  foot_mm: number | null;
   allergies: string[]; // 공개 성분 코드
   /** 재료 필터(프리미엄 식품 전용). 명세 D07 결정 대상이며 Figma 기준으로 구현. */
   ingredient_filter: IngredientFilter;
@@ -37,6 +43,9 @@ export interface SignupRequest {
   allergies: string[];
   gender: Gender | null;
   birth_date: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  foot_mm?: number | null;
 }
 
 export interface ProfilePatch {
@@ -44,6 +53,10 @@ export interface ProfilePatch {
   gender?: Gender | null;
   birth_date?: string | null;
   include_used?: boolean;
+  include_overseas?: boolean;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  foot_mm?: number | null;
   allergies?: string[];
   ingredient_filter?: IngredientFilter;
 }
@@ -92,7 +105,8 @@ export interface OfferCard {
   condition?: 'new' | 'used' | 'unknown'; // 서버 카드에 포함. 없으면(구버전 서버) 표시 생략
 }
 
-export type SectionKind = 'ai' | 'used' | 'alternative';
+/** overseas: 해외 판매처(원화가 아닌 가격) 새 상품. ai·alternative에는 국내 상품만 들어간다 */
+export type SectionKind = 'ai' | 'used' | 'alternative' | 'overseas';
 
 export interface ResultSection {
   kind: SectionKind;

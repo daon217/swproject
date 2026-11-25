@@ -53,7 +53,10 @@ export interface KkulpickApi {
   cancelRenewal(expected_version?: number): Promise<SubscriptionStatus>;
 
   // 고객센터
+  /** 진행 중인 상담을 가져오고, 없으면 새로 연다(POST). 이전 상담이 종료됐으면 새 상담이 열린다. */
   getSupportConversation(): Promise<SupportConversation>;
+  /** 내 상담 목록(진행 중 먼저, 그다음 최근 순). 상담 종료(resolved/closed) 여부 확인용 */
+  listSupportConversations(): Promise<SupportConversation[]>;
   listSupportMessages(conversation_id: string): Promise<SupportMessage[]>;
   sendSupportMessage(conversation_id: string, body: string, client_message_id: string): Promise<SupportMessage>;
 }

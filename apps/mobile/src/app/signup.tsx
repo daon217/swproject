@@ -1,4 +1,4 @@
-import { loginIdError, passwordError, signupErrors } from '../shared/validation';
+import { bodySizeErrors, bodySizeForm, bodySizes, loginIdError, passwordError, signupErrors, type BodySizeForm } from '../shared/validation';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -9,7 +9,7 @@ import { todaySeoul } from '../shared/format';
 import { CONSENT_VERSION, PRIVACY_CONSENT_TITLE } from '../shared/terms';
 import { ApiError, type Gender } from '../shared/types';
 import { AlertDialog, type Alert } from '../ui/AlertDialog';
-import { AllergyPicker, BirthDateField, Button, Checkbox, ErrorText, GenderSelect, H2, Page, s as cs, SubHeader, Field } from '../ui/components';
+import { AllergyPicker, BirthDateField, BodySizeFields, Button, Checkbox, ErrorText, GenderSelect, H2, Page, s as cs, SubHeader, Field } from '../ui/components';
 import { C } from '../ui/theme';
 
 const LOGIN_ID_RE = /^[A-Za-z0-9]{4,16}$/;
@@ -19,6 +19,7 @@ export default function SignupScreen() {
   const { login } = useSession();
   const [form, setForm] = useState({ id: '', pw: '', pw2: '', birth: '', gender: '' });
   const [allergies, setAllergies] = useState<string[]>([]);
+  const [body, setBody] = useState<BodySizeForm>(bodySizeForm(null));
   const [consent, setConsent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
@@ -82,6 +83,7 @@ export default function SignupScreen() {
       return setAlert({ title: '비밀번호 불일치', body: '비밀번호와 비밀번호 확인이 일치하지 않아요. 다시 입력해 주세요.' });
     }
     if (form.birth && form.birth > todaySeoul()) er.birth = '미래 날짜는 입력할 수 없어요.';
+    Object.assign(er, bodySizeErrors(body));
     if (!consent) er.consent = '개인정보 수집 및 이용에 동의해 주세요.';
     setErrors(er);
     if (Object.keys(er).some((k) => k !== 'consent')) return; // 형식 오류는 입력칸 아래 안내
@@ -105,6 +107,7 @@ export default function SignupScreen() {
         allergies,
         gender: (form.gender || null) as Gender | null,
         birth_date: form.birth || null,
+        ...bodySizes(body),
       });
       await login(form.id, form.pw);
       router.dismissTo('/settings');
@@ -151,6 +154,8 @@ export default function SignupScreen() {
         <Field label="비밀번호 확인" placeholder="비밀번호를 다시 입력하세요" secureTextEntry autoComplete="new-password" value={form.pw2} onChangeText={set('pw2')} error={errors.pw2} />
         <BirthDateField value={form.birth} onChange={set('birth')} error={errors.birth} />
         <GenderSelect value={form.gender} onChange={set('gender')} />
+        <H2>신체 정보 (선택)</H2>
+        <BodySizeFields value={body} onChange={setBody} errors={errors} />
         <H2>알레르기 설정</H2>
         <AllergyPicker value={allergies} onChange={setAllergies} />
         <View style={[st.consent, consentAttention && !consent && st.consentAttention]} onLayout={(e) => (consentY.current = e.nativeEvent.layout.y)}>

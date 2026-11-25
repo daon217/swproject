@@ -25,7 +25,8 @@ export function RecommendTab() {
   const nav = useNav();
   const { me } = useSession();
   const [enabled, setEnabled] = useRecommendEnabled();
-  if (!me) return <GuestRecent onLogin={() => nav.push('login')} />;
+  // 비회원도 상품 페이지 분석 결과를 본다. 분석할 페이지가 없거나 추천이 꺼져 있으면 기본 추천 목록을 보여준다.
+  if (!me && (!enabled || !state || state.status === 'none')) return <GuestRecent onLogin={() => nav.push('login')} />;
   if (enabled === null) return null;
   if (!enabled) {
     return (
@@ -41,7 +42,7 @@ export function RecommendTab() {
       </div>
     );
   }
-  return (
+  const result = (
     <ResultView
       state={state}
       onOpenUrl={openUrl}
@@ -49,6 +50,27 @@ export function RecommendTab() {
       onPremium={() => nav.push(me ? 'premium' : 'login')}
       onFilter={() => nav.push('filter')}
     />
+  );
+  if (me) return result;
+  return (
+    <div className="sp-guest-result">
+      <div className="sp-pad sp-guest-banner">
+        <LoginBanner onLogin={() => nav.push('login')} />
+      </div>
+      {result}
+    </div>
+  );
+}
+
+function LoginBanner({ onLogin }: { onLogin: () => void }) {
+  return (
+    <button className="sp-login-banner" onClick={onLogin}>
+      <span>
+        <strong>로그인하고 나만의 추천을 받아보세요</strong>
+        <small>알레르기 설정과 추천 기록 저장은 로그인 후 이용할 수 있어요.</small>
+      </span>
+      <span className="sp-login-banner-cta">로그인</span>
+    </button>
   );
 }
 
@@ -114,13 +136,7 @@ function GuestRecent({ onLogin }: { onLogin: () => void }) {
 
   return (
     <div className="sp-scroll sp-pad">
-      <button className="sp-login-banner" onClick={onLogin}>
-        <span>
-          <strong>로그인하고 나만의 추천을 받아보세요</strong>
-          <small>알레르기 설정과 추천 기록 저장은 로그인 후 이용할 수 있어요.</small>
-        </span>
-        <span className="sp-login-banner-cta">로그인</span>
-      </button>
+      <LoginBanner onLogin={onLogin} />
       <h1 className="sp-title">추천 상품</h1>
       <p className="sp-desc">로그인 없이 상품을 둘러보세요. 개인 맞춤 AI 분석 결과는 아니에요.</p>
       <div role="group" aria-label="상품 종류">
@@ -307,11 +323,11 @@ export function SettingsTab() {
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const toggleUsed = async (on: boolean) => {
+  const saveSetting = async (patch: { include_used?: boolean; include_overseas?: boolean }) => {
     if (!me) return nav.push('login');
     setSaving(true);
     try {
-      setMe(await api.updateProfile({ expected_version: me.profile.version, include_used: on }));
+      setMe(await api.updateProfile({ expected_version: me.profile.version, ...patch }));
     } catch (e) {
       setNotice(e instanceof Error ? e.message : '저장하지 못했어요.');
     } finally {
@@ -342,9 +358,16 @@ export function SettingsTab() {
         <hr className="kp-divider" />
         <div className="sp-setting">
           <span className="sp-setting-title">중고상품 포함</span>
-          <Toggle label="중고상품 포함" checked={!!me?.profile.include_used} onChange={toggleUsed} disabled={saving} />
+          <Toggle label="중고상품 포함" checked={!!me?.profile.include_used} onChange={(on) => void saveSetting({ include_used: on })} disabled={saving} />
         </div>
         <p className="sp-desc sp-mt8">{me ? '켜면 관련 중고 상품을 3개까지 추천해요.' : '로그인하면 중고 상품도 함께 추천받을 수 있어요.'}</p>
+        <hr className="kp-divider" />
+        <div className="sp-setting">
+          <span className="sp-setting-title">해외상품 포함</span>
+          {/* 저장된 값이 없으면(이전 계정) 기본값인 켜짐으로 본다 */}
+          <Toggle label="해외상품 포함" checked={!!me && me.profile.include_overseas !== false} onChange={(on) => void saveSetting({ include_overseas: on })} disabled={saving} />
+        </div>
+        <p className="sp-desc sp-mt8">{me ? '끄면 아마존·이베이 같은 해외 판매처 상품은 추천하지 않아요.' : '로그인하면 해외 판매처 상품 포함 여부를 정할 수 있어요.'}</p>
         <hr className="kp-divider" />
         <RowButton onClick={() => nav.push(me ? 'support' : 'login')}>고객지원</RowButton>
         {me && (

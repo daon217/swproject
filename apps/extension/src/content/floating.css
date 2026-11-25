@@ -124,3 +124,13 @@
     animation-duration: 2.4s;
   }
 }
+
+/* 끌어서 옮기기(drag.ts). 끄는 동안 글자가 선택되지 않게 한다 */
+.fl-root {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.fl-root:active {
+  cursor: grabbing;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { allergenLabel } from '../allergens';
+import { allergyNotice, warningsForDomain } from '../allergens';
 import { formatPrice, offerSubtitle } from '../format';
 import type { TabState } from '../messages';
 import type { Analysis, OfferCard, ResultSection } from '../types';
@@ -76,13 +76,21 @@ function MainSection({ s, premium, onOpenUrl }: { s: ResultSection; premium: boo
   );
 }
 
-function UsedSection({ s, onOpenUrl }: { s: ResultSection; onOpenUrl: (u: string) => void }) {
+/** 중고·해외 추천 구역 문구. 둘 다 AI 공개 개수와 별개로 따로 보여준다. */
+export const EXTRA_SECTION = {
+  overseas: { title: '해외 추천 상품', loading: '해외 상품 분석중입니다.', failed: '해외 상품을 불러오지 못했어요.', empty: '이 상품과 비슷한 해외 판매처 상품이 없어요.', note: '해외 판매처 상품이에요. 배송비·관세·전압(110V/220V)을 확인해 주세요.' },
+  used: { title: '중고 추천 상품', loading: '중고 상품 분석중입니다.', failed: '중고 상품을 불러오지 못했어요.', empty: '지금 구매할 수 있는 중고 매물이 없어요.', note: null },
+} as const;
+
+function ExtraSection({ s, onOpenUrl }: { s: ResultSection; onOpenUrl: (u: string) => void }) {
+  const t = EXTRA_SECTION[s.kind === 'overseas' ? 'overseas' : 'used'];
   return (
     <section className="kp-used">
-      <h3 className="kp-section-title kp-section-title-lg">중고 추천 상품</h3>
-      {s.state === 'loading' && <p className="kp-muted-center">중고 상품 분석중입니다.</p>}
-      {s.state === 'failed' && <p className="kp-muted-center">중고 상품을 불러오지 못했어요.</p>}
-      {s.state === 'ready' && s.items.length === 0 && <p className="kp-muted-center">지금 구매할 수 있는 중고 매물이 없어요.</p>}
+      <h3 className="kp-section-title kp-section-title-lg">{t.title}</h3>
+      {s.state === 'loading' && <p className="kp-muted-center">{t.loading}</p>}
+      {s.state === 'failed' && <p className="kp-muted-center">{t.failed}</p>}
+      {s.state === 'ready' && s.items.length === 0 && <p className="kp-muted-center">{t.empty}</p>}
+      {t.note && s.items.length > 0 && <p className="kp-footnote">{t.note}</p>}
       {s.items.map((c) => (
         <OfferRow key={c.offer_id} card={c} onOpenUrl={onOpenUrl} />
       ))}
@@ -129,8 +137,28 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
+/** 이 페이지에 보여줄 알레르기 경고(식품 페이지만 백엔드 경고를 보여주고, 상품 페이지는 띄우지 않는다) */
+export function visibleWarnings(a: Analysis | null) {
+  return a ? warningsForDomain(a.warnings, a.selected_domain) : [];
+}
+
+/**
+ * 최저가 추천: 공개된 추천 후보(중고 제외)를 가격 낮은 순으로. 가격을 모르는 상품은 맨 뒤.
+ * 통화가 다르면 환율 없이 비교할 수 없으므로 원화 상품을 먼저, 해외 통화 상품은 통화별로 그 뒤에 둔다.
+ */
+export function lowestPriceItems(sections: ResultSection[]): OfferCard[] {
+  const seen = new Set<string>();
+  const items = sections.flatMap((s) => s.items).filter((c) => !seen.has(c.offer_id) && !!seen.add(c.offer_id));
+  const value = (c: OfferCard) => {
+    const n = Number(c.price);
+    return c.price && Number.isFinite(n) ? n : Infinity;
+  };
+  const group = (c: OfferCard) => (!c.currency || c.currency === 'KRW' ? '' : c.currency);
+  return items.sort((x, y) => group(x).localeCompare(group(y)) || value(x) - value(y));
+}
+
 export function headerLabel(a: Analysis | null): { text: string; danger: boolean } {
-  if (a?.warnings.length) return { text: '꿀픽 · 알레르기 주의', danger: false };
+  if (visibleWarnings(a).length) return { text: '꿀픽 · 알레르기 주의', danger: false };
   if (a?.premium) return { text: '꿀픽 PREMIUM', danger: false };
   return { text: '꿀픽 · AI 추천', danger: false };
 }
@@ -156,18 +184,27 @@ export function ResultView({ state, ...h }: { state: TabState | null } & Handler
   }
   const a = state.analysis!;
   if (a.result_kind === 'empty') {
+    // 분석은 됐지만(상품/식품 판별됨) 비슷한 상품이 없을 때도 알레르기 경고는 반드시 보여준다.
+    if (visibleWarnings(a).length) return <ResultBody key={a.analysis_id} analysis={a} {...h} />;
+    if (a.selected_domain) {
+      return <EmptyState title="비슷한 상품을 찾지 못했어요" body="이 상품과 비슷한 추천 상품이 아직 꿀픽에 없어요. 다른 상품 페이지에서 다시 확인해 주세요." />;
+    }
     return <EmptyState title="이 페이지에는 추천할 상품이 없어요" body="상품 정보를 찾지 못했어요. 상품 상세 페이지에서 다시 확인해 주세요." />;
   }
-  return <ResultBody analysis={a} {...h} />;
+  return <ResultBody key={a.analysis_id} analysis={a} {...h} />;
 }
 
 function ResultBody({ analysis: a, onOpenUrl, onPremium, onFilter }: { analysis: Analysis } & Handlers) {
   const label = headerLabel(a);
-  const main = a.sections.filter((s) => s.kind !== 'used');
-  const used = a.sections.find((s) => s.kind === 'used');
+  // AI 추천(국내) 아래에 해외 → 중고 순으로 따로 보여준다.
+  const main = a.sections.filter((s) => s.kind !== 'used' && s.kind !== 'overseas');
+  const extras = (['overseas', 'used'] as const).flatMap((k) => a.sections.filter((s) => s.kind === k));
   const locked = main.some((s) => s.locked_count > 0);
   const canFilter = a.premium && a.selected_domain === 'food';
   const f = a.applied_filter;
+  const notice = allergyNotice(visibleWarnings(a));
+  const unread = visibleWarnings(a).some((w) => w.evidence === 'unknown');
+  const lowest = lowestPriceItems(main);
 
   return (
     <div className="kp-result">
@@ -187,40 +224,50 @@ function ResultBody({ analysis: a, onOpenUrl, onPremium, onFilter }: { analysis:
           </div>
         )}
 
-        {a.warnings.map((w) => {
-          const name = allergenLabel(w.allergen);
-          return (
-            <div key={w.allergen} className="kp-warning" role="alert">
-              <div className="kp-warning-title">{name} 알레르기 주의</div>
-              <div className="kp-warning-body">
-                내 알레르기 · {name}
-                <br />
-                {w.message}
-              </div>
-              <div className="kp-warning-note">구매 전 판매처의 원재료·알레르기 표시를 확인해 주세요.</div>
+        {notice && (
+          <div className="kp-warning" role="alert">
+            <div className="kp-warning-title">{notice.title}</div>
+            <div className="kp-warning-body">
+              내 알레르기 · {notice.names.join(', ')}
+              {notice.lines.map((l) => (
+                <p key={l} className="kp-warning-line">{l}</p>
+              ))}
             </div>
-          );
-        })}
+            <div className="kp-warning-note">구매 전 판매처의 원재료·성분 표시를 직접 확인해 주세요.</div>
+          </div>
+        )}
 
-        {a.ingredient_status === 'not_found' || a.result_kind === 'ingredient_unknown' ? (
+        {!unread && (a.ingredient_status === 'not_found' || a.result_kind === 'ingredient_unknown') ? (
           <div className="kp-info">성분 정보를 확인하지 못했어요. 안전하다는 뜻이 아니니 판매처의 원재료 표시를 확인해 주세요.</div>
         ) : null}
 
+        {/* 탭 없이 한 화면에서 스크롤: 최저가 추천 → AI 추천 → 중고 추천 */}
+        <section>
+          <h3 className="kp-section-title">{lowest.length ? `최저가 추천 상품 ${lowest.length}개` : '최저가 추천 상품'}</h3>
+          {lowest.length === 0 && <p className="kp-muted-center">가격을 비교할 추천 후보를 찾지 못했어요.</p>}
+          {lowest.map((c) => (
+            <OfferRow key={c.offer_id} card={c} onOpenUrl={onOpenUrl} />
+          ))}
+        </section>
+
         {main.map((s) => (
-          <MainSection key={s.kind} s={s} premium={a.premium} onOpenUrl={onOpenUrl} />
+          <div key={s.kind}>
+            <hr className="kp-divider" />
+            <MainSection s={s} premium={a.premium} onOpenUrl={onOpenUrl} />
+          </div>
         ))}
 
-        {used && (
-          <>
+        {extras.map((s) => (
+          <div key={s.kind}>
             <hr className="kp-divider" />
-            <UsedSection s={used} onOpenUrl={onOpenUrl} />
-          </>
-        )}
+            <ExtraSection s={s} onOpenUrl={onOpenUrl} />
+          </div>
+        ))}
       </div>
       {locked && (
         <div className="kp-result-cta">
           <button className="kp-btn kp-btn-primary kp-btn-block" onClick={onPremium}>
-            프리미엄으로 추천 3개 보기
+            프리미엄으로 추천 5개 보기
           </button>
         </div>
       )}

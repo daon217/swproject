@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Easing, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { allergenLabel } from '../shared/allergens';
+import { allergyNotice, warningsForDomain } from '../shared/allergens';
 import { formatPrice } from '../shared/format';
 import type { PageAnalysis } from '../usePageAnalysis';
 import { IconClose, IconWarning } from './icons';
@@ -20,6 +20,12 @@ const native = Platform.OS !== 'web';
 const FLING_VELOCITY = 0.8;
 /** 시트 높이의 이 비율보다 많이 내리면 천천히 놓아도 닫는다 */
 const CLOSE_RATIO = 0.5;
+/** 이만큼(px) 넘게 움직여야 카드 끌기로 본다. 그보다 짧으면 누르기 */
+const DRAG_SLOP = 6;
+/** 축소 카드 기본 위치(부모 기준). st.compactWrap과 같은 값 */
+const CARD_TOP = 96;
+const CARD_RIGHT = 12;
+const EDGE = 8;
 
 export function Floating({
   page,
@@ -79,13 +85,76 @@ export function Floating({
     }),
   );
 
+  // 축소 카드 끌기(짧게 누르면 시트가 열리고, 일정 거리 넘게 움직이면 카드를 옮긴다).
+  // 위치는 기본 자리(오른쪽 위)에서 옮긴 거리로 두고, 부모 영역 안으로만 움직인다. 페이지가 바뀌어도 유지된다.
+  const [cardPos] = useState(() => new Animated.ValueXY({ x: 0, y: 0 }));
+  const moved = useRef({ x: 0, y: 0 });
+  // 웹(react-native-web)에서는 끌기가 끝난 뒤에도 안쪽 버튼의 누르기가 실행된다. 끌기 직후의 누르기는 무시한다.
+  const draggedAt = useRef(0);
+  const area = useRef({ w: 0, h: 0 });
+  const card = useRef({ w: 206, h: 120 });
+  const fitCard = (p: { x: number; y: number }) => {
+    const { w, h } = area.current;
+    if (!w || !h) return p;
+    const baseLeft = w - CARD_RIGHT - card.current.w;
+    const minX = EDGE - baseLeft;
+    const maxX = Math.max(minX, w - card.current.w - EDGE - baseLeft);
+    const minY = EDGE - CARD_TOP;
+    const maxY = Math.max(minY, h - card.current.h - EDGE - CARD_TOP);
+    return { x: Math.min(Math.max(minX, p.x), maxX), y: Math.min(Math.max(minY, p.y), maxY) };
+  };
+  const fitRef = useRef(fitCard);
+  useEffect(() => {
+    fitRef.current = fitCard;
+  });
+  const refit = () => {
+    moved.current = fitRef.current(moved.current);
+    cardPos.setValue(moved.current);
+  };
+  // PanResponder registers handlers here; refs are read only later, during gestures.
+  // eslint-disable-next-line react-hooks/refs
+  const [cardDrag] = useState(() =>
+    PanResponder.create({
+      // 누르기는 안쪽 버튼(Pressable)이 받는다. 일정 거리 넘게 움직이면 끌기로 가져온다.
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > DRAG_SLOP || Math.abs(g.dy) > DRAG_SLOP,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > DRAG_SLOP || Math.abs(g.dy) > DRAG_SLOP,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        draggedAt.current = Date.now();
+      },
+      onPanResponderMove: (_, g) => {
+        // 웹은 버튼 누르기(pointerup)가 끌기 끝(mouseup)보다 먼저 오므로 움직이는 동안 시각을 남긴다.
+        draggedAt.current = Date.now();
+        cardPos.setValue(fitRef.current({ x: moved.current.x + g.dx, y: moved.current.y + g.dy }));
+      },
+      onPanResponderRelease: (_, g) => {
+        moved.current = fitRef.current({ x: moved.current.x + g.dx, y: moved.current.y + g.dy });
+        cardPos.setValue(moved.current);
+        draggedAt.current = Date.now();
+      },
+      onPanResponderTerminate: () => {
+        cardPos.setValue(moved.current);
+        draggedAt.current = Date.now();
+      },
+    }),
+  );
+  const openSheet = () => {
+    if (Date.now() - draggedAt.current < 400) return;
+    setOpen(true);
+  };
+
   const a = page.status === 'done' ? page.analysis : null;
-  const rec = a?.result_kind === 'recommendation' ? a : null;
-  const warning = rec?.warnings[0];
+  // 추천이 비어도(empty) 알레르기 경고는 카드로 보여준다.
+  const rec = a?.result_kind === 'recommendation' || a?.result_kind === 'empty' ? a : null;
+  // 식품 페이지에서만 알레르기 경고를 보여준다(상품 페이지는 띄우지 않음). 여러 항목이면 카드 하나에 모은다.
+  const notice = rec ? allergyNotice(warningsForDomain(rec.warnings, rec.selected_domain)) : null;
+  const warning = !!notice;
+  const hasItems = !!rec?.sections.some((x) => x.kind !== 'used' && x.items.length > 0);
   // [임시] 페이지에서 읽은 실제 상품명·가격이 있으면 그것을 보여준다(서버 OCR 연동 전).
-  const first = rec ? (rec.page_product ?? rec.sections.find((x) => x.kind !== 'used')?.items[0]) : undefined;
+  const first = rec && hasItems ? (rec.page_product ?? rec.sections.find((x) => x.kind !== 'used' && x.items.length > 0)?.items[0]) : undefined;
   const kind: 'launcher' | 'analyzing' | 'error' | 'empty' | 'result' =
-    !me || page.status === 'none' ? 'launcher' : page.status === 'analyzing' ? 'analyzing' : page.status === 'error' ? 'error' : warning || first ? 'result' : 'empty';
+    page.status === 'none' ? 'launcher' : page.status === 'analyzing' ? 'analyzing' : page.status === 'error' ? 'error' : warning || first ? 'result' : 'empty';
 
   // 바깥으로 링크를 열 때는 시트를 먼저 내린다.
   const openUrl = (url: string) => {
@@ -99,10 +168,27 @@ export function Floating({
 
   return (
     <>
-      {!open && <View style={st.compactWrap}>
-        {kind === 'launcher' && <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="꿀픽 추천 열기"><Text style={st.label}>꿀픽</Text><Text style={st.hint}>추천 상품 보기</Text></Pressable>}
+      {!open && (
+      <View
+        style={StyleSheet.absoluteFill}
+        pointerEvents="box-none"
+        onLayout={(e) => {
+          area.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
+          refit();
+        }}
+      >
+      <Animated.View
+        style={[st.compactWrap, { transform: cardPos.getTranslateTransform() }]}
+        onLayout={(e) => {
+          card.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
+          refit();
+        }}
+        accessibilityHint="끌어서 옮길 수 있어요"
+        {...cardDrag.panHandlers}
+      >
+        {kind === 'launcher' && <Pressable style={st.compact} onPress={openSheet} accessibilityRole="button" accessibilityLabel="꿀픽 추천 열기"><Text style={st.label}>꿀픽</Text><Text style={st.hint}>추천 상품 보기</Text></Pressable>}
         {kind === 'analyzing' && (
-          <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="꿀픽이 이 상품을 분석하고 있어요">
+          <Pressable style={st.compact} onPress={openSheet} accessibilityRole="button" accessibilityLabel="꿀픽이 이 상품을 분석하고 있어요">
             <View style={st.stateRow}>
               <ActivityIndicator size="small" color={C.primary} />
               <Text style={[st.label, { marginBottom: 0 }]}>꿀픽 분석 중</Text>
@@ -111,7 +197,7 @@ export function Floating({
           </Pressable>
         )}
         {kind === 'error' && (
-          <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="분석하지 못했어요. 추천 창에서 다시 시도">
+          <Pressable style={st.compact} onPress={openSheet} accessibilityRole="button" accessibilityLabel="분석하지 못했어요. 추천 창에서 다시 시도">
             <Text style={[st.label, { color: C.danger }]}>분석하지 못했어요</Text>
             <Text style={st.stateBody} numberOfLines={2}>
               {page.error ?? '잠시 후 다시 시도해 주세요.'}
@@ -120,24 +206,28 @@ export function Floating({
           </Pressable>
         )}
         {kind === 'empty' && (
-          <Pressable style={st.compact} onPress={() => setOpen(true)} accessibilityRole="button" accessibilityLabel="추천할 상품을 찾지 못했어요">
+          <Pressable style={st.compact} onPress={openSheet} accessibilityRole="button" accessibilityLabel="추천할 상품을 찾지 못했어요">
             <Text style={st.label}>꿀픽 추천</Text>
-            <Text style={st.stateBody}>{a?.result_kind === 'ingredient_unknown' ? '성분 정보를 확인하지 못했어요' : '추천할 상품을 찾지 못했어요'}</Text>
+            <Text style={st.stateBody}>{a?.result_kind === 'ingredient_unknown' ? '성분 정보를 확인하지 못했어요' : a?.selected_domain ? '비슷한 상품을 찾지 못했어요' : '추천할 상품을 찾지 못했어요'}</Text>
           </Pressable>
         )}
         {kind === 'result' && (
         <Pressable
           style={[st.compact, warning && st.compactAlert]}
-          onPress={() => setOpen(true)}
+          onPress={openSheet}
           accessibilityRole="button"
-          accessibilityLabel={warning ? `${allergenLabel(warning.allergen)} 알레르기 주의. 눌러서 대체 상품 보기` : '꿀픽 추천. 눌러서 추천 더 보기'}
+          accessibilityLabel={notice ? `${notice.title}. 눌러서 ${hasItems ? '대체 상품' : '자세히'} 보기` : '꿀픽 추천. 눌러서 추천 더 보기'}
         >
-          {warning ? (
+          {notice ? (
             <>
               <IconWarning size={22} color={C.danger} />
-              <Text style={st.alertTitle}>{allergenLabel(warning.allergen)} 알레르기 주의</Text>
-              <Text style={st.alertBody}>{warning.message}{'\n'}구매 전 성분표를 확인해 주세요.</Text>
-              <Text style={[st.hint, { color: C.primary }]}>눌러서 대체 상품 보기</Text>
+              <Text style={st.alertTitle}>{notice.title}</Text>
+              <Text style={st.alertBody}>
+                {notice.names.length > 1 ? `${notice.names.join(', ')}\n` : ''}
+                {notice.lines[0]}
+                {'\n'}구매 전 성분표를 확인해 주세요.
+              </Text>
+              <Text style={[st.hint, { color: C.primary }]}>{hasItems ? '눌러서 대체 상품 보기' : '눌러서 자세히 보기'}</Text>
             </>
           ) : (
             first && (
@@ -153,7 +243,9 @@ export function Floating({
           )}
         </Pressable>
         )}
-      </View>}
+      </Animated.View>
+      </View>
+      )}
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => close()} statusBarTranslucent navigationBarTranslucent>
         {/* 배경과 시트를 형제로 둔다. 시트를 터치 영역(Pressable) 안에 넣으면 그 영역이 터치를 먼저 가져가
@@ -172,7 +264,7 @@ export function Floating({
               <Pressable style={st.sheetClose} onPress={() => close()} accessibilityLabel="닫기" hitSlop={10}>
                 <IconClose size={22} color={C.sub} />
               </Pressable>
-              {!me ? <BasicRecommendations onOpenUrl={openUrl} onLogin={go(onPremium)} /> : <ResultView status={page.status} analysis={page.analysis} error={page.error} onOpenUrl={openUrl} onPremium={go(onPremium)} onFilter={go(onFilter)} onRetry={onRetry} />}
+              {!me && page.status === 'none' ? <BasicRecommendations onOpenUrl={openUrl} onLogin={go(onPremium)} /> : <ResultView status={page.status} analysis={page.analysis} error={page.error} onOpenUrl={openUrl} onPremium={go(onPremium)} onFilter={go(onFilter)} onRetry={onRetry} />}
             </View>
           </Animated.View>
         </View>

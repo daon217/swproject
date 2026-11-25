@@ -133,12 +133,12 @@ function Shell() {
 /** 사이드 패널 맨 위: 상품 추천 켜기/끄기(기본 꺼짐) */
 function RecommendSwitch() {
   const [on, setOn] = useRecommendEnabled();
-  const { me } = useSession();
+  // 비회원도 화면 분석을 받으므로 회원과 같은 안내를 쓴다.
   return (
     <div className="sp-recommend-switch">
       <div>
         <div className="sp-recommend-switch-title">상품 추천</div>
-        <div className="sp-recommend-switch-desc">{!me ? '기본 추천은 비회원도 이용 가능 · 화면 분석은 로그인 후' : on ? '상품 페이지를 열면 AI가 분석해요' : '꺼져 있어요 · 화면을 분석하지 않아요'}</div>
+        <div className="sp-recommend-switch-desc">{on ? '상품 페이지를 열면 AI가 분석해요' : '꺼져 있어요 · 화면을 분석하지 않아요'}</div>
       </div>
       <Toggle checked={!!on} onChange={setOn} label="상품 추천" disabled={on === null} />
     </div>

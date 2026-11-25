@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ALLERGEN_GROUPS } from '../shared/allergens';
+import type { BodySizeForm } from '../shared/validation';
 import { IconBack, IconCheck, IconChevronDown, IconForward } from './icons';
 import { C } from './theme';
 import { s } from './componentStyles';
@@ -108,6 +109,26 @@ export function Field({ label, error, ...input }: { label: string; error?: strin
       <Text style={s.label}>{label}</Text>
       <TextInput placeholderTextColor={C.muted} style={[s.input, !!error && { borderColor: C.danger }]} accessibilityLabel={label} {...input} />
       {!!error && <Text style={s.error}>{error}</Text>}
+    </View>
+  );
+}
+
+/** 키·몸무게·발 사이즈(선택 입력). 가입·개인정보 수정 공용 */
+export function BodySizeFields({
+  value,
+  onChange,
+  errors = {},
+}: {
+  value: BodySizeForm;
+  onChange: (v: BodySizeForm) => void;
+  errors?: Partial<Record<keyof BodySizeForm, string>>;
+}) {
+  const set = (k: keyof BodySizeForm) => (v: string) => onChange({ ...value, [k]: v });
+  return (
+    <View>
+      <Field label="키(cm)" keyboardType="decimal-pad" placeholder="예: 170" value={value.height} onChangeText={set('height')} error={errors.height} />
+      <Field label="몸무게(kg)" keyboardType="decimal-pad" placeholder="예: 60" value={value.weight} onChangeText={set('weight')} error={errors.weight} />
+      <Field label="발 사이즈(mm)" keyboardType="number-pad" placeholder="예: 260" value={value.foot} onChangeText={set('foot')} error={errors.foot} />
     </View>
   );
 }

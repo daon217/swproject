@@ -1,4 +1,5 @@
-import { StrictMode, useCallback, useEffect, useRef, useState } from 'react';
+import { StrictMode, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useDragPosition } from '../content/drag';
 import { createRoot } from 'react-dom/client';
 import '../shared/ui/styles.css';
 import '../sidepanel/sidepanel.css';
@@ -12,6 +13,16 @@ import { setItem, KEYS } from '../shared/storage';
 
 // 개발용 미리보기(확장 설치 없이 화면 확인). 왼쪽: 쇼핑몰 페이지 + 인페이지 플로팅, 오른쪽: 사이드 패널.
 // ?url= 로 분석할 페이지 주소를 바꾼다. 예) ?url=https://smartstore.naver.com/snackmarket/products/4021
+
+/** 실제 content script(index.tsx)처럼 플로팅을 끌어서 옮길 수 있게 감싼다 */
+function DragRoot({ children }: { children: ReactNode }) {
+  const drag = useDragPosition();
+  return (
+    <div className="kp-root fl-root" ref={drag.ref} style={drag.style} onPointerDown={drag.onPointerDown} onClickCapture={drag.onClickCapture}>
+      {children}
+    </div>
+  );
+}
 
 function FloatingInShadow({ panelOpen, onOpen }: { panelOpen: boolean; onOpen: () => void }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -29,9 +40,9 @@ function FloatingInShadow({ panelOpen, onOpen }: { panelOpen: boolean; onOpen: (
       rootRef.current = createRoot(c);
     }
     rootRef.current.render(
-      <div className="kp-root fl-root">
+      <DragRoot>
         <Floating state={state} panelOpen={panelOpen} onOpenPanel={(route) => { onOpen(); void setItem(KEYS.pendingRoute, { route, at: Date.now() }); }} onRetry={retry} />
-      </div>,
+      </DragRoot>,
     );
   }, [state, retry, panelOpen, onOpen]);
 

@@ -73,7 +73,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (login_id: string, password: string) => {
     const { token } = await api.login(login_id, password);
     await saveAuth({ token, login_id });
-    await refresh();
+    // 로그인 직후 회원 정보(/v2/me)를 못 받으면 로그인 화면이 그대로 남아 '다시 로그인하라'는 것처럼 보인다.
+    // 이때는 저장한 토큰을 지우고 원인을 알린다. (refresh가 다른 갱신에 밀려 null이면 한 번 더 확인한다)
+    if (await refresh()) return;
+    try {
+      await api.getMe();
+    } catch {
+      await clearAuth();
+      throw new Error('로그인은 됐지만 회원 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.');
+    }
   }, [refresh]);
 
   const logout = useCallback(async () => {

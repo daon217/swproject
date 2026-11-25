@@ -62,6 +62,8 @@ export const KEYS = {
   auth: 'kp.auth',
   shortcuts: 'kp.shortcuts',
   mockDb: 'kp.mock.db',
+  /** 비회원 분석용 기기 키(무작위). 서버가 이 키로 비회원 분석의 주인을 구분한다. 로그아웃해도 유지 */
+  guestKey: 'kp.guestKey',
   pendingRoute: 'kp.pendingRoute',
   /** 상품 추천 켜기/끄기(기본 꺼짐) */
   recommendEnabled: 'kp.recommendEnabled',

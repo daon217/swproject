@@ -8,7 +8,7 @@ import { Button, ConfirmDialog, Desc, RowButton, Toast, Toggle } from '../../ui/
 import { IconForward } from '../../ui/icons';
 import { C } from '../../ui/theme';
 
-// 설정 (Figma 03): 계정 · 중고상품 포함 · 고객지원. 기록 삭제는 회원 전용.
+// 설정 (Figma 03): 계정 · 중고상품 포함 · 해외상품 포함 · 고객지원. 기록 삭제는 회원 전용.
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { me, logout, setMe } = useSession();
@@ -16,11 +16,11 @@ export default function SettingsScreen() {
   const [confirm, setConfirm] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  const toggleUsed = async (on: boolean) => {
+  const saveSetting = async (patch: { include_used?: boolean; include_overseas?: boolean }) => {
     if (!me) return router.push('/login');
     setSaving(true);
     try {
-      setMe(await api.updateProfile({ expected_version: me.profile.version, include_used: on }));
+      setMe(await api.updateProfile({ expected_version: me.profile.version, ...patch }));
     } catch (e) {
       setToast(e instanceof Error ? e.message : '저장하지 못했어요.');
     } finally {
@@ -52,9 +52,16 @@ export default function SettingsScreen() {
         <View style={st.divider} />
         <View style={st.settingRow}>
           <Text style={st.settingTitle}>중고상품 포함</Text>
-          <Toggle label="중고상품 포함" value={!!me?.profile.include_used} onChange={toggleUsed} disabled={saving} />
+          <Toggle label="중고상품 포함" value={!!me?.profile.include_used} onChange={(on) => void saveSetting({ include_used: on })} disabled={saving} />
         </View>
         <Desc style={{ marginTop: 8 }}>{me ? '켜면 관련 중고 상품을 3개까지 추천해요.' : '로그인하면 중고 상품도 함께 추천받을 수 있어요.'}</Desc>
+        <View style={[st.divider, { marginTop: 0 }]} />
+        <View style={st.settingRow}>
+          <Text style={st.settingTitle}>해외상품 포함</Text>
+          {/* 저장된 값이 없으면(이전 계정) 기본값인 켜짐으로 본다 */}
+          <Toggle label="해외상품 포함" value={!!me && me.profile.include_overseas !== false} onChange={(on) => void saveSetting({ include_overseas: on })} disabled={saving} />
+        </View>
+        <Desc style={{ marginTop: 8 }}>{me ? '끄면 아마존·이베이 같은 해외 판매처 상품은 추천하지 않아요.' : '로그인하면 해외 판매처 상품 포함 여부를 정할 수 있어요.'}</Desc>
         <View style={[st.divider, { marginTop: 0 }]} />
         <RowButton label="고객지원" onPress={() => router.push(me ? '/support' : '/login')} />
         {me && <RowButton danger label="로그아웃" onPress={() => void logout()} />}

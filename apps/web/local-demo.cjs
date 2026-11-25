@@ -6,9 +6,13 @@ const { randomBytes, randomUUID, scryptSync, timingSafeEqual } = require('node:c
 const demo = !process.argv.includes('--api');
 const port = demo ? 3001 : 3000;
 const host = `localhost:${port}`;
-const apiTarget = (process.env.INTERNAL_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 const accountDirectory = path.join(__dirname, '.local-demo');
 const accountFile = path.join(accountDirectory, 'accounts.txt');
+const localApiUrlFile = path.join(accountDirectory, 'api-url.txt');
+const configuredApiUrl = process.env.INTERNAL_API_URL ||
+  (fs.existsSync(localApiUrlFile) ? fs.readFileSync(localApiUrlFile, 'utf8').trim() : '') ||
+  'http://127.0.0.1:8000';
+const apiTarget = configuredApiUrl.replace(/\/$/, '');
 const sessionLifetime = 8 * 60 * 60;
 const sessions = new Map();
 const index = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');

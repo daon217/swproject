@@ -111,6 +111,7 @@ def normalize(html,base,at,cfg,*,allow_partial_update=False):
     fallback=css_product(soup,cfg.get('selectors',{}))
     p=dict(p)
     for key,value in fallback.items():
+        if products and key in ('url','sku') and not cfg.get('selectors',{}).get(key):continue
         if key!='offers' and not p.get(key) and value:p[key]=value
     # Newly recognized Microdata URL/SKU must not silently change old delivered identities.
     native_page_url=p.get('url')

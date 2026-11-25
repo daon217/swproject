@@ -93,4 +93,12 @@ class NormalizationEvidence(unittest.TestCase):
   from services.collector.unified_live.devtest.inspect_normalization import inspect
   with tempfile.TemporaryDirectory() as d:rows=inspect([{'host':'www.ebay.com','approval':{}}],d)
   self.assertEqual(rows[0]['failure'],'dedicated_official_adapter_required');self.assertEqual(rows[0]['source_requests'],0)
+ def test_JSONLD_offer_URL_is_not_replaced_by_page_OG_URL(self):
+  html=product().replace('"url": "https://store.example.test/item/1",','')
+  p=json.loads(html.split('application/ld+json">')[1].split('</script>')[0]);p['offers']['url']='https://store.example.test/native-product'
+  html='<meta property="og:url" content="https://store.example.test/format-page"><script type="application/ld+json">'+json.dumps(p)+'</script>'
+  r=self.norm(html);self.assertEqual(r['url'],'https://store.example.test/native-product')
+ def test_JSONLD_missing_SKU_does_not_adopt_new_Microdata_variant(self):
+  html=product().replace('"sku": "SYNTHETIC-SKU",','')+'<span itemprop="sku">NEW-DOM-SKU</span>'
+  r=self.norm(html);self.assertEqual(r['observation']['variant_key'],r['product_number'])
 if __name__=='__main__':unittest.main()

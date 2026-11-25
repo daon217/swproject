@@ -1,6 +1,6 @@
 # [Claude Opus 5.5] 개발일지 · 2026-11-26 DB 정규화·비정규화 점검과 최적화 (d85eeec, 로컬)
 
-- 기준 maintest 9b4d366 → 테스트 브랜치 d85eeec (푸시 대기)
+- 기준 maintest 9b4d366 → 테스트 브랜치 d85eeec (2026-11-26 테스트 브랜치·maintest 푸시 완료)
 - 결과 스키마: `_exports/2026-11-26-schema/`, 한국어 ERD: `_exports/2026-11-26-ERD-한국어/` (생성기 `tools/erd/make_erd_ko.py`)
 
 ## 측정

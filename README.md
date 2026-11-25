@@ -16,6 +16,7 @@
 | [LOG_TEMPLATE.md](LOG_TEMPLATE.md) | 개발일지·미해결 항목 양식 | |
 | [PROMPTS.md](PROMPTS.md) | 다른 AI에게 그대로 붙여 넣는 프롬프트 | |
 | [METHODS.md](METHODS.md) | **점검·테스트 방법론**: 원칙, 브랜치 흐름, 리뷰 체크리스트, 테스트 단계, 함정, 지금까지의 이력 | 살아 있는 문서 |
+| [GPT_METHODS.md](GPT_METHODS.md) | GPT가 실제 개발 이후 수행한 점검·테스트: 도구, 환경, 명령, 판정 기준, 실행 근거 | 수행 방법·회고 |
 | [VERIFY.md](VERIFY.md) | 테스트·검증 명령 (격리 DB, Windows 주의점) | |
 | `tools/` | 검증 스크립트: env 생성, 통합 테스트 실행, UI·워커 compose 덮어쓰기, 스키마 추출, ERD·PDF 생성 | |
 | `sim/` | 실제 구동 시뮬레이션 스크립트 | |

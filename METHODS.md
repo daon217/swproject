@@ -4,6 +4,7 @@
 > 다른 AI나 사람이 같은 방식으로 이어서 하라고 만들었다. 그대로 붙여 넣을 프롬프트는 [PROMPTS.md](PROMPTS.md) 5번에 있다.
 > 실행 명령의 세부(격리 DB 띄우기)는 [VERIFY.md](VERIFY.md), 쓰는 스크립트는 [`tools/`](tools/)에 있다.
 > 마지막 갱신: 2026-11-25 · 기준 커밋 `part/소병선-backend-test` b51ffdc
+> GPT의 11-04 이후 실제 수행 방법·명령·검증 이력은 [GPT_METHODS.md](GPT_METHODS.md)에 별도로 기록했다. 아래 Claude 실행 이력과 구분한다.
 
 ---
 

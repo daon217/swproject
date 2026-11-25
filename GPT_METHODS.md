@@ -244,3 +244,9 @@ PR 근거: [#1](https://github.com/daon217/swproject/pull/1), [#3](https://githu
 - 이번 작성에서 7개 과거 Actions run의 head SHA/success를 확인했고, 핵심 4개 job 로그(API/성능, UI, 임베딩 DB, 실제 모델)의 결과 줄을 직접 대조했다.
 - 게시 후에는 devlog HEAD, 변경 파일의 원격 blob/본문, 고정 코드 참조·명령 출처·결과 수치를 다시 확인한다. 기존 Claude/Gemini 일지와 정오표 보존도 검사한다. 재검증 결과는 같은 날짜의 후속 일지에 남긴다.
 - 원 작업 AI가 불명확한 관리자 가입 원형은 GPT에 귀속하지 않는다. `4b1f5fc`~`2c65ccd`는 이후 Gemini 일지에서 귀속이 확인되어 GPT 범위 밖이다.
+
+## 9. 게시 후 재검증 결과 (2026-11-25)
+
+게시 커밋 `4fc8946`의 원격 본문 7개를 다시 읽어 모두 일치함을 확인했다. 게시 커밋 checkout에서 코드 참조 21개·발췌 명령 19개·일지 필수 항목 검사를 다시 통과했고, 원격 CI job 로그 4개에서 핵심 값 13개를 재확인했다. main/maintest와 기존 다른 AI 기록도 보존됐다.
+
+[게시 후 재검증 일지](journal/2026-11-25-gpt-test-methods-postpublish-verification-gpt-6.md)에 대상 커밋·방법·결과·미실시 범위를 남겼다. 이는 문서와 과거 근거의 검증이며 최신 서비스 테스트를 새로 실행한 결과는 아니다.

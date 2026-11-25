@@ -121,29 +121,31 @@ export function RecentTab() {
 
 // 비회원 시작 화면: 기록이 없으니 로그인 유도 + 추천 상품(제휴 상품) 목록.
 // 제휴 상품은 표시광고 규정·명세 10.3에 따라 '제휴' 표시를 반드시 남긴다.
-// 상품/식품 선택 버튼 없이 상품 목록만 보여준다(모바일 BasicRecommendations와 같다).
-const GUEST_DOMAIN = 'product';
-
 function GuestRecent({ onLogin }: { onLogin: () => void }) {
   const [items, setItems] = useState<OfferCard[] | null>(null);
   const [error, setError] = useState(false);
+  const [domain, setDomain] = useState<'product' | 'food'>('product');
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
     setItems(null); setError(false);
-    api.listBasic(GUEST_DOMAIN).then(rows => { if (alive) setItems(rows); })
+    api.listBasic(domain).then(rows => { if (alive) setItems(rows); })
       .catch(() => { if (alive) setError(true); });
     return () => { alive = false; };
-  }, [attempt]);
+  }, [domain, attempt]);
 
   return (
     <div className="sp-scroll sp-pad">
       <LoginBanner onLogin={onLogin} />
       <h1 className="sp-title">추천 상품</h1>
       <p className="sp-desc">로그인 없이 상품을 둘러보세요. 개인 맞춤 AI 분석 결과는 아니에요.</p>
+      <div role="group" aria-label="상품 종류">
+        <button className="kp-btn" aria-pressed={domain === 'product'} onClick={() => setDomain('product')}>상품</button>
+        <button className="kp-btn" aria-pressed={domain === 'food'} onClick={() => setDomain('food')}>식품</button>
+      </div>
       {!items && !error && <p role="status">상품을 불러오는 중이에요.</p>}
       {error && <p className="sp-error">추천 상품을 불러오지 못했어요. <button className="kp-btn" onClick={() => setAttempt(v => v + 1)}>다시 시도</button></p>}
-      {items?.length === 0 && <p>현재 표시할 상품이 없어요. 나중에 다시 확인해 주세요.</p>}
+      {items?.length === 0 && <p>현재 표시할 상품이 없어요. 다른 종류를 선택하거나 나중에 다시 확인해 주세요.</p>}
       {items?.map((c, i) => (
         <div key={c.offer_id}>
           {i > 0 && <hr className="kp-divider" />}

@@ -551,7 +551,7 @@ const counselingPage = {
             id="cs-setting-away"
             class="w-full h-[120px] bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-800 outline-none focus:border-[#0066ff] resize-none leading-relaxed"
           >${this.escapeHtml(s.awayMessage)}</textarea>
-          <p class="text-xs text-slate-500 mt-3">상담 가능시간 외에 고객에게 표시되는 메시지입니다.</p>
+          <p class="text-xs text-slate-500 mt-3">팀 공용 상담 안내 문구입니다. 현재 고객 화면 자동 표시는 제공하지 않습니다.</p>
         </div>
 
         <!-- 하단 저장 버튼 (좌측 정렬) -->

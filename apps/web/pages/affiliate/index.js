@@ -473,7 +473,7 @@ const affiliatePage = {
             <div>
               <label class="block text-xs font-bold text-slate-700 mb-1.5">금액 <span class="text-[#0066ff]">*</span></label>
               <input
-                id="aff-form-price"
+                id="aff-form-price" readonly title="가격은 수집 API에서 갱신됩니다"
                 type="text"
                 value="${this.escapeHtml(priceVal)}"
                 placeholder="금액 입력 (원)"

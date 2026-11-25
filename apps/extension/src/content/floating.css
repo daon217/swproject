@@ -1,0 +1,126 @@
+/* 인페이지 플로팅. Shadow DOM 안에 들어가므로 쇼핑몰 스타일과 섞이지 않는다. */
+:host {
+  all: initial;
+}
+.fl-root {
+  position: fixed;
+  top: 96px;
+  right: 24px;
+  z-index: 2147483646;
+}
+.fl-wrap {
+  position: relative;
+}
+.fl-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 150px;
+  padding: 14px 12px;
+  border: 1px solid var(--kp-border);
+  border-radius: 12px;
+  background: var(--kp-surface);
+  box-shadow: 0 6px 24px rgba(26, 34, 51, 0.14);
+  text-align: left;
+  gap: 2px;
+}
+.fl-compact:hover {
+  border-color: var(--kp-primary);
+}
+.fl-compact-label {
+  color: var(--kp-primary);
+  font-size: 11px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+.fl-compact-name {
+  font-size: 13px;
+  font-weight: 800;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-compact-price {
+  color: var(--kp-price);
+  font-size: 15px;
+  font-weight: 800;
+}
+.fl-compact-hint {
+  font-size: 10px;
+  color: var(--kp-sub);
+  margin-top: 6px;
+}
+.fl-compact-hint.is-link {
+  color: var(--kp-primary);
+}
+.fl-compact-alert {
+  width: 180px;
+  background: var(--kp-primary-soft);
+  border-color: #d7deef;
+}
+.fl-alert-icon {
+  color: var(--kp-danger);
+}
+.fl-alert-title {
+  color: var(--kp-danger);
+  font-weight: 800;
+  font-size: 13px;
+  margin-top: 4px;
+}
+.fl-alert-body {
+  font-size: 11px;
+  margin-top: 4px;
+}
+.fl-close {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--kp-border);
+  background: var(--kp-surface);
+  color: var(--kp-sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(26, 34, 51, 0.12);
+}
+
+/* 분석 중·실패·추천 없음 상태 */
+.fl-state-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fl-state-row .fl-compact-label {
+  margin-bottom: 0;
+}
+.fl-compact-label.is-danger {
+  color: var(--kp-danger);
+}
+.fl-state-body {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--kp-text);
+}
+.fl-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--kp-primary-soft);
+  border-top-color: var(--kp-primary);
+  border-radius: 50%;
+  animation: fl-spin 0.8s linear infinite;
+}
+@keyframes fl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-spinner {
+    animation-duration: 2.4s;
+  }
+}

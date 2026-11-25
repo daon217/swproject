@@ -1,0 +1,229 @@
+{
+ "time": "20261118-180838",
+ "model": "local:gemma-4-26b",
+ "note": "gemma-4-26b 1회차",
+ "summary": {
+  "queries": 8,
+  "errors": 0,
+  "avg_bytes": 2222,
+  "avg_user_bytes": 1042,
+  "avg_retention": 1.0,
+  "avg_input_tokens": 839.75,
+  "avg_output_tokens": 38.25,
+  "avg_precision@3": 0.958,
+  "avg_recall@3": 0.875,
+  "avg_latency_s": 1.295,
+  "avg_invalid_ids": 0,
+  "avg_gold_in_candidates": 0.917,
+  "bytes_vs_json": 0.484,
+  "tokens_vs_json": 0.465
+ },
+ "rows": [
+  {
+   "qid": "q1",
+   "method": "compact",
+   "chars": 1051,
+   "bytes": 2227,
+   "user_bytes": 1047,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.86,
+   "picks": [
+    "bench:f11",
+    "bench:f03",
+    "bench:f02"
+   ],
+   "precision@3": 0.667,
+   "recall@3": 0.667,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 841,
+   "output_tokens": 62
+  },
+  {
+   "qid": "q2",
+   "method": "compact",
+   "chars": 1021,
+   "bytes": 2177,
+   "user_bytes": 997,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.13,
+   "picks": [
+    "bench:f04"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 0.333,
+   "gold_in_candidates": 0.333,
+   "invalid_ids": 0,
+   "input_tokens": 818,
+   "output_tokens": 33
+  },
+  {
+   "qid": "q3",
+   "method": "compact",
+   "chars": 1035,
+   "bytes": 2207,
+   "user_bytes": 1027,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.57,
+   "picks": [
+    "bench:f02",
+    "bench:f13"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 829,
+   "output_tokens": 52
+  },
+  {
+   "qid": "q4",
+   "method": "compact",
+   "chars": 1056,
+   "bytes": 2236,
+   "user_bytes": 1056,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 0.98,
+   "picks": [
+    "bench:f15"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 848,
+   "output_tokens": 26
+  },
+  {
+   "qid": "q5",
+   "method": "compact",
+   "chars": 1042,
+   "bytes": 2208,
+   "user_bytes": 1028,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.01,
+   "picks": [
+    "bench:f09"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 831,
+   "output_tokens": 27
+  },
+  {
+   "qid": "q6",
+   "method": "compact",
+   "chars": 1078,
+   "bytes": 2290,
+   "user_bytes": 1110,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.04,
+   "picks": [
+    "bench:f20"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 867,
+   "output_tokens": 31
+  },
+  {
+   "qid": "q7",
+   "method": "compact",
+   "chars": 1047,
+   "bytes": 2217,
+   "user_bytes": 1037,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.04,
+   "picks": [
+    "bench:f16"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 838,
+   "output_tokens": 25
+  },
+  {
+   "qid": "q8",
+   "method": "compact",
+   "chars": 1050,
+   "bytes": 2218,
+   "user_bytes": 1038,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "latency_s": 1.73,
+   "picks": [
+    "bench:f18",
+    "bench:f19"
+   ],
+   "precision@3": 1.0,
+   "recall@3": 1.0,
+   "gold_in_candidates": 1.0,
+   "invalid_ids": 0,
+   "input_tokens": 846,
+   "output_tokens": 50
+  }
+ ]
+}

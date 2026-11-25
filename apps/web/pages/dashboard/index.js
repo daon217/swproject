@@ -7,7 +7,6 @@ const dashboardPage = {
     const todaySubscribers = metrics.todaySubscriberCount == null
       ? subscriberStatus : `${metrics.todaySubscriberCount.toLocaleString()}명`;
     const dailyPeriod = this.getDefaultStatsPeriod('daily');
-    const monthStart = `${metrics.todayKst.slice(0, 7)}.01`;
     const affiliateCount = this.getAffiliateItems().length;
     const affiliatePhase = demo ? 'ready' : this.liveAffiliates?.phase;
     const affiliateLabel = affiliatePhase === 'ready' || affiliateCount ? `${affiliateCount.toLocaleString()}건` : affiliatePhase === 'error' ? '조회 실패' : '조회 중';
@@ -89,12 +88,12 @@ const dashboardPage = {
         <h2 class="text-base font-bold text-slate-900 mb-4">구독 매출</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div class="bg-slate-50 border border-slate-200/80 rounded-lg p-5">
-            <div class="text-xs font-bold text-slate-500">당월 누적 매출금액</div>
+            <div class="text-xs font-bold text-slate-500">최근 30일 모의 결제 합계</div>
             <div class="text-2xl tabular-nums font-bold text-slate-900 mt-2">₩${(metrics.mockRevenue || 0).toLocaleString()}</div>
-            <div class="mt-2 text-xs text-slate-500">${monthStart} ~ ${metrics.todayKst}</div>
+            <div class="mt-2 text-xs text-slate-500">개발용 모의 결제 · 실매출 아님</div>
           </div>
           <div class="bg-slate-50 border border-slate-200/80 rounded-lg p-5">
-            <div class="text-xs font-bold text-slate-500">금일 누적 매출금액</div>
+            <div class="text-xs font-bold text-slate-500">오늘 모의 결제 합계</div>
             <div class="text-2xl tabular-nums font-bold text-[#0066ff] mt-2">₩${(metrics.todayRevenue || 0).toLocaleString()}</div>
             <div class="mt-2 text-xs text-slate-500">${metrics.todayKst}</div>
           </div>

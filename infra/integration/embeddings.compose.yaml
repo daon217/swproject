@@ -1,0 +1,57 @@
+# Shared by workspace full/integrated and NAS Vision. Paths use infra/db/compose.yaml.
+x-embedding-build: &embedding-build
+  context: ../..
+  dockerfile: services/recommendation/Dockerfile
+  args:
+    RECO_EMBEDDER: ${RECO_EMBEDDER:-st}
+    RECO_MODEL_NAME: ${RECO_MODEL_NAME:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+    RECO_MODEL_REVISION: ${RECO_MODEL_REVISION:-e8f8c211226b894fcb81acc59f3b34ba3efd5f42}
+x-embedding-env: &embedding-env
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  CATALOG_PASSWORD: ${CATALOG_APP_PASSWORD:?missing runtime credential}
+  RECO_EMBEDDER: ${RECO_EMBEDDER:-st}
+  RECO_MODEL_NAME: ${RECO_MODEL_NAME:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+  RECO_MODEL_REVISION: ${RECO_MODEL_REVISION:-e8f8c211226b894fcb81acc59f3b34ba3efd5f42}
+  RECO_MODEL_DIMENSIONS: ${RECO_MODEL_DIMENSIONS:-384}
+  # PyTorch CPU threads; empty = min(4, cores/2). All cores was 8x slower from thread contention (#67).
+  RECO_TORCH_THREADS: ${RECO_TORCH_THREADS:-}
+
+services:
+  embedding-init:
+    build: *embedding-build
+    image: kkulpick-embedding:local
+    environment:
+      <<: *embedding-env
+      CATALOG_PASSWORD: ${CATALOG_OWNER_PASSWORD:?missing owner credential}
+    command: [python, -m, services.recommendation.embedding_worker, --bootstrap]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    restart: "no"
+  embedding-worker:
+    build: *embedding-build
+    image: kkulpick-embedding:local
+    environment: *embedding-env
+    command: [python, -m, services.recommendation.embedding_worker]
+    depends_on:
+      embedding-init: {condition: service_completed_successfully}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+  recommendation:
+    build: *embedding-build
+    image: kkulpick-embedding:local
+    environment:
+      <<: *embedding-env
+      WORKSPACE_TOKEN: ${WORKSPACE_TOKEN:?missing service credential}
+      RECO_RANKER: ${RECO_RANKER:-rule}
+    command: [uvicorn, services.recommendation.http_service:app, --host, 0.0.0.0, --port, "8000"]
+    depends_on:
+      embedding-init: {condition: service_completed_successfully}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).read()"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 60s

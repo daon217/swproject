@@ -59,3 +59,15 @@ tmp/
 Thumbs.db
 
 # Dependency lock files and source assets are intentionally tracked.
+
+# Locally generated benchmark results
+data/benchmarks/
+
+# Frontend preview and browser test output
+preview-dist/
+test-results/
+playwright-report/
+test-results-pending/
+
+# 추천 로컬 테스트 데이터 (services/recommendation/cli.py)
+.reco-data/

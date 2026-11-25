@@ -1,0 +1,62 @@
+# Added to workspace --scope integrated. Relative paths: infra/db/compose.yaml.
+services:
+  vision-redis:
+    image: redis:7.4.7-alpine
+    command: [redis-server, --appendonly, "yes", --maxmemory, 256mb, --maxmemory-policy, noeviction]
+    volumes: [vision_queue:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  vision-api:
+    image: kkulpick-vision-integrated:local
+    build:
+      context: ../../kkulpick_vision
+      dockerfile: ../infra/nas/vision/Dockerfile
+    environment: {REDIS_HOST: vision-redis, VISION_SERVICE_TOKEN: "${WORKSPACE_TOKEN:?run workspace init}"}
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8100"]
+    ports: ["127.0.0.1:8100:8100"]
+    depends_on:
+      vision-redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/openapi.json',timeout=3).read()"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+    restart: unless-stopped
+  vision-ocr-worker:
+    image: kkulpick-vision-integrated:local
+    build:
+      context: ../../kkulpick_vision
+      dockerfile: ../infra/nas/vision/Dockerfile
+    environment: {REDIS_HOST: vision-redis, VISION_SERVICE_TOKEN: "${WORKSPACE_TOKEN:?run workspace init}"}
+    command: [celery, -A, app.celery_app.celery_app, worker, --loglevel=WARNING, --concurrency=1]
+    mem_limit: ${VISION_WORKER_MEM_LIMIT:-3g}  # OCR 입력 모양 고정 후 평소 1GiB 안팎(#66)
+    volumes: [vision_models:/home/app/.paddleocr]
+    depends_on:
+      vision-redis: {condition: service_healthy}
+    restart: unless-stopped
+  analysis-worker:
+    build:
+      context: ../..
+      dockerfile: services/dev_runtime/Dockerfile
+    command: [python, -m, services.dev_runtime.analysis_worker]
+    environment:
+      API_INTERNAL_URL: http://api:8000
+      VISION_INTERNAL_URL: http://vision-api:8100
+      RECOMMENDATION_INTERNAL_URL: http://recommendation:8000
+      ANALYSIS_WORKER_TOKEN: ${ANALYSIS_WORKER_TOKEN:?run workspace init}
+      WORKSPACE_TOKEN: ${WORKSPACE_TOKEN:?run workspace init}
+    depends_on:
+      api: {condition: service_healthy}
+      recommendation: {condition: service_healthy}
+      vision-api: {condition: service_healthy}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+volumes:
+  vision_queue:
+  vision_models:

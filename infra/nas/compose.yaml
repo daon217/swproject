@@ -1,0 +1,7 @@
+# Synology NAS(DS918+ 등 x86_64) 전용 override. 상대경로는 첫 파일 infra/db/compose.yaml 기준입니다.
+# 기존 127.0.0.1 바인딩은 유지하고, 지정한 NAS LAN IP에만 API 포트를 추가로 엽니다. DB 포트는 열지 않습니다.
+services:
+  api:
+    ports:
+      - "${NAS_LAN_IP:?set NAS_LAN_IP in infra/nas/.env}:${NAS_API_PORT:-8000}:8000"
+    restart: unless-stopped

@@ -1,0 +1,353 @@
+{
+  "projects": [
+    {
+      "name": "api",
+      "path": "services/api",
+      "runtime": "python",
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "requirements-dev.txt"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_contract.py"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
+    },
+    {
+      "name": "vision",
+      "path": "services/vision",
+      "runtime": "python",
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "../dev_runtime/requirements.lock"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "../../tools/check_adapter.py",
+          "vision"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
+    },
+    {
+      "name": "recommendation",
+      "path": "services/recommendation",
+      "runtime": "python",
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "../dev_runtime/requirements.lock"
+        ],
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "pytest==9.2.0",
+          "toon-format==1.2.0"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "../../tools/check_adapter.py",
+          "recommendation"
+        ],
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
+    },
+    {
+      "name": "collector",
+      "path": "services/collector",
+      "runtime": "python",
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "../dev_runtime/requirements.lock"
+        ],
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "pytest==9.2.0",
+          "jsonschema==4.26.0",
+          "-r",
+          "domeggook_live/requirements.txt"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "../../tools/check_adapter.py",
+          "collector"
+        ],
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "domeggook_live/tests"
+        ],
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "elevenst_offline/tests"
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
+    },
+    {
+      "name": "web",
+      "path": "apps/web",
+      "runtime": "node",
+      "enabled": true,
+      "version": "22",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "check": [
+        [
+          "npm",
+          "run",
+          "typecheck"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ]
+    },
+    {
+      "name": "extension",
+      "path": "apps/extension",
+      "runtime": "node",
+      "enabled": true,
+      "version": "22",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "check": [
+        [
+          "npm",
+          "run",
+          "typecheck"
+        ],
+        [
+          "node",
+          "../../tools/test_account_privacy.cjs"
+        ],
+        [
+          "node",
+          "../../tools/test_debug_privacy.cjs"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ]
+    },
+    {
+      "name": "mobile",
+      "path": "apps/mobile",
+      "runtime": "node",
+      "enabled": true,
+      "version": "22",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "check": [
+        [
+          "npm",
+          "run",
+          "typecheck"
+        ],
+        [
+          "npm",
+          "run",
+          "lint"
+        ],
+        [
+          "node",
+          "../../tools/test_account_privacy.cjs"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ]
+    },
+    {
+      "name": "admin",
+      "path": "apps/admin",
+      "runtime": "node",
+      "enabled": true,
+      "version": "22",
+      "install": [
+        [
+          "npm",
+          "ci"
+        ]
+      ],
+      "check": [
+        [
+          "npm",
+          "run",
+          "typecheck"
+        ]
+      ],
+      "build": [
+        [
+          "npm",
+          "run",
+          "build"
+        ]
+      ]
+    },
+    {
+      "name": "dev-runtime",
+      "path": "services/dev_runtime",
+      "runtime": "python",
+      "enabled": true,
+      "version": "3.12",
+      "install": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "requirements.lock",
+          "pytest==9.2.0"
+        ]
+      ],
+      "check": [
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "."
+        ]
+      ],
+      "build": [
+        [
+          "python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          ".",
+          "-w",
+          "dist"
+        ]
+      ]
+    }
+  ]
+}

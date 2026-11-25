@@ -126,7 +126,7 @@ const consoleLayout = {
     await Promise.allSettled(
       ['product', 'food'].map(async (domain) => {
         try {
-          const url = new URL('/v2/offers', this.getApiBase());
+          const url = new URL(this.getApiBase() + '/v2/offers'); // keep the /backend proxy prefix
           url.search = new URLSearchParams({
             selected_domain: domain, condition: 'all', availability: 'all', limit: '100',
           });

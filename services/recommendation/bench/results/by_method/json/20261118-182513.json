@@ -1,0 +1,146 @@
+{
+ "time": "20261118-182513",
+ "model": null,
+ "note": "압축 속도만 (LLM 없음)",
+ "summary": {
+  "queries": 8,
+  "errors": 0,
+  "avg_bytes": 4593,
+  "avg_user_bytes": 3457,
+  "avg_retention": 1.0,
+  "avg_compress_ms": 0.402,
+  "bytes_vs_json": 1.0
+ },
+ "rows": [
+  {
+   "qid": "q1",
+   "method": "json",
+   "chars": 3064,
+   "bytes": 4604,
+   "user_bytes": 3468,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.36
+  },
+  {
+   "qid": "q2",
+   "method": "json",
+   "chars": 3136,
+   "bytes": 4798,
+   "user_bytes": 3662,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.44
+  },
+  {
+   "qid": "q3",
+   "method": "json",
+   "chars": 3101,
+   "bytes": 4701,
+   "user_bytes": 3565,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.6
+  },
+  {
+   "qid": "q4",
+   "method": "json",
+   "chars": 3070,
+   "bytes": 4594,
+   "user_bytes": 3458,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.37
+  },
+  {
+   "qid": "q5",
+   "method": "json",
+   "chars": 3029,
+   "bytes": 4493,
+   "user_bytes": 3357,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.34
+  },
+  {
+   "qid": "q6",
+   "method": "json",
+   "chars": 3103,
+   "bytes": 4691,
+   "user_bytes": 3555,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.41
+  },
+  {
+   "qid": "q7",
+   "method": "json",
+   "chars": 2926,
+   "bytes": 4296,
+   "user_bytes": 3160,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0,
+    "query_ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.32
+  },
+  {
+   "qid": "q8",
+   "method": "json",
+   "chars": 3059,
+   "bytes": 4569,
+   "user_bytes": 3433,
+   "retention": 1.0,
+   "retention_by_kind": {
+    "id": 1.0,
+    "name": 1.0,
+    "price": 1.0,
+    "ingredient": 1.0
+   },
+   "n_candidates": 12,
+   "compress_ms": 0.38
+  }
+ ]
+}

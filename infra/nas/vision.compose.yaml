@@ -1,0 +1,95 @@
+# kkulpick_vision(PaddleOCR 성분표 추출) NAS 실행 구성. 상대경로는 첫 파일 infra/db/compose.yaml 기준입니다.
+# CPU에 AVX가 필요합니다(확인: grep -o -w avx /proc/cpuinfo). Redis는 비밀번호가 없으므로 내부 네트워크에만 둡니다.
+# 분석 연결: 확장 → api(/analyses 대기열) → analysis-worker → vision-api(OCR) + recommendation(추천) → api(/complete)
+# 토큰은 sudo sh infra/nas/nas.sh tokens 로 생성합니다(WORKSPACE_TOKEN: infra/nas/.env, ANALYSIS_WORKER_TOKEN: services/api/.env).
+x-vision: &vision
+  build:
+    context: ../../kkulpick_vision
+    dockerfile: ../infra/nas/vision/Dockerfile
+  image: kkulpick-nas-vision
+  environment:
+    REDIS_HOST: vision-redis
+    REDIS_PORT: "6379"
+    # /api/ 요청에 Bearer 토큰을 요구합니다(외부에서 8100을 열어도 인증 없이는 사용 불가).
+    VISION_SERVICE_TOKEN: ${WORKSPACE_TOKEN:?run sudo sh infra/nas/nas.sh tokens}
+  depends_on:
+    vision-redis: {condition: service_healthy}
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: "2"}
+
+services:
+  vision-redis:
+    image: redis:7.4-alpine
+    command: [redis-server, --save, "", --appendonly, "no", --maxmemory, 256mb, --maxmemory-policy, noeviction]  # 대기 중인 작업이 지워지지 않게
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+
+  vision-worker:
+    <<: *vision
+    # PaddleOCR 모델은 프로세스마다 메모리에 올라가므로 동시 처리 1개로 제한합니다.
+    command: [celery, -A, app.celery_app.celery_app, worker, --loglevel=INFO, --concurrency=1]
+    # OCR 입력 모양 고정 후 평소 1GiB 안팎. 넘치면 이 컨테이너만 정리되고 NAS 전체 메모리는 보호된다(#66).
+    mem_limit: ${VISION_WORKER_MEM_LIMIT:-3g}
+    volumes:
+      - vision_models:/home/app/.paddleocr
+
+  vision-api:
+    <<: *vision
+    command: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8000"]
+    ports:
+      - "${NAS_LAN_IP:?set NAS_LAN_IP in infra/nas/.env}:${NAS_VISION_PORT:-8100}:8000"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/openapi.json',timeout=3).read()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # 기존 개발 런타임 이미지(services/dev_runtime)를 재사용합니다.
+  recommendation:
+    build: &runtime-build
+      context: ../..
+      dockerfile: services/dev_runtime/Dockerfile
+    image: kkulpick-nas-runtime
+    command: [uvicorn, services.recommendation.devapp:app, --host, 0.0.0.0, --port, "8000"]
+    environment:
+      WORKSPACE_TOKEN: ${WORKSPACE_TOKEN:?run sudo sh infra/nas/nas.sh tokens}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).read()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+
+  analysis-worker:
+    build: *runtime-build
+    image: kkulpick-nas-runtime
+    command: [python, -m, services.dev_runtime.analysis_worker]
+    environment:
+      API_INTERNAL_URL: http://api:8000
+      VISION_INTERNAL_URL: http://vision-api:8000
+      RECOMMENDATION_INTERNAL_URL: http://recommendation:8000
+      ANALYSIS_WORKER_TOKEN: ${ANALYSIS_WORKER_TOKEN:?run sudo sh infra/nas/nas.sh tokens}
+      WORKSPACE_TOKEN: ${WORKSPACE_TOKEN:?run sudo sh infra/nas/nas.sh tokens}
+    depends_on:
+      api: {condition: service_healthy}
+      recommendation: {condition: service_healthy}
+      vision-api: {condition: service_healthy}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
+
+volumes:
+  vision_models:

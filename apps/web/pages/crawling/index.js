@@ -12,21 +12,10 @@ const crawlingPage = {
   lastCrawlCycleAt: '',
   crawlDeletionRunning: false,
 
-  getDeletedCatalogOfferIds() {
-    try {
-      const ids = JSON.parse(window.localStorage.getItem('kkulpick-deleted-catalog-offers') || '[]');
-      return new Set(Array.isArray(ids) ? ids : []);
-    } catch {
-      return new Set();
-    }
-  },
-
-  saveDeletedCatalogOfferIds(idSet) {
-    try {
-      window.localStorage.setItem('kkulpick-deleted-catalog-offers', JSON.stringify([...idSet]));
-    } catch {
-      // 브라우저 저장소 비활성 환경 무시
-    }
+  // Older builds hid "deleted" offers only in this browser. Deletion is server-side now; drop that list
+  // so it can never hide real catalog rows.
+  purgeLocalDeletedOffers() {
+    try { window.localStorage.removeItem('kkulpick-deleted-catalog-offers'); } catch { /* storage disabled */ }
   },
 
   updateCrawlSelection(form) {
@@ -48,31 +37,9 @@ const crawlingPage = {
     this.crawlDeletionRunning = true;
     this.updateCrawlSelection(form);
     try {
-      let result = null;
-      try {
-        result = await this.requestAdminAuth("/v2/admin/catalog/offers/delete", {
-          method: "POST", token: session.token, body: { offer_ids: offerIds },
-        });
-      } catch (err) {
-        if (err.status !== 404) throw err;
-        const affiliateIds = new Set((this.getAffiliateItems() || []).map((a) => a.offerId || a.id));
-        const protectedIds = offerIds.filter((id) => affiliateIds.has(id));
-        const deletableIds = offerIds.filter((id) => !affiliateIds.has(id));
-        const deletedSet = this.getDeletedCatalogOfferIds();
-        for (const id of deletableIds) deletedSet.add(id);
-        this.saveDeletedCatalogOfferIds(deletedSet);
-        if (this.requestLocalApproval) {
-          await this.requestLocalApproval('/deleted-offers', {
-            method: 'POST',
-            body: { offer_ids: deletableIds },
-          }).catch(() => {});
-        }
-        result = {
-          deleted_offer_ids: deletableIds,
-          protected_offer_ids: protectedIds,
-          missing_offer_ids: [],
-        };
-      }
+      const result = await this.requestAdminAuth("/v2/admin/catalog/offers/delete", {
+        method: "POST", token: session.token, body: { offer_ids: offerIds },
+      });
       const { deleted_offer_ids: deleted, protected_offer_ids: protectedOffers, missing_offer_ids: missing } = result || {};
       if (![deleted, protectedOffers, missing].every(Array.isArray)) throw new Error("Invalid catalog deletion result");
       if (this.adminSession !== session) return;
@@ -188,7 +155,7 @@ const crawlingPage = {
   },
 
   async fetchDomainOffersAll(domain, onBatch) {
-    const url = new URL('/v2/offers', this.getApiBase());
+    const url = new URL(this.getApiBase() + '/v2/offers'); // keep the /backend proxy prefix
     url.search = new URLSearchParams({
       selected_domain: domain, condition: 'all', availability: 'all', limit: '100',
     });
@@ -234,27 +201,12 @@ const crawlingPage = {
         ? ['product', 'food']
         : [this.liveCatalogDomain];
 
-      const deletedSet = this.getDeletedCatalogOfferIds();
-      if (this.requestLocalApproval) {
-        try {
-          const remoteDeleted = await this.requestLocalApproval('/deleted-offers');
-          if (Array.isArray(remoteDeleted?.deleted_offer_ids)) {
-            for (const id of remoteDeleted.deleted_offer_ids) deletedSet.add(id);
-            this.saveDeletedCatalogOfferIds(deletedSet);
-          }
-        } catch {
-          // 로컬 스토리지 삭제 목록만 사용
-        }
-      }
+      this.purgeLocalDeletedOffers();
 
       const offers = new Map();
       const targetView = this.liveCatalog;
       const pushProgress = (batchItems) => {
-        for (const item of batchItems) {
-          if (!deletedSet.has(item.offer_id)) {
-            offers.set(item.offer_id, item);
-          }
-        }
+        for (const item of batchItems) offers.set(item.offer_id, item);
         if (targetView && this.liveCatalog === targetView) {
           targetView.items = [...offers.values()].sort(
             (a, b) => this.getOfferTimestamp(b) - this.getOfferTimestamp(a)
@@ -274,11 +226,7 @@ const crawlingPage = {
       for (const res of results) {
         if (res.status === 'fulfilled') {
           succeeded += 1;
-          for (const item of res.value) {
-            if (!deletedSet.has(item.offer_id)) {
-              offers.set(item.offer_id, item);
-            }
-          }
+          for (const item of res.value) offers.set(item.offer_id, item);
         }
       }
       if (succeeded === 0) {

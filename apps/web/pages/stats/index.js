@@ -106,9 +106,8 @@ const statsPage = {
     }
 
     const mockRevenue = overview?.mock_revenue_krw != null ? Number(overview.mock_revenue_krw) : 0;
-    const todayRevenue = (todaySubscriberCount && subscriberCount > 0 && mockRevenue > 0)
-      ? Math.round((mockRevenue / subscriberCount) * todaySubscriberCount)
-      : 0;
+    // Server total for today's mock payments (KST); never extrapolated from subscriber counts.
+    const todayRevenue = overview?.today_mock_revenue_krw != null ? Number(overview.today_mock_revenue_krw) : 0;
 
     return {
       todayKst,
@@ -195,8 +194,9 @@ const statsPage = {
     }
 
     const todayKey = this.getKstTodayDateStr().slice(0, keyLength);
-    const mockRevenueKrw = Number(this.liveOverview?.overview?.mock_revenue_krw || 0);
-    const revenueManWon = mockRevenueKrw > 0 ? Number((mockRevenueKrw / 10000).toFixed(2)) : 0;
+    // Only today's mock-payment total is known per day; the 30-day total must not be drawn as one day.
+    const todayMockKrw = Number(this.liveOverview?.overview?.today_mock_revenue_krw || 0);
+    const revenueManWon = todayMockKrw > 0 ? Number((todayMockKrw / 10000).toFixed(2)) : 0;
 
     return {
       unitLabel,
@@ -315,7 +315,7 @@ const statsPage = {
 
       <!-- 하단 안내 캡션 -->
       <div class="mt-4 text-sm text-slate-500">
-        기간 집계 기준: KST &nbsp;·&nbsp; 팀 서버 DB에서 조회된 실제 구독 가입·해지 및 매출 데이터를 표시합니다.
+        기간 집계 기준: KST &nbsp;·&nbsp; 구독 가입·해지는 팀 서버 DB 기준입니다. 매출은 개발용 모의 결제이며 오늘 합계만 표시합니다(실매출 아님).
       </div>
     `;
   },

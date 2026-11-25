@@ -1,0 +1,11 @@
+services:
+  vision-cpu:
+    build:
+      context: ../..
+      dockerfile: services/vision/Dockerfile.cpu
+    network_mode: none
+  recommendation-cpu:
+    build:
+      context: ../..
+      dockerfile: services/recommendation/Dockerfile.cpu
+    network_mode: none

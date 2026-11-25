@@ -128,7 +128,7 @@ const loginPage = {
   },
 
   getApiBase() {
-    return new URL(document.querySelector('meta[name="api-base"]').content).origin;
+    return new URL(document.querySelector('meta[name="api-base"]').content,window.location.origin).href.replace(/\/$/, '');
   },
 
   async requestAdminAuth(path, { method = 'GET', token, body } = {}) {
@@ -136,7 +136,8 @@ const loginPage = {
     const headers = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body) headers['Content-Type'] = 'application/json';
-    const response = await fetch(new URL(endpoint, this.getAdminAuthOrigin()), {
+    // String concatenation keeps the /backend proxy prefix (new URL('/v2/..', base) would drop it).
+    const response = await fetch(this.getAdminAuthOrigin() + endpoint, {
       method, headers, body: body && JSON.stringify(body), signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) {
@@ -148,135 +149,39 @@ const loginPage = {
     return response.status === 204 ? null : (await response.json()).data;
   },
 
-  async requestLocalApproval(path, { method = 'GET', body } = {}) {
-    const headers = {};
-    if (body) headers['Content-Type'] = 'application/json';
-    const response = await fetch(new URL(`/__admin-approval${path}`, window.location.origin), {
-      method,
-      headers,
-      body: body && JSON.stringify(body),
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) {
-      const details = await response.json().catch(() => null);
-      throw Object.assign(new Error('Local approval request failed'), {
-        status: response.status,
-        code: details?.error?.code,
-      });
-    }
-    return response.status === 204 ? null : (await response.json()).data;
-  },
-
-  getLocalApprovalCache() {
-    try {
-      const parsed = JSON.parse(window.localStorage.getItem('kkulpick-admin-approvals') || '{}');
-      return {
-        requests: parsed && typeof parsed.requests === 'object' ? parsed.requests : {},
-        delegate: parsed?.delegate || null,
-      };
-    } catch {
-      return { requests: {}, delegate: null };
-    }
-  },
-
-  saveLocalApprovalCache(cache) {
-    try {
-      window.localStorage.setItem('kkulpick-admin-approvals', JSON.stringify(cache));
-    } catch {
-      // 브라우저 저장소 비활성 환경 무시
-    }
-  },
-
-  async recordPendingAdminRequest(userId, loginId) {
-    const key = String(loginId || '').toLowerCase();
-    const cache = this.getLocalApprovalCache();
-    const entry = {
-      user_id: userId,
-      login_id: loginId,
-      status: 'pending_approval',
-      role: null,
-      created_at: new Date().toISOString(),
-    };
-    cache.requests[key] = entry;
-    this.saveLocalApprovalCache(cache);
-    try {
-      await this.requestLocalApproval('/requests', {
-        method: 'POST',
-        body: { user_id: userId, login_id: loginId },
-      });
-    } catch {
-      // 로컬 스토리지 캐시로 폴백 유지
-    }
-    return entry;
+  // Older builds kept admin tokens here for a local approval workaround. Never keep them.
+  purgeLegacyApprovalCache() {
+    try { window.localStorage.removeItem('kkulpick-admin-approvals'); } catch { /* storage disabled */ }
   },
 
   async requestAdminAccount(action, options) {
-    const legacyPath = '/v2/auth/' + action;
-    if (this.isLocalAuthDemo()) return this.requestAdminAuth(legacyPath, options);
-    try {
-      return await this.requestAdminAuth('/v2/admin/auth/' + action, options);
-    } catch (error) {
-      if (error.status !== 404) throw error;
-      const result = await this.requestAdminAuth(legacyPath, options);
-      if (action === 'signup' && result?.user_id) {
-        await this.recordPendingAdminRequest(result.user_id, options?.body?.login_id);
-        return { ...result, status: 'pending_approval' };
-      }
-      return result;
-    }
+    if (this.isLocalAuthDemo()) return this.requestAdminAuth('/v2/auth/' + action, options);
+    // Staff accounts are separate from members: no fallback to member signup/login.
+    return this.requestAdminAuth('/v2/admin/auth/' + action, options);
+  },
+
+  // Drop cached server data so the next account never sees the previous account's lists.
+  clearLiveConsoleData() {
+    this.liveAffiliates = null;
+    this.liveCounseling = null;
+    this.liveCatalog = null;
+    this.liveCustomers = null;
+    this.liveOverview = null;
+    this.state.offerCatalog = [];
   },
 
   async activateAdminSession(session) {
-    let account = null;
-    try {
-      account = await this.requestAdminAuth('/v2/admin/me', { token: session.token });
-      if (account?.role === 'admin') {
-        const cache = this.getLocalApprovalCache();
-        cache.delegate = { token: session.token, expiresAt: session.expiresAt };
-        this.saveLocalApprovalCache(cache);
-        this.requestLocalApproval('/delegate', {
-          method: 'POST',
-          body: { token: session.token, expiresAt: session.expiresAt },
-        }).catch(() => {});
-      }
-    } catch (error) {
-      if (error.status !== 403) throw error;
-      let approvalInfo = null;
-      if (session.loginId) {
-        try {
-          approvalInfo = await this.requestLocalApproval(
-            `/status?login_id=${encodeURIComponent(session.loginId)}`
-          );
-        } catch {
-          approvalInfo = null;
-        }
-      }
-      const cache = this.getLocalApprovalCache();
-      const cachedReq = session.loginId ? cache.requests[session.loginId.toLowerCase()] : null;
-      const reqEntry = approvalInfo?.request || cachedReq || null;
-      if (reqEntry?.status === 'pending_approval') {
-        throw Object.assign(new Error('Administrator approval required'), {
-          status: 403,
-          code: 'ADMIN_APPROVAL_REQUIRED',
-        });
-      }
-      if (reqEntry?.status === 'approved' && ['admin', 'support'].includes(reqEntry.role)) {
-        const delegateToken = approvalInfo?.delegateToken ||
-          (cache.delegate && cache.delegate.expiresAt > Date.now() ? cache.delegate.token : null);
-        account = { user_id: reqEntry.user_id, role: reqEntry.role };
-        if (delegateToken) {
-          session = { ...session, memberToken: session.token, token: delegateToken };
-        }
-      } else {
-        throw error;
-      }
-    }
+    this.purgeLegacyApprovalCache();
+    // The server decides the role. A pending or revoked account fails here with 401/403.
+    const account = await this.requestAdminAuth('/v2/admin/me', { token: session.token });
     if (account?.role !== 'admin' && account?.role !== 'support') {
       throw Object.assign(new Error('Unsupported administrator role'), { status: 403 });
     }
     this.adminSession = { ...session, role: account.role };
     this.saveAdminSession(this.adminSession);
     this.showAdminLoginMessage('');
+    this.clearLiveConsoleData();
+    // Each page loads its own live data when routed (see consoleLayout.navigate).
     this.renderRoute();
   },
 
@@ -330,6 +235,9 @@ const loginPage = {
     const token = this.adminSession?.memberToken || this.adminSession?.token;
     const isDelegated = Boolean(this.adminSession?.memberToken);
     this.adminSession = null;
+    this.clearLiveConsoleData();
+    this.purgeLegacyApprovalCache();
+    this.pendingReply = null;
     this.saveAdminSession(null);
     this.renderRoute();
     if (!token || isDelegated) return;
@@ -411,38 +319,9 @@ const loginPage = {
     status.textContent = '가입 신청을 불러오는 중입니다.';
     list.replaceChildren();
     try {
-      let serverRequests = [];
-      let serverSupported = false;
-      try {
-        const res = await this.requestAdminAuth('/v2/admin/auth/requests', { token: session.token });
-        if (Array.isArray(res)) {
-          serverRequests = res;
-          serverSupported = true;
-        }
-      } catch (err) {
-        if (err.status !== 404) throw err;
-      }
-
-      let localRequests = [];
-      try {
-        const localRes = await this.requestLocalApproval('/requests');
-        if (Array.isArray(localRes)) localRequests = localRes;
-      } catch {
-        const cache = this.getLocalApprovalCache();
-        localRequests = Object.values(cache.requests).filter((r) => r && r.status === 'pending_approval');
-      }
-
+      const requests = await this.requestAdminAuth('/v2/admin/auth/requests', { token: session.token });
+      if (!Array.isArray(requests)) throw new Error('Invalid signup request list');
       if (!list.isConnected || this.adminSession !== session) return;
-      const mergedMap = new Map();
-      for (const req of [...serverRequests, ...localRequests]) {
-        if (req && req.login_id) {
-          mergedMap.set(req.login_id.toLowerCase(), req);
-        }
-      }
-      const requests = [...mergedMap.values()];
-      if (!serverSupported && !requests.length) {
-        // 서버 엔드포인트 미배포 상태여도 로컬 연동 승인 목록이 비어 있으면 안내 표시
-      }
       const dateFormat = new Intl.DateTimeFormat('ko-KR', {
         timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short',
       });
@@ -491,31 +370,9 @@ const loginPage = {
     button.disabled = true;
     try {
       const id = encodeURIComponent(form.dataset.userId);
-      const loginId = form.dataset.loginId || '';
-      let result = null;
-      try {
-        result = await this.requestAdminAuth(`/v2/admin/auth/requests/${id}/approve`, {
-          method: 'POST', token: session.token, body: { role },
-        });
-      } catch (err) {
-        if (err.status !== 404) throw err;
-        result = await this.requestLocalApproval(`/requests/${id}/approve`, {
-          method: 'POST',
-          body: {
-            role,
-            delegate_token: session.token,
-            delegate_expires_at: session.expiresAt,
-          },
-        }).catch(() => ({ status: 'approved', role }));
-      }
-      const cache = this.getLocalApprovalCache();
-      if (loginId && cache.requests[loginId.toLowerCase()]) {
-        cache.requests[loginId.toLowerCase()].status = 'approved';
-        cache.requests[loginId.toLowerCase()].role = role;
-      }
-      cache.delegate = { token: session.token, expiresAt: session.expiresAt };
-      this.saveLocalApprovalCache(cache);
-
+      const result = await this.requestAdminAuth(`/v2/admin/auth/requests/${id}/approve`, {
+        method: 'POST', token: session.token, body: { role },
+      });
       if (result?.status !== 'approved' || result.role !== role) throw new Error('Invalid approval response');
       if (this.adminSession !== session) return;
       this.showToast('관리자 가입 신청을 승인했습니다.');

@@ -1,0 +1,127 @@
+import json
+from datetime import datetime, UTC
+from pathlib import Path
+import pytest
+from pydantic import ValidationError
+from kkulpick.models import Observation
+
+
+def fixture():
+    return dict(json.loads((Path(__file__).parents[1]/"fixtures"/"offer.json").read_text(encoding="utf8")),
+                observation_key="unit",observed_at=datetime.now(UTC).isoformat())
+
+
+@pytest.mark.parametrize("patch",[{"price":1.1},{"price":"-5"},{"currency":None},{"field_presence":["price"]},
+                                  {"url":"https://localhost/private"},{"schema_version":3},{"unexpected":True}])
+def test_reject_invalid(patch):
+    with pytest.raises(ValidationError):
+        Observation(**(fixture()|patch))
+
+
+def test_valid():
+    assert Observation(**fixture()).variant_key=="blue-1l"
+
+
+def test_browser_public_api_preflight_and_untrusted_origin():
+    from fastapi.testclient import TestClient
+    from kkulpick.api import app
+    # No DB lifespan needed: middleware handles preflight before a route executes.
+    client = TestClient(app)
+    headers = {"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST",
+               "Access-Control-Request-Headers": "authorization,content-type"}
+    assert client.options("/analyses", headers=headers).status_code == 200
+    assert client.options("/analyses", headers=headers | {"Origin": "https://untrusted.example"}).status_code == 400
+
+
+@pytest.mark.parametrize("with_length", [True, False])
+def test_body_limit_rejects_oversized_payload_before_application(with_length):
+    import asyncio
+    from kkulpick.limits import RequestBodyLimit
+    calls = []
+    messages = iter([{'type': 'http.request', 'body': b'x' * 40000, 'more_body': True},
+                     {'type': 'http.request', 'body': b'x' * 30000, 'more_body': False}])
+
+    async def receive():
+        return next(messages)
+
+    async def send(message):
+        calls.append(message)
+
+    async def application(*args):
+        raise AssertionError('oversized body reached application')
+
+    scope = {'type': 'http', 'method': 'POST', 'headers': [(b'content-length', b'70000')] if with_length else []}
+    asyncio.run(RequestBodyLimit(application)(scope, receive, send))
+    assert calls[0]['status'] == 413
+
+
+def test_body_limit_preserves_valid_json():
+    from fastapi import FastAPI, Request
+    from fastapi.testclient import TestClient
+    from kkulpick.limits import RequestBodyLimit
+    app = FastAPI()
+    app.add_middleware(RequestBodyLimit)
+
+    @app.post('/echo')
+    async def echo(request: Request):
+        return await request.json()
+
+    response = TestClient(app).post('/echo', json={'name': '상품'})
+    assert response.status_code == 200 and response.json() == {'name': '상품'}
+
+
+def test_food_evidence_allergen_codes_are_canonical():
+    from kkulpick.extensions import FOOD_ALLERGENS, FoodEvidence, canonical_allergen
+    assert all(canonical_allergen(code) == code for code in FOOD_ALLERGENS)
+    assert [canonical_allergen(x) for x in ('soy', 'SOYBEAN', '대두', 'pine-nut', 'pinenut', '잣', '조개류', '조개 함유')] ==         ['soybean', 'soybean', 'soybean', 'pine_nut', 'pine_nut', 'pine_nut', 'shellfish', None]
+    evidence = FoodEvidence(allergens_declared=['soy', 'soybean', '대두', 'shellfish', '조개 함유'])
+    assert evidence.allergens_declared == ['soybean', 'shellfish', '조개 함유']  # deduplicated, unknown text kept
+
+
+def test_listing_extension_validation_gtin_and_images():
+    from kkulpick.extensions import ListingExtension, canonical_gtin
+    assert canonical_gtin("8801043014809") == "08801043014809"
+    with pytest.raises(ValueError):
+        canonical_gtin("8801043014800")  # invalid check digit
+
+    ext = ListingExtension(
+        source="demo",
+        source_listing_id="item-1",
+        variant_key="default",
+        observation_key="ext-1",
+        observed_at=datetime.now(UTC).isoformat(),
+        matching_profile={
+            "brand": "꿀픽전자",
+            "model_number": "KP-100",
+            "gtin": "8801043014809",
+            "image_url": "https://store.example.test/img/1.jpg",
+            "image_urls": [
+                "https://store.example.test/img/1.jpg",
+                "https://store.example.test/img/1.jpg",
+                "https://store.example.test/img/2.jpg",
+                "https://store.example.test/img/2.jpg",
+            ],
+            "options": {"color": "silver", "capacity": "1.7L"},
+        },
+    )
+    assert ext.matching_profile.gtin == "08801043014809"
+    assert [str(u) for u in ext.matching_profile.image_urls] == [
+        "https://store.example.test/img/1.jpg",
+        "https://store.example.test/img/2.jpg",
+    ]
+
+    for invalid in (
+        {"matching_profile": None, "food_evidence": None},
+        {"matching_profile": {"image_url": "http://store.example.test/insecure.jpg"}},
+        {"matching_profile": {"image_url": "https://127.0.0.1/private.jpg"}},
+        {"matching_profile": {"gtin": "8801043014800"}},
+    ):
+        with pytest.raises(ValidationError):
+            ListingExtension(
+                source="demo",
+                source_listing_id="item-1",
+                variant_key="default",
+                observation_key="ext-bad",
+                observed_at=datetime.now(UTC).isoformat(),
+                **invalid,
+            )

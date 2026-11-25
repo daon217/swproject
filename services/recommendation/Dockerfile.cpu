@@ -1,0 +1,9 @@
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1 HF_HUB_DISABLE_TELEMETRY=1
+WORKDIR /workspace
+RUN pip install --no-cache-dir torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+COPY services/recommendation/requirements-ai.in /tmp/requirements.in
+RUN pip install --no-cache-dir -r /tmp/requirements.in && pip freeze > /opt/installed-packages.txt
+RUN useradd --uid 10001 --create-home developer
+USER developer
+CMD ["python", "-c", "from sentence_transformers import SentenceTransformer; import torch, anthropic; assert not torch.cuda.is_available(); print('Embedding CPU libraries imported; model and paid calls disabled')"]

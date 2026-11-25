@@ -51,3 +51,5 @@ const consoleState = {
     statsPeriodInput: getInitialKstRange(6),
   },
 };
+
+Object.assign(consoleState.state, {affiliateProducts:[],customers:[],counselingList:[],crawlingData:[],crawlingPeriod:"최근 30일",overview:null});

@@ -7,6 +7,7 @@ import argparse
 import getpass
 import hashlib
 import json
+import os
 import uuid
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlsplit
@@ -19,7 +20,8 @@ from .domeggook_backend_contract import Observation
 from .runtime import FileState
 from .stable_identity import resolve
 
-BASE = 'http://116.33.229.18:8000'
+# Team API address comes from the environment; server addresses are not stored in this public repository.
+BASE = os.environ.get('KKULPICK_API_BASE', '').strip().rstrip('/')
 
 
 class ForwardStore:
@@ -152,6 +154,8 @@ def main():
     args = parser.parse_args()
     if not 1 <= args.max_products <= 10:
         parser.error('--max-products must be 1..10')
+    if urlsplit(BASE).scheme not in ('http', 'https') or not urlsplit(BASE).netloc:
+        parser.error('Set KKULPICK_API_BASE to the team API address, e.g. http://<server>:8000')
     if not args.confirm_provider_rights or not args.confirm_price_semantics:
         parser.error('Both --confirm-provider-rights and --confirm-price-semantics are required; do not use until verified')
     cfg = validate_discovery(configuration())

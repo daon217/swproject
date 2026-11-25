@@ -36,10 +36,11 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 59 | 식품 알레르기 신고 코드(`shellfish`·`pine_nut`) 누락·원문 있으면 무시 → 코드 직접 판정, 저장 코드 통일 | recommendation·api·dev_runtime | b51ffdc | Claude Opus 5.5 | [#59](journal/2026-11-25-allergen-declared-codes-claude-opus-5.5.md) |
 | 66 | Vision 워커 메모리 계단식 증가·OOM → OCR 입력 크기 고정(캔버스·폭 2가지), 메모리 기준 교체, mem_limit | kkulpick_vision·infra | 9247330 | Claude Opus 5.5 | [수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) |
 | 67 | 임베딩 느림 → torch 스레드 제한(34→268/s), 배치 커밋(4.08→2.61ms/건) | recommendation | 426a5da | Claude Opus 5.5 | [수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) |
+| 68 | `condition=unknown` 지원(판매처가 신품·중고 미표시), unknown은 기존 상태를 덮어쓰지 않음, 추천 계약 422 방지 | api·recommendation·db | e6c7a3e | Claude Opus 5.5 | [#68](journal/2026-11-25-condition-unknown-web-sync-claude-opus-5.5.md) |
 
 ## 미해결 (상세는 OPEN_ISSUES.md)
 
-04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60~65
+04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60~65, 69~71
 
 ## GPT 작업 회고 — 당시 완료 범위
 
@@ -118,3 +119,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | Claude Opus 5.5 | [Vision OCR 정제·파이프라인 검토](journal/2026-11-25-vision-pipeline-review-claude-opus-5.5.md) — #62~#65 발견, #21 상향 |
 | 2026-11-25 | Claude Opus 5.5 | [Vision 메모리·임베딩 속도 측정](journal/2026-11-25-vision-memory-embedding-speed-claude-opus-5.5.md) — #66·#67 원인 확정 |
 | 2026-11-25 | Claude Opus 5.5 | [#66 Vision 메모리·#67 임베딩 속도 수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) — maintest 반영 |
+| 2026-11-25 | Claude Opus 5.5 | [condition=unknown·웹 브랜치 반영](journal/2026-11-25-condition-unknown-web-sync-claude-opus-5.5.md) — #68 해결, #69~#71 발견 |

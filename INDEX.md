@@ -28,6 +28,9 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 14 | 정리 작업 crawl_runs FK 오류 | api/maintenance | b5c8caa | Claude Opus 5.5 | [세션2](journal/2026-11-24-backend-test-round2-claude-opus-5.5.md#14) |
 | 15 | 테스트 DB 상태 섞임 | tests | 0e3da73 | Claude Opus 5.5 | [세션2](journal/2026-11-24-backend-test-round2-claude-opus-5.5.md#15) |
 | 31 | (부분) 판매 확인 check-in API·카드 신선도 — 수집기 호출 남음 | api/recommendation | 4f26501 | Claude Opus 5.5 | [신선도](journal/2026-11-24-freshness-checkins-claude-opus-5.5.md) |
+| 55 | 관리자 웹 상품 목록 404(`/backend` 누락) | apps/web | e37338e | Claude Opus 5.5 | [웹 정리](journal/2026-11-25-web-fix-cleanup-claude-opus-5.5.md#55-상품-목록-404--해결-e37338e) |
+| 56 | `shared/backend.js` 덮어쓰기 계층 제거 | apps/web | e37338e | Claude Opus 5.5 | [웹 정리](journal/2026-11-25-web-fix-cleanup-claude-opus-5.5.md) |
+| 57 | UI 테스트 기대 문구를 웹팀 화면에 맞춤 | tests/ui | e37338e | Claude Opus 5.5 | [웹 정리](journal/2026-11-25-web-fix-cleanup-claude-opus-5.5.md) |
 
 ## 미해결 (상세는 OPEN_ISSUES.md)
 
@@ -99,3 +102,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-24 | Gemini 4 Argon | [#51·#52 11번가 확장 어댑터·분석 워커 병렬화 및 단위 CI psycopg 가드](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-4-argon.md) |
 | 2026-11-24 | Gemini 4 Argon | [#53·#54 Claude 코드 리뷰 5건 해결 및 4중 검증](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |
 | 2026-11-25 | Claude Opus 5.5 | [maintest 점검·GPT/Gemini 일지 교차 검토](journal/2026-11-25-maintest-ci-and-ai-log-review-claude-opus-5.5.md) — #55~#57 발견, Gemini #48 진단 일부 정정 |
+| 2026-11-25 | Claude Opus 5.5 | [관리자 웹 404·덮어쓰기 계층 정리, 코드 점검](journal/2026-11-25-web-fix-cleanup-claude-opus-5.5.md) — #55~#57 해결 |

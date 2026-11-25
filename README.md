@@ -41,6 +41,6 @@
 
 ```
 origin/main ── origin/maintest (PR #15)
-                    └── part/소병선-backend-test (작업 브랜치, 커밋 8개 추가 · 로컬, 미push)
+                    └── part/소병선-backend-test (작업 브랜치 · maintest와 같은 커밋으로 유지)
 devlog (이 브랜치, orphan, 문서만)
 ```

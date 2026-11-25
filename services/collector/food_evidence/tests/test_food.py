@@ -35,6 +35,10 @@ class FoodTests(unittest.TestCase):
         r=self.extract('알레르기: 조개류, 특수원료ABC')
         self.assertEqual(r['allergens_declared'],['shellfish'])
         self.assertEqual(r['unmapped_allergen_terms'],['특수원료ABC'])
+    def test_multilingual_synonyms_and_added_allergens(self):
+        r=self.extract('알레르기: 달걀, Sesame, 花生, 탈지분유 함유')
+        self.assertEqual(r['allergens_declared'],['egg','sesame','peanut','milk'])
+        self.assertEqual(r['unmapped_allergen_terms'],[])
     def test_cosmetic_ingredients_not_misclassified_as_food(self):
         r=self.extract('전성분: 정제수, 글리세린',category='cosmetics')
         self.assertEqual(r['status'],'not_food');self.assertIsNone(r['raw'])

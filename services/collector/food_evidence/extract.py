@@ -24,8 +24,28 @@ ALIASES = {'우유':'milk','milk':'milk','대두':'soy','soy':'soy','soybean':'s
            '돼지고기':'pork','쇠고기':'beef','소고기':'beef','닭고기':'chicken','아황산류':'sulfites'}
 
 
+from .allergens import find_allergens
+
+# allergens.py 정규 이름 -> 기존 계약 코드(영문). ALIASES는 하위 호환용으로 남긴다.
+CODES = {'알류':'egg','우유':'milk','메밀':'buckwheat','땅콩':'peanut','대두':'soy','밀':'wheat',
+         '고등어':'mackerel','게':'crab','새우':'shrimp','돼지고기':'pork','복숭아':'peach','토마토':'tomato',
+         '아황산류':'sulfites','호두':'walnut','닭고기':'chicken','쇠고기':'beef','오징어':'squid',
+         '조개류':'shellfish','잣':'pine_nut','참깨*':'sesame','견과류*':'tree_nut','생선*':'fish'}
+
+
 def terms(text):
     return [token.strip() for token in re.split(r'[,;、\n]',text) if token.strip()]
+
+
+def allergen_codes(text):
+    """-> (codes, unmapped) 토큰 순서 유지. 한·영·중·일 동의어 사전(allergens.py)으로 대조, 못 찾은 토큰은 버리지 않고 unmapped."""
+    codes=[];unmapped=[]
+    for token in terms(text or ''):
+        contains,trace=find_allergens(token)
+        hit=[CODES[c] for c in CODES if c in contains|trace]
+        if hit:codes+=hit
+        else:unmapped.append(token)
+    return list(dict.fromkeys(codes)),list(dict.fromkeys(unmapped))
 
 
 def extract(text, *, source, source_url, observed_at, name='', category='', source_field='description'):
@@ -57,13 +77,7 @@ def extract(text, *, source, source_url, observed_at, name='', category='', sour
         negative=any(re.search(r'없음|해당\s*없|무첨가|미함유|\b(?:none|free[- ]from|no allergens?)\b',v,re.I) for v in labels)
         result['allergen_status']='negative_claim_unverified' if negative else 'reported'
         if not negative:
-            declared=[];unmapped=[]
-            for value in labels:
-                for token in terms(value):
-                    cleaned=re.sub(r'\s*(?:함유|포함|contains?)\s*',' ',token,flags=re.I).strip().casefold()
-                    code=ALIASES.get(cleaned)
-                    if code:declared.append(code)
-                    else:unmapped.append(token)
-            result['allergens_declared']=list(dict.fromkeys(declared))
-            result['unmapped_allergen_terms']=list(dict.fromkeys(unmapped))
+            declared,unmapped=allergen_codes('\n'.join(labels))
+            result['allergens_declared']=declared
+            result['unmapped_allergen_terms']=unmapped
     return result

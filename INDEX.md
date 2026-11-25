@@ -40,10 +40,13 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 69 | 관리자 웹 제휴 링크 우회 저장(store.example.test/redirect) 제거, 저장된 주소 그대로 표시 | apps/web | 04375f2 | Claude Opus 5.5 | [수정](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) |
 | 70 | (코드) 수집기 테스트의 NAS IP → KKULPICK_API_BASE (이력은 미해결 목록) | collector | 5a72193 | Claude Opus 5.5 | [수정](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) |
 | 71 | 강제 종료로 시도 상한에 닿은 임베딩 작업을 exhausted:WorkerLost로 보류 | recommendation | a83cdb6 | Claude Opus 5.5 | [수정](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) |
+| 72 | 상담 목록이 고객 아이디·요약을 함께 반환(상담 담당자도 고객정보 표시, 100명 제한 무관) | api·apps/web | fbb578f | Claude Opus 5.5 | [일지](journal/2026-11-25-support-summary-collector-merge-claude-opus-5.5.md) |
+| 31 | (완료) 수집기 unified_live가 listing-checks 호출 — 실제 백엔드 연결 검증 | collector | 94b8756 | 최준서 / 검증 Claude Opus 5.5 | [일지](journal/2026-11-25-support-summary-collector-merge-claude-opus-5.5.md) |
+| 32 | 수집기가 확장 API로 판매처·매칭 정보 전송 — 실제 백엔드 연결 검증 | collector | 94b8756 | 최준서 / 검증 Claude Opus 5.5 | [일지](journal/2026-11-25-support-summary-collector-merge-claude-opus-5.5.md) |
 
 ## 미해결 (상세는 OPEN_ISSUES.md)
 
-04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60~65, 70(이력), 72~75
+04(부분 해결), 16~30(29·30 부분), 33, 60~65, 70(이력), 73~75
 
 ## GPT 작업 회고 — 당시 완료 범위
 
@@ -124,3 +127,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | Claude Opus 5.5 | [#66 Vision 메모리·#67 임베딩 속도 수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) — maintest 반영 |
 | 2026-11-25 | Claude Opus 5.5 | [condition=unknown·웹 브랜치 반영](journal/2026-11-25-condition-unknown-web-sync-claude-opus-5.5.md) — #68 해결, #69~#71 발견 |
 | 2026-11-25 | Claude Opus 5.5 | [#69·#70·#71 수정·재확인](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) — 브라우저 검증 포함 |
+| 2026-11-25 | Claude Opus 5.5 | [#72 상담 고객정보·수집기 병합 실연결 검증](journal/2026-11-25-support-summary-collector-merge-claude-opus-5.5.md) — maintest 23f13f9 |

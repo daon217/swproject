@@ -128,3 +128,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | Claude Opus 5.5 | [condition=unknown·웹 브랜치 반영](journal/2026-11-25-condition-unknown-web-sync-claude-opus-5.5.md) — #68 해결, #69~#71 발견 |
 | 2026-11-25 | Claude Opus 5.5 | [#69·#70·#71 수정·재확인](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) — 브라우저 검증 포함 |
 | 2026-11-25 | Claude Opus 5.5 | [#72 상담 고객정보·수집기 병합 실연결 검증](journal/2026-11-25-support-summary-collector-merge-claude-opus-5.5.md) — maintest 23f13f9 |
+| 2026-11-26 | Claude Opus 5.5 | [미사용 DB·테이블·컬럼 점검(다른 AI 결과 검증)](journal/2026-11-26-db-unused-review-claude-opus-5.5.md) |

@@ -37,10 +37,13 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 66 | Vision 워커 메모리 계단식 증가·OOM → OCR 입력 크기 고정(캔버스·폭 2가지), 메모리 기준 교체, mem_limit | kkulpick_vision·infra | 9247330 | Claude Opus 5.5 | [수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) |
 | 67 | 임베딩 느림 → torch 스레드 제한(34→268/s), 배치 커밋(4.08→2.61ms/건) | recommendation | 426a5da | Claude Opus 5.5 | [수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) |
 | 68 | `condition=unknown` 지원(판매처가 신품·중고 미표시), unknown은 기존 상태를 덮어쓰지 않음, 추천 계약 422 방지 | api·recommendation·db | e6c7a3e | Claude Opus 5.5 | [#68](journal/2026-11-25-condition-unknown-web-sync-claude-opus-5.5.md) |
+| 69 | 관리자 웹 제휴 링크 우회 저장(store.example.test/redirect) 제거, 저장된 주소 그대로 표시 | apps/web | 04375f2 | Claude Opus 5.5 | [수정](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) |
+| 70 | (코드) 수집기 테스트의 NAS IP → KKULPICK_API_BASE (이력은 미해결 목록) | collector | 5a72193 | Claude Opus 5.5 | [수정](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) |
+| 71 | 강제 종료로 시도 상한에 닿은 임베딩 작업을 exhausted:WorkerLost로 보류 | recommendation | a83cdb6 | Claude Opus 5.5 | [수정](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) |
 
 ## 미해결 (상세는 OPEN_ISSUES.md)
 
-04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60~65, 69~71
+04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60~65, 70(이력)
 
 ## GPT 작업 회고 — 당시 완료 범위
 
@@ -120,3 +123,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | Claude Opus 5.5 | [Vision 메모리·임베딩 속도 측정](journal/2026-11-25-vision-memory-embedding-speed-claude-opus-5.5.md) — #66·#67 원인 확정 |
 | 2026-11-25 | Claude Opus 5.5 | [#66 Vision 메모리·#67 임베딩 속도 수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) — maintest 반영 |
 | 2026-11-25 | Claude Opus 5.5 | [condition=unknown·웹 브랜치 반영](journal/2026-11-25-condition-unknown-web-sync-claude-opus-5.5.md) — #68 해결, #69~#71 발견 |
+| 2026-11-25 | Claude Opus 5.5 | [#69·#70·#71 수정·재확인](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md) — 브라우저 검증 포함 |

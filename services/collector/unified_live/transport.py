@@ -1,5 +1,7 @@
 """Pinned public IP + TLS hostname checks, durable budgets, no redirects or cookies."""
 import hashlib
+import re
+import codecs
 import http.client
 import ipaddress
 import socket
@@ -28,6 +30,17 @@ def public_address(host):
     addresses={row[4][0] for row in socket.getaddrinfo(host,443,type=socket.SOCK_STREAM)}
     if not addresses or any(not ipaddress.ip_address(a).is_global for a in addresses):raise Wait('nonpublic_DNS_forbidden',hold=True)
     return sorted(addresses)[0]
+
+
+def decode_response(raw,content_type):
+    header=re.search(r'charset\s*=\s*["\']?([a-zA-Z0-9_-]+)',content_type,re.I)
+    meta=re.search(br'<meta[^>]+charset\s*=\s*["\']?([a-zA-Z0-9_-]+)',raw[:8192],re.I)
+    declared=header.group(1) if header else meta.group(1).decode('ascii') if meta else 'utf-8-sig'
+    try:name=codecs.lookup(declared).name
+    except LookupError:raise Wait('unsupported_declared_charset',hold=True) from None
+    if name not in ('utf-8','utf-8-sig','euc_kr','cp949','iso8859-1','cp1252'):raise Wait('unsupported_declared_charset',hold=True)
+    try:return raw.decode(name)
+    except UnicodeError:raise Wait('HTML_decode_failed_review_required',hold=True) from None
 
 class SafeHTTP:
     def __init__(self,cfg,root,clock=utcnow):
@@ -87,8 +100,7 @@ class SafeHTTP:
                 size+=len(chunk)
                 if size>2_000_000:raise Wait('response_too_large',hold=True)
                 chunks.append(chunk)
-            # UTF-8 is conservative: legacy encodings need a reviewed adapter.
-            text=b''.join(chunks).decode('utf-8-sig')
+            text=decode_response(b''.join(chunks),response.getheader('Content-Type',''))
             return 200,text,response.getheader('Content-Type','')
         except Wait:raise
         except (OSError,http.client.HTTPException,UnicodeError):

@@ -9,11 +9,11 @@ from .policy import url
 PROPERTIES={
     'id':'[itemprop="productID"],meta[property="product:retailer_item_id"]',
     'name':'[itemprop="name"],meta[property="og:title"]',
-    'price':'[itemprop="price"],meta[property="product:price:amount"],meta[property="og:price:amount"]',
-    'currency':'[itemprop="priceCurrency"],meta[property="product:price:currency"],meta[property="og:price:currency"]',
+    'price':'[itemprop="price"],meta[property="product:price:amount"],meta[property="og:price:amount"],meta[property="og:price"]',
+    'currency':'[itemprop="priceCurrency"],meta[property="product:price:currency"],meta[property="og:price:currency"],meta[property="og:currency"]',
     'seller':'[itemprop="seller"] [itemprop="name"],[itemprop="seller"]',
-    'condition':'[itemprop="itemCondition"],meta[property="product:condition"]',
-    'availability':'[itemprop="availability"],meta[property="product:availability"]',
+    'condition':'[itemprop="itemCondition"],meta[property="product:condition"],meta[property="og:condition"]',
+    'availability':'[itemprop="availability"],meta[property="product:availability"],meta[property="og:availability"]',
     'image':'[itemprop="image"],meta[property="og:image"]',
     'description':'[itemprop="description"],meta[property="og:description"],meta[name="description"]',
     'category':'[itemprop="category"],meta[property="product:category"]',
@@ -54,6 +54,16 @@ def value(soup,field,selectors=None):
         nodes=[n for n in nodes if n.find_parent(attrs={'itemprop':re.compile(r'^(seller|brand|manufacturer)$')}) is None]
     values=list(dict.fromkeys(v for n in nodes[:20] if (v:=node_value(n))))
     # Overlapping seller/name selectors can yield the same text; conflicting prices are held.
+    if not values and not (selectors or {}).get(field):
+        labels={'condition':{'condition','상품상태','상품 상태'},'currency':{'currency','통화'},'availability':{'availability','stock status','재고 상태'},'seller':{'seller','판매처'},'model_number':{'model number','모델번호'}}
+        native=[]
+        for label in soup.select('th,dt')[:300]:
+            if label.get_text(' ',strip=True).strip(' :：').casefold() not in labels.get(field,set()):continue
+            sibling=label.find_next_sibling(['td','dd'])
+            if sibling:
+                v=sibling.get_text(' ',strip=True)
+                if v and v not in native:native.append(v)
+        values=native
     return values[0] if len(values)==1 else None
 
 def product_graph(soup):

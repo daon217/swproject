@@ -1,6 +1,7 @@
 """Optional standard Chromium, no stealth. Every resource is same-origin and budgeted."""
 from urllib.parse import urlsplit
 import time
+from datetime import timedelta
 import os
 from .policy import url
 from .transport import Wait
@@ -38,8 +39,13 @@ class PlaywrightRenderer:
                 except (Wait,ValueError) as exc:errors.append(exc);request_route.abort()
             context.route('**/*',route)
             try:
-                page=context.new_page();page.goto(target,wait_until='networkidle',timeout=20000)
-                html=page.content()
+                page=context.new_page()
+                try:
+                    page.goto(target,wait_until='networkidle',timeout=20000)
+                    html=page.content()
+                except Exception:
+                    if errors:raise errors[0]
+                    raise Wait('browser_render_error',transport.clock()+timedelta(seconds=60)) from None
                 if errors:raise errors[0]
                 return html
             finally:context.close();browser.close()

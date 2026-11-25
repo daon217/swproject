@@ -20,6 +20,7 @@ class URLWorker:
         context={k:cfg.get(k,[] if k=='queries' else '') for k in ('source','base_url','search_url_template','queries','mode','selectors','render_javascript')}
         if cfg.get('start_urls'):context['start_urls']=cfg['start_urls']
         if cfg.get('storefront_identity'):context['storefront_identity']=cfg['storefront_identity']
+        if cfg.get('homepage_crawl'):context['homepage_crawl']=True
         self.context=digest(context)
         self.state=load(self.path,{'version':1,'synthetic_only':self.synthetic,'context':self.context,'tasks':[],'known':{},'cycle_seen':[], 'cycle_products':0,
             'next_cycle_at':None,'next_action_at':None,'hold':None,'totals':{},'cycle':0,'inflight':False,'shape':{},'checkpoint_outbox_seen':False})
@@ -41,6 +42,7 @@ class URLWorker:
         self.state['tasks']=[self.task('list',url(self.cfg['search_url_template'].replace('{query}',quote(q,safe='')).replace('{page}','1')),page=1) for q in self.cfg.get('queries',[])]
         self.state['tasks'] += [self.task('auto',url(t),page=1) for t in dict.fromkeys(self.cfg.get('start_urls',[]))]
         self.state['refresh_queued']=False
+        if self.cfg.get('homepage_crawl'):self.state['navigation_seen']=[];self.state['sitemaps_seeded']=False
     def complete(self):
         if not self.state['tasks'] and not self.state.get('refresh_queued'):
             self.state['refresh_queued']=True
@@ -49,11 +51,25 @@ class URLWorker:
         if not self.state['tasks']:
             self.state['next_cycle_at']=(self.clock()+timedelta(seconds=interval(self.cfg))).isoformat();self.count('cycles_completed')
     def page(self,task):
+        if self.cfg.get('homepage_crawl') and task['kind'] in ('auto','list','sitemap'):
+            if task['url'] in self.state.get('navigation_seen',[]):self.count('navigation_duplicates_skipped');return
+            if len(self.state.get('navigation_seen',[]))>=self.cfg['max_pages_per_cycle']:self.count('navigation_budget_limited');return
         code,text=self.http.fetch(task['url'])
         if code in (404,410):
             self.count('missing_requires_verification')
             known=self.state['known'].get(task['url'])
             if known:known.update(last_checked_at=self.clock().isoformat(),verification_required=True,last_HTTP_status=code)
+            return
+        if task['kind']=='sitemap':
+            self.state.setdefault('navigation_seen',[]).append(task['url'])
+            from .bulk import sitemap_links
+            from .storefront import classify
+            import xml.etree.ElementTree as ET
+            try:
+                targets=sitemap_links(text,task['url'],self.cfg['allowed_product_hosts'][0])
+                index=ET.fromstring(text).tag.rsplit('}',1)[-1]=='sitemapindex'
+            except ET.ParseError:raise ValueError('malformed_sitemap') from None
+            self.queue_navigation([],[(('sitemap' if index else classify(target)),target) for target in targets if index or classify(target)])
             return
         if self.cfg['render_javascript']:
             if self.renderer is None:
@@ -65,7 +81,10 @@ class URLWorker:
             from .parser import document,structured
             soup=document(text)
             detail=len(structured(soup))==1 or bool(soup.select_one('[itemtype$="/Product"]'))
-            if not detail:
+            if self.cfg.get('homepage_crawl'):
+                from .storefront import is_detail,selectors
+                detail=is_detail(soup,task['url'],structured(soup),selectors(soup,self.cfg.get('selectors',{})))
+            if not detail and not self.cfg.get('homepage_crawl'):
                 selectors=self.cfg.get('selectors',{})
                 from .analysis import value
                 detail=bool(value(soup,'price',selectors) and value(soup,'name',selectors))
@@ -75,6 +94,20 @@ class URLWorker:
                 self.state['cycle_seen'].append(task['url']);self.state['cycle_products']+=1
             else:task['kind']='list'
         if task['kind']=='list':
+            if self.cfg.get('homepage_crawl'):
+                from .parser import document
+                from .storefront import navigation,platform
+                soup=document(text);found,next_page=links(text,task['url'],self.cfg)
+                more,categories,nxt=navigation(soup,task['url'])
+                detected=platform(soup)
+                if detected!='unknown':self.state['platform']=detected
+                self.state.setdefault('navigation_seen',[]).append(task['url'])
+                self.queue_navigation(list(dict.fromkeys(found+more)),[('auto',t) for t in categories+([next_page or nxt] if next_page or nxt else [])])
+                if not self.state.get('sitemaps_seeded'):
+                    self.state['sitemaps_seeded']=True
+                    maps=self.http.robots.site_maps() if getattr(self.http,'robots',None) else []
+                    self.queue_navigation([],[('sitemap',t) for t in (maps or [])[:2]])
+                return
             found,next_page=links(text,task['url'],self.cfg)
             shape_key=hashlib.sha256(task['url'].encode()).hexdigest()
             if self.state['shape'].get(shape_key,0)>0 and not found:raise Wait('site_structure_changed_review_required',hold=True)
@@ -89,6 +122,8 @@ class URLWorker:
                 if next_page not in queued:self.state['tasks'].append(self.task('list',next_page,page=task['page']+1))
             return
         result=normalize(text,task['url'],now,self.cfg)
+        self.count('product_pages_parsed')
+        if result.get('name') and result.get('price') is not None and result['metadata'].get('image_url'):self.count('products_extracted')
         if self.synthetic:result['metadata'].update(synthetic=True,data_source='inprocess_mock')
         known=self.state['known'].get(task['url'],{'first_seen_at':now})
         fields=result.pop('food_input');fields.update(manufacturer=result['metadata']['manufacturer'],brand=result['metadata']['brand'])
@@ -135,6 +170,26 @@ class URLWorker:
             self.count('stage_'+staged['status'])
             if staged['status'] in ('pending','delivered'):self.count('products_success');self.state['last_success_at']=now
             elif staged['status']!='unchanged_skipped':self.count('products_held')
+    def queue_navigation(self,details,navigation):
+        details=list(details)+[target for kind,target in navigation if kind=='detail']
+        navigation=[(kind,target) for kind,target in navigation if kind!='detail']
+        host=self.cfg['allowed_product_hosts'][0];queued={t['url'] for t in self.state['tasks']}
+        for target in details:
+            try:target=url(target,host)
+            except ValueError:continue
+            if target in self.state['cycle_seen'] or target in queued:self.count('duplicates_skipped');continue
+            if self.state['cycle_products']>=self.cfg['max_products_per_cycle']:self.count('cycle_coverage_limited');break
+            self.state['cycle_seen'].append(target);self.state['cycle_products']+=1
+            self.state['tasks'].append(self.task('detail',target));queued.add(target)
+        if self.state['cycle_products']>=self.cfg['max_products_per_cycle']:return
+        limit=max(0,self.cfg['max_pages_per_cycle']-len(self.state.get('navigation_seen',[])))
+        count=sum(t['kind'] in ('auto','list','sitemap') for t in self.state['tasks'][1:])
+        for kind,target in navigation:
+            if not kind or count>=limit:break
+            try:target=url(target,host)
+            except ValueError:continue
+            if target in queued or target in self.state.get('navigation_seen',[]):continue
+            self.state['tasks'].append(self.task(kind,target,page=1));queued.add(target);count+=1
     def defer_failed_task(self,task,reason):
         """Bounded page-local failure; retain evidence/history, revisit next cycle.
 
@@ -167,8 +222,12 @@ class URLWorker:
                 due=exc.until or self.clock()+timedelta(seconds=min(3600,5*2**task['attempts']))
                 self.state['next_action_at']=max(due,self.clock()+timedelta(seconds=min(3600,5*2**task['attempts']))).isoformat()
                 if task['attempts']>=self.cfg['max_attempts']:self.defer_failed_task(task,'transient_retry_exhausted')
-        except (ValueError,TypeError,KeyError,ArithmeticError):
-            self.count('products_failed');self.defer_failed_task(task,'parser_or_contract_review_required')
+        except (ValueError,TypeError,KeyError,ArithmeticError) as exc:
+            if self.cfg.get('homepage_crawl') and str(exc)=='access_challenge_stop':
+                self.state['hold']='access_challenge_stop';self.count('access_challenges_stopped')
+            else:
+                reason=str(exc) if self.cfg.get('homepage_crawl') and str(exc) in ('variant_offer_requires_adapter','multiple_offers_require_adapter','multiple_product_details_require_adapter') else 'parser_or_contract_review_required'
+                self.count('products_held' if reason!='parser_or_contract_review_required' else 'products_failed');self.defer_failed_task(task,reason)
         else:
             self.state['tasks'].pop(0);self.state['next_action_at']=None;self.complete()
         self.state['inflight']=False;self.save();self.delivery.flush(stop=self.stop)
@@ -178,6 +237,7 @@ class URLWorker:
             'effective_interval_seconds':interval(self.cfg),'next_cycle_at':self.state['next_cycle_at'],
             'last_collection_at':self.state.get('last_collection_at'),'last_success_at':self.state.get('last_success_at'),'last_failure_at':self.state.get('last_failure_at'),
             'hold':self.state['hold'] or self.http.state.get('hold'),'pending_tasks':len(self.state['tasks']),'tracked_items':len(self.state['known']),
+            'homepage_crawl':self.cfg.get('homepage_crawl',False),'platform':self.state.get('platform','unknown'),'navigation_pages_this_cycle':len(self.state.get('navigation_seen',[])),
             'totals':self.state['totals'],'content_changes':self.delivery.data['totals'],'backend':self.delivery.report(),
             'recent_task_failures':self.state.get('recent_task_failures',[]),'HTTP_attempts':len(self.http.state['requests']),'all_items_refreshed_each_minute':False}
     def close(self):self.stop.set();self.http.close();self.delivery.close()

@@ -104,6 +104,9 @@ def label(value):
 
 def normalize(html,base,at,cfg,*,allow_partial_update=False):
     soup=document(html);products=structured(soup)
+    if cfg.get('homepage_crawl'):
+        from .storefront import selectors
+        cfg=dict(cfg,selectors=selectors(soup,cfg.get('selectors',{})))
     # Multiple independent products or variant offers require a site adapter.
     if len(products)>1 or not products and len(soup.select('[itemtype$="/Product"]'))>1:raise ValueError('multiple_product_details_require_adapter')
     p=products[0] if products else css_product(soup,cfg.get('selectors',{}))
@@ -129,9 +132,11 @@ def normalize(html,base,at,cfg,*,allow_partial_update=False):
     def code(value):return str(value or '').rstrip('/').rsplit('/',1)[-1]
     native_condition=code(p.get('itemCondition') or offers.get('itemCondition'))
     condition={'NewCondition':'new','UsedCondition':'used','new':'new','used':'used','신품':'new','새상품':'new','중고':'used'}.get(native_condition)
+    if condition is None:condition={'new':'new','used':'used'}.get(native_condition.casefold())
     native_state=code(offers.get('availability'))
     state={'InStock':'available','LimitedAvailability':'available','OutOfStock':'out_of_stock','SoldOut':'ended',
            'in stock':'available','재고있음':'available','판매중':'available','품절':'out_of_stock','판매완료':'ended','available':'available','out_of_stock':'out_of_stock','ended':'ended'}.get(native_state)
+    if state is None:state={'in stock':'available','out of stock':'out_of_stock'}.get(native_state.casefold())
     from .normalization_evidence import price_evidence,stock_evidence,storefront_evidence
     amount,currency,price_info=price_evidence(offers.get('price'),offers.get('priceCurrency'),cfg['currencies'],native_money)
     quantity,quantity_kind,label_state=stock_evidence(native_state,offers.get('inventoryLevel'))
@@ -147,7 +152,7 @@ def normalize(html,base,at,cfg,*,allow_partial_update=False):
         price=amount,currency=currency,
         url=target,condition=condition,availability=state),plain(seller,200),native_state,at,cfg,allow_absent_availability=allow_partial_update and not native_state)
     if condition is None:result['missing_fields'].append('condition_unknown_contract_required')
-    if not seller and not storefront['accepted_as_seller_identity']:result['missing_fields'].append('seller');result['observation']=None
+    if not seller and not storefront['accepted_as_seller_identity'] and not cfg.get('homepage_crawl'):result['missing_fields'].append('seller');result['observation']=None
     if native_state in ('reserved','예약중','예약'):result['missing_fields'].append('reserved_status_contract_required');result['observation']=None
     if cfg.get('mode')=='used' and condition!='used':result['missing_fields'].append('used_condition_required');result['observation']=None
     image=p.get('image') or native_value(soup,'image',cfg.get('selectors',{}));image=image[0] if isinstance(image,list) and image else image
@@ -180,6 +185,8 @@ def normalize(html,base,at,cfg,*,allow_partial_update=False):
     from .matching import profile
     metadata['matching_profile']=profile(products[0] if products else p,base,origin='jsonld_product' if products else 'native_page')
     result['metadata']=metadata
+    if cfg.get('homepage_crawl') and not image:
+        result['observation']=None;result['missing_fields'].append('image_url')
     labels=labeled_food(soup)
     result['food_input']={'name':result.get('name') or '', 'category':category or '', 'description':description,
         'ingredients':p.get('ingredients') or labels.get('ingredients'),'allergens':p.get('allergens') or labels.get('allergens'),

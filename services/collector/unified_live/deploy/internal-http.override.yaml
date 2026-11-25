@@ -41,6 +41,12 @@
         "default": {},
         "internal_ingest": {}
       }
+    },
+    "homepage": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
     }
   },
   "networks": {

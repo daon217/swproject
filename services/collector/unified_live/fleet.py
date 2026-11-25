@@ -35,6 +35,9 @@ def registration(site,approval):
         'rights':{k:approval[k] for k in ('reference','terms_reference','expires_at','allowed_uses')},
         'backend_delivery':approval.get('backend_delivery',{})}
     if approval.get('start_urls'):cfg['start_urls']=approval['start_urls']
+    if approval.get('homepage_crawl') is True:
+        cfg.update(homepage_crawl=True,start_urls=approval.get('start_urls') or [cfg['base_url']],search_url_template='',queries=[],max_pages_per_cycle=approval.get('max_pages_per_cycle',8),max_products_per_cycle=approval.get('max_products_per_cycle',10))
+        if approval.get('backend_catalog'):cfg['backend_catalog']=approval['backend_catalog']
     return validate(cfg)
 
 class FleetSupervisor:
@@ -97,7 +100,7 @@ class FleetSupervisor:
             atomic(path,cfg);child_root=self.root/'sources'/ident
             command=[sys.executable,'-m','services.collector.unified_live','--provider','url','--config',str(path),'--state-dir',str(child_root),'--watch']
             env={k:v for k,v in os.environ.items() if k.upper() in {'PATH','SYSTEMROOT','WINDIR','TEMP','TMP','PYTHONPATH','PYTHONDONTWRITEBYTECODE',
-                'COLLECTOR_BACKEND_TRANSPORT','COLLECTOR_BACKEND_BASE_URL','COLLECTOR_RUN_APPROVED','COLLECTOR_DELIVERY_APPROVED','KKULPICK_BACKEND_TOKEN','KKULPICK_BACKEND_TOKEN_FILE','COLLECTOR_BROWSER_CHANNEL','COLLECTOR_CA_FILE','LANG','LC_ALL'}}
+                'COLLECTOR_BACKEND_CATALOG_HOSTS','COLLECTOR_BACKEND_CATALOG_CURRENCIES','COLLECTOR_BACKEND_TRANSPORT','COLLECTOR_BACKEND_BASE_URL','COLLECTOR_RUN_APPROVED','COLLECTOR_DELIVERY_APPROVED','KKULPICK_BACKEND_TOKEN','KKULPICK_BACKEND_TOKEN_FILE','COLLECTOR_BROWSER_CHANNEL','COLLECTOR_CA_FILE','LANG','LC_ALL'}}
             try:self.children[ident]=self.popen(command,env=env,stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             except OSError:
                 status['failures']+=1;status['process_state']='start_failed_backoff';status['next_start_at']=(self.clock()+timedelta(seconds=60)).isoformat();continue

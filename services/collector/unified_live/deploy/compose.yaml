@@ -619,6 +619,85 @@
         "start_period": "40s",
         "retries": 3
       }
+    },
+    "homepage": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/unified_live/deploy/Dockerfile"
+      },
+      "image": "kkulpick-unified-collector:${COLLECTOR_RELEASE:-local-review}",
+      "init": true,
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "profiles": [
+        "homepage"
+      ],
+      "environment": {
+        "KKULPICK_STATE_DIR": "/state",
+        "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
+        "COLLECTOR_DELIVERY_APPROVED": "${COLLECTOR_DELIVERY_APPROVED:-no}",
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token",
+        "COLLECTOR_BACKEND_TRANSPORT": "${COLLECTOR_BACKEND_TRANSPORT:-https}",
+        "COLLECTOR_BACKEND_BASE_URL": "${COLLECTOR_BACKEND_BASE_URL:-}",
+        "COLLECTOR_BACKEND_CATALOG_HOSTS": "${COLLECTOR_BACKEND_CATALOG_HOSTS:-}",
+        "COLLECTOR_BACKEND_CATALOG_CURRENCIES": "${COLLECTOR_BACKEND_CATALOG_CURRENCIES:-}",
+        "COLLECTOR_HOMEPAGE_URL": "${COLLECTOR_HOMEPAGE_URL:-}"
+      },
+      "secrets": [
+        "kkulpick_backend_token"
+      ],
+      "volumes": [
+        "${CONFIG_DIR:-/volume1/docker/kkulpick-collectors-v2/config}/homepage-policy.json:/run/homepage-policy.json:ro",
+        "${MASTER_STATE_DIR:-/volume1/docker/kkulpick-collectors-v2/state/master}/homepage:/state"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.unified_live.homepage",
+        "--url",
+        "${COLLECTOR_HOMEPAGE_URL:-}",
+        "--policy",
+        "/run/homepage-policy.json",
+        "--state-dir",
+        "/state",
+        "--watch"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python",
+          "-m",
+          "services.collector.unified_live",
+          "--provider",
+          "url",
+          "--health",
+          "--state-dir",
+          "/state"
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "start_period": "40s",
+        "retries": 3
+      }
     }
   },
   "secrets": {

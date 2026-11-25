@@ -45,7 +45,7 @@ def grant(cfg,now,storage=True):
     except (KeyError,ValueError,TypeError):return False
 
 def validate(cfg):
-    allowed={'backend_catalog','storefront_identity','start_urls','source','base_url','search_url_template','queries','mode','enabled','rights','provider_min_interval_seconds',
+    allowed={'homepage_crawl','backend_catalog','storefront_identity','start_urls','source','base_url','search_url_template','queries','mode','enabled','rights','provider_min_interval_seconds',
         'requests_per_hour','requests_per_24h','request_interval_seconds','max_pages_per_cycle','max_products_per_cycle',
         'refresh_items_per_cycle','max_tracked_items','max_attempts','selectors','render_javascript','evidence_storage',
         'allowed_product_hosts','currencies','backend_enabled','backend_owner_approved','price_semantics_confirmed','backend_delivery','region','country','category_mapping'}
@@ -65,6 +65,7 @@ def validate(cfg):
         ('max_pages_per_cycle',1,10),('max_products_per_cycle',1,100),('refresh_items_per_cycle',0,50),('max_tracked_items',1,100000),('max_attempts',1,5)):
         if type(cfg.get(key)) is not int or not low<=cfg[key]<=high:raise ValueError('invalid_'+key)
     interval(cfg)
+    if 'homepage_crawl' in cfg and type(cfg['homepage_crawl']) is not bool:raise ValueError('explicit_homepage_crawl_boolean_required')
     starts=cfg.get('start_urls',[])
     if not isinstance(starts,list) or len(starts)>10:raise ValueError('bounded_start_URLs_required')
     for target in starts:url(target,host)

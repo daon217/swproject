@@ -1,0 +1,19 @@
+{
+  "enabled": false,
+  "rights": {
+    "reference": "",
+    "terms_reference": "",
+    "expires_at": "1970-01-01T00:00:00+00:00",
+    "allowed_uses": []
+  },
+  "backend_enabled": false,
+  "backend_owner_approved": false,
+  "price_semantics_confirmed": false,
+  "render_javascript": false,
+  "evidence_storage": false,
+  "requests_per_hour": 30,
+  "requests_per_24h": 200,
+  "request_interval_seconds": 3,
+  "max_pages_per_cycle": 8,
+  "max_products_per_cycle": 10
+}

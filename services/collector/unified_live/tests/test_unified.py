@@ -231,7 +231,7 @@ class UnifiedTests(unittest.TestCase):
                 self.assertNotIn('container_name',svc);self.assertNotIn('ports',svc);self.assertNotIn('network_mode',svc)
                 self.assertEqual(svc['restart'],'unless-stopped');self.assertTrue(svc['read_only']);self.assertTrue(svc['healthcheck'])
                 self.assertIn(':-no}',svc['environment']['COLLECTOR_RUN_APPROVED']);self.assertIn(':-no}',svc['environment']['COLLECTOR_DELIVERY_APPROVED'])
-                if name!='url':self.assertTrue(any('/state/unified_ops/' in v for v in svc['volumes']))
+                if name not in ('url','homepage'):self.assertTrue(any('/state/unified_ops/' in v for v in svc['volumes']))
         self.assertIn('!services/collector/unified_live/*.py',(deploy/'Dockerfile.dockerignore').read_text())
         self.assertEqual(compose['services']['ebay']['command'][4],'ebay_account')
     def test_cli_disabled_watch_health_and_plan_zero_network(self):

@@ -28,7 +28,7 @@ node apps/web/local-demo.cjs --api
   1. 계정이 없다면 로그인 화면(`#/login`)에서 **관리자 가입 신청**(`#/signup`)을 선택해 신청합니다.
   2. 신청 계정은 승인 전까지 로그인이 제한되며(`"관리자 가입 승인 대기 중입니다."`), 기존 관리자(`admin`) 계정으로 로그인한 뒤 좌측 사이드바의 **관리자 가입 승인**(`#/admin-requests`) 메뉴에서 신청 내역을 확인합니다.
   3. 역할을 `관리자` 또는 `상담 담당자`로 지정해 **승인**하면 신청자가 즉시 로그인할 수 있습니다.
-  4. 서버에 `/v2/admin/auth/*`(`member_0004`)가 배포된 경우 서버 전용 테이블을 사용하며, 미배포 환경에서는 기존 회원 DB(`/v2/auth/signup`, `/v2/auth/login`)와 로컬 승인 저장소(`apps/web/.local-demo/admin-approvals.json`)를 연동해 동일하게 동작합니다.
+  4. 관리자 가입 신청·승인(`/v2/admin/auth/*`) 및 카탈로그 선택 삭제(`/v2/admin/catalog/offers/delete`)는 모두 팀 백엔드 서버(`member_0004` 적용)를 통해 처리됩니다.
 - 가입 화면의 개인정보 수집·이용 동의 문안과 버전(`privacy-2026-11-16`)은 팀 사용자 앱과 동일한 기준을 사용합니다.
 
 ## 3. 주요 메뉴 및 기능
@@ -63,4 +63,4 @@ node apps/web/local-demo.cjs --api
 node apps/web/local-demo.cjs
 ```
 
-로컬 데모 계정 및 로컬 승인 상태 파일은 `apps/web/.local-demo/`에 저장되며 `.gitignore`에 의해 Git 커밋 대상에서 자동 제외됩니다.
+로컬 데모 계정 파일(`apps/web/.local-demo/accounts.txt`)은 `.gitignore`에 의해 Git 커밋 대상에서 자동 제외됩니다.

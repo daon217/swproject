@@ -91,7 +91,7 @@ async def basic(req:Request,limit:int=Query(10,ge=1,le=30),
             FROM app.offers o JOIN app.catalog_items i USING(item_id)
             LEFT JOIN app.affiliate_offers a ON a.offer_id=o.offer_id
               AND a.enabled AND a.starts_at<=now() AND (a.ends_at IS NULL OR a.ends_at>now())
-            WHERE o.availability='available' AND o.condition<>'used' AND o.kind=:k
+            WHERE o.availability='available' AND o.kind=:k
             ORDER BY o.last_seen_at DESC,o.offer_id LIMIT :n''',
             k=selected_domain,n=limit,stale_hours=stale_hours())).mappings().all()
     return wrap([dict(r)|{'reason':'최근 판매가 확인된 상품 · 개인 맞춤 분석 아님'} for r in rows],req)

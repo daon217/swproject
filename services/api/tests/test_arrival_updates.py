@@ -172,12 +172,14 @@ def test_condition_unknown_is_stored_listed_and_never_erases_a_known_condition(c
     assert current()['condition'] == 'unknown'
     q = '/v2/offers?selected_domain=product&source=' + source
     assert [i['condition'] for i in api.get(q + '&condition=unknown').json()['items']] == ['unknown']
-    assert api.get(q).json()['items'] == []                                   # default list is strictly new
+    assert len(api.get(q).json()['items']) == 1                               # default list = new+used+unknown
+    assert api.get(q + '&condition=new').json()['items'] == []                # "new only" never includes unknown
     assert len(api.get(q + '&condition=all').json()['items']) == 1
     # Public basic recommendations show anything not confirmed used.
     db.execute('UPDATE app.offers SET last_seen_at=now() WHERE source=%s', (source,))  # newest card first
     basic = api.get('/v2/recommendations/basic?selected_domain=product&limit=30').json()['data']
-    assert first.json()['offer_id'] in {str(i['offer_id']) for i in basic}
+    card = next(i for i in basic if str(i['offer_id']) == first.json()['offer_id'])
+    assert card['condition'] == 'unknown'                                     # clients label it '상태 미확인'
     # A later page that states the condition fills it in ...
     assert post(10, dict(condition='new')).json()['change_kind'] == 'updated'
     assert current()['condition'] == 'new'
@@ -185,6 +187,9 @@ def test_condition_unknown_is_stored_listed_and_never_erases_a_known_condition(c
     assert post(20, dict(condition='unknown')).json()['change_kind'] == 'unchanged'
     assert current()['condition'] == 'new'
     assert post(30, dict(condition='used')).json()['change_kind'] == 'updated'
+    db.execute('UPDATE app.offers SET last_seen_at=now() WHERE source=%s', (source,))
+    basic = api.get('/v2/recommendations/basic?selected_domain=product&limit=30').json()['data']
+    assert next(i for i in basic if str(i['offer_id']) == first.json()['offer_id'])['condition'] == 'used'  # used is included
     assert post(40, dict(condition='unknown')).status_code == 201
     assert current()['condition'] == 'used'
     # Food may be unknown; used food stays rejected.

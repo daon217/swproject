@@ -1,7 +1,7 @@
 import { recordVisit } from '../../shared/accountData';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../shared/api';
-import { formatPrice, safeHttpUrl } from '../../shared/format';
+import { formatPrice, offerSubtitle, safeHttpUrl } from '../../shared/format';
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveShortcuts, type Shortcut } from '../../shared/shortcuts';
 import { IconExternal, IconFood, IconPlus, IconPrinter, IconSparkle } from '../../shared/ui/icons';
 import { OfferRow, ResultView } from '../../shared/ui/ResultView';
@@ -82,7 +82,7 @@ export function RecentTab() {
               <div className="kp-thumb">{h.card.image_kind === 'food' ? <IconFood size={26} /> : <IconPrinter size={28} />}</div>
               <div className="kp-offer-text">
                 <div className="kp-offer-name">{h.card.name}</div>
-                <div className="kp-offer-sub">{h.card.subtitle}</div>
+                <div className="kp-offer-sub">{offerSubtitle(h.card.subtitle, h.card.condition)}</div>
                 <div className="kp-price">{formatPrice(h.card.price, h.card.currency)}</div>
               </div>
               <button className="kp-icon-btn kp-link" onClick={() => openUrl(h.card.url)} aria-label={`${h.card.name} 판매처로 이동`}>

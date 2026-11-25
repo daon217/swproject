@@ -531,7 +531,7 @@ const crawlingPage = {
                         <thead class="border-b border-slate-200 text-xs text-slate-600"><tr>
                           <th class="p-4"><span class="sr-only">선택</span></th>
                           <th class="p-4">구분</th><th class="p-4">상품명</th><th class="p-4">수집처</th><th class="p-4">가격</th>
-                          <th class="p-4">현재 상태</th><th class="p-4">마지막 확인 · KST</th>
+                          <th class="p-4">상품 상태</th><th class="p-4">현재 상태</th><th class="p-4">마지막 확인 · KST</th>
                         </tr></thead>
                         <tbody class="divide-y divide-slate-200">
                           ${group.items.map((offer) => `
@@ -546,6 +546,7 @@ const crawlingPage = {
                               <td class="p-4 font-semibold">${this.escapeHtml(offer.name || '—')}</td>
                               <td class="p-4">${this.escapeHtml(sourceNames[offer.source] || offer.source || '—')}</td>
                               <td class="p-4 whitespace-nowrap">${this.escapeHtml(this.formatOfferPrice ? this.formatOfferPrice(offer) : `${offer.price || 0}원`)}</td>
+                              <td class="p-4 whitespace-nowrap">${this.escapeHtml(({ new: '새 상품', used: '중고', unknown: '미확인' })[offer.condition] || '미확인')}</td>
                               <td class="p-4">${this.escapeHtml(states[offer.availability] || '—')}</td>
                               <td class="whitespace-nowrap p-4">${this.escapeHtml(this.formatKstDateTime(offer.last_checked_at || offer.last_seen_at || offer.price_observed_at) || '—')}</td>
                             </tr>

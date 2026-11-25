@@ -189,7 +189,7 @@ def test_sample_mutation(case, patch, status, kind, changes):
         # Check public listing visibility as well as the stored row.
         query = "/v2/offers?selected_domain=product&source=" + source
         visible = api.get(query).json()["items"]
-        expected_visible = 0 if case in {"out_of_stock", "sale_ended", "used_condition", "not_found"} else offers
+        expected_visible = 0 if case in {"out_of_stock", "sale_ended", "not_found"} else offers  # default condition=all lists used too
         assert len(visible) == expected_visible
         assert len(api.get(query + "&condition=all&availability=all").json()["items"]) == offers
 

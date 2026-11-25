@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { allergenLabel } from '../allergens';
-import { formatPrice } from '../format';
+import { formatPrice, offerSubtitle } from '../format';
 import type { TabState } from '../messages';
 import type { Analysis, OfferCard, ResultSection } from '../types';
 import { IconExternal, IconFilter, IconFood, IconPrinter, IconSearch, IconSparkle } from './icons';
@@ -26,7 +26,7 @@ export function OfferRow({ card, onOpenUrl, basic = false }: { card: OfferCard; 
             {card.affiliate && <span className="kp-ad-badge">제휴</span>}
             {card.name}
           </div>
-          <div className="kp-offer-sub">{card.subtitle}</div>
+          <div className="kp-offer-sub">{offerSubtitle(card.subtitle, card.condition)}</div>
           <div className="kp-price">{formatPrice(card.price, card.currency)}</div>
         </div>
         <button className="kp-icon-btn kp-link" onClick={() => onOpenUrl(card.url)} aria-label={`${card.name} 판매처로 이동`}>

@@ -376,7 +376,7 @@ const statsPage = {
             },
           ],
         },
-        options: this.createCommonLineChartOptions(),
+        options: this.createCommonLineChartOptions([cfg.subJoin, cfg.subLeave], { isInteger: true }),
       });
     }
 
@@ -411,7 +411,7 @@ const statsPage = {
             },
           ],
         },
-        options: this.createCommonLineChartOptions(),
+        options: this.createCommonLineChartOptions([cfg.subSales, cfg.royaltySales], { isInteger: false }),
       });
     }
   },

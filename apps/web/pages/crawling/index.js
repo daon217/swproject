@@ -314,7 +314,6 @@ const crawlingPage = {
     const rows = this.getAllDateRows(allCatalogItems);
     const totalDays = rows.length;
     const totalProductCount = rows.reduce((acc, r) => acc + r.productCount, 0).toLocaleString();
-    const totalAvailableCount = rows.reduce((acc, r) => acc + r.availableCount, 0).toLocaleString();
 
     const sourceSet = new Set(['domeggook', '11st']);
     for (const offer of allCatalogItems) {
@@ -409,10 +408,9 @@ const crawlingPage = {
         </div>
 
         <div class="w-full">
-          <div class="grid grid-cols-3 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
+          <div class="grid grid-cols-2 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
             <div>확인 일자</div>
             <div>등록 상품 수</div>
-            <div>판매 중 상품 수</div>
           </div>
 
           <div class="space-y-2 mt-2">
@@ -425,12 +423,11 @@ const crawlingPage = {
           return `
               <div
                 ${demo ? '' : `onclick="app.changeLiveCatalogDate('${this.escapeHtml(row.date)}')"`}
-                class="grid grid-cols-3 items-center border ${rowStyle} rounded-lg px-6 py-3.5 text-sm text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.02)] ${demo ? '' : 'cursor-pointer transition-colors'}"
+                class="grid grid-cols-2 items-center border ${rowStyle} rounded-lg px-6 py-3.5 text-sm text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.02)] ${demo ? '' : 'cursor-pointer transition-colors'}"
                 title="${demo ? '' : '클릭하면 아래 카탈로그 목록을 이 날짜로 필터링합니다'}"
               >
                 <div class="font-medium text-slate-900">${this.escapeHtml(row.date)}</div>
                 <div class="font-semibold text-slate-800">${row.productCount.toLocaleString()}건</div>
-                <div class="font-semibold text-[#0066ff]">${row.availableCount.toLocaleString()}건</div>
               </div>
             `;
         })
@@ -439,7 +436,7 @@ const crawlingPage = {
         </div>
 
         <div class="mt-3 text-sm text-slate-500">
-          총 ${totalDays}일 · 전체 상품 ${totalProductCount}건 · 판매 중 ${totalAvailableCount}건
+          총 ${totalDays}일 · 전체 상품 ${totalProductCount}건
         </div>
       </section>
 

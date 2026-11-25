@@ -8,9 +8,14 @@ const port = demo ? 3001 : 3000;
 const host = `localhost:${port}`;
 const accountDirectory = path.join(__dirname, '.local-demo');
 const accountFile = path.join(accountDirectory, 'accounts.txt');
+const localApiUrlFile = path.join(accountDirectory, 'api-url.txt');
+const configuredApiUrl = process.env.INTERNAL_API_URL ||
+  (fs.existsSync(localApiUrlFile) ? fs.readFileSync(localApiUrlFile, 'utf8').trim() : '') ||
+  'http://127.0.0.1:8000';
+const apiTarget = configuredApiUrl.replace(/\/$/, '');
 const sessionLifetime = 8 * 60 * 60;
 const sessions = new Map();
-const index = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8').replace('content="/backend"', 'content="http://localhost:8000"');
+const index = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const assets = new Map([['/', 'index.html'], ['/index.html', 'index.html']]);
 for (const [, file] of index.matchAll(/<script src="\.\/([^"]+\.js)"/g)) {
   assets.set('/' + file, file);
@@ -151,6 +156,42 @@ async function handleRunCrawlCycle(request, response) {
   });
 }
 
+async function handleBackendProxy(request, response, url) {
+  const apiPath = url.pathname.slice('/backend'.length) + url.search;
+  const headers = { 'Content-Type': 'application/json' };
+  if (request.headers.authorization) {
+    headers.Authorization = request.headers.authorization;
+  }
+  let body;
+  if (!['GET', 'HEAD'].includes(request.method)) {
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of request) {
+      size += chunk.length;
+      if (size <= 65536) chunks.push(chunk);
+    }
+    if (size > 65536) return respond(response, 413, 'PAYLOAD_TOO_LARGE');
+    if (chunks.length) body = Buffer.concat(chunks);
+  }
+  try {
+    const upstream = await fetch(apiTarget + apiPath, {
+      method: request.method,
+      headers,
+      body,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15000),
+    });
+    const text = upstream.status === 204 ? '' : await upstream.text();
+    response.writeHead(upstream.status, {
+      'Content-Type': upstream.headers.get('content-type') || 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    response.end(upstream.status === 204 ? undefined : text);
+  } catch {
+    respond(response, 502, 'BACKEND_UNAVAILABLE');
+  }
+}
+
 const server = http.createServer(async (request, response) => {
   response.setHeader('Cache-Control', 'no-store');
   response.setHeader('X-Content-Type-Options', 'nosniff');
@@ -163,6 +204,9 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${host}`);
     if (url.pathname === '/__run-crawl-cycle') {
       return await handleRunCrawlCycle(request, response);
+    }
+    if (!demo && url.pathname.startsWith('/backend/')) {
+      return await handleBackendProxy(request, response, url);
     }
     const prefix = '/__local-demo';
     if (demo && url.pathname.startsWith(prefix + '/')) {

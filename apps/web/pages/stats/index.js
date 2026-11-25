@@ -34,15 +34,23 @@ const statsPage = {
     this.renderContent();
 
     try {
-      const [overviewRes, catalogRes] = await Promise.allSettled([
-        this.requestAdminAuth('/v2/admin/overview', { token: session.token }),
-        this.fetchAllCatalogOffers(),
-      ]);
+      let overview = null;
+      try {
+        overview = await this.requestAdminAuth('/v2/admin/overview', { token: session.token });
+      } catch {
+        overview = null;
+      }
 
-      const overview = overviewRes.status === 'fulfilled' ? overviewRes.value : null;
-      const catalogOffers = catalogRes.status === 'fulfilled' ? catalogRes.value : [];
-      if (catalogOffers.length) {
-        this.state.offerCatalog = catalogOffers;
+      let catalogOffers = this.state.offerCatalog || [];
+      if (overview?.offers == null && !catalogOffers.length) {
+        catalogOffers = await this.fetchAllCatalogOffers(2);
+        if (catalogOffers.length) {
+          this.state.offerCatalog = catalogOffers;
+        }
+      }
+
+      if (!overview && !catalogOffers.length) {
+        throw new Error('Overview lookup failed');
       }
 
       Object.assign(view, {
@@ -81,18 +89,31 @@ const statsPage = {
       (this.state.offerCatalog || []).filter((o) => o.availability === 'available').length;
 
     const memberCount = overview?.members ?? members.length;
-    const subscriberCount = overview?.subscribers ?? members.filter((m) => m.subscribed).length;
-    const todayJoinCount = members.filter((m) => {
-      const kst = this.formatKstDateTime(m.subscription_started_at || m.created_at);
-      return kst.slice(0, 10) === todayKst;
-    }).length;
+    const memberSubscribers = members.filter((m) =>
+      this.isMemberSubscribed ? this.isMemberSubscribed(m) : Boolean(m.subscribed || m.subscription_started_at)
+    ).length;
+    const subscriberCount = Math.max(Number(overview?.subscribers ?? 0), memberSubscribers);
+
+    const memberTodaySubscribers = members.filter((member) =>
+      this.formatKstDateTime(member.subscription_started_at).slice(0, 10) === todayKst
+    ).length;
+    let todaySubscriberCount = null;
+    if (overview?.today_subscribers_date === todayKst.replaceAll('.', '-')) {
+      todaySubscriberCount = Math.max(Number(overview.today_subscribers ?? 0), memberTodaySubscribers);
+    } else if (this.liveCustomers?.phase === 'ready' &&
+      (members.length < 100 || members.length === overview?.members)) {
+      todaySubscriberCount = memberTodaySubscribers;
+    }
+
     const mockRevenue = overview?.mock_revenue_krw != null ? Number(overview.mock_revenue_krw) : 0;
+    // Server total for today's mock payments (KST); never extrapolated from subscriber counts.
+    const todayRevenue = overview?.today_mock_revenue_krw != null ? Number(overview.today_mock_revenue_krw) : 0;
 
     return {
       todayKst,
       memberCount,
       subscriberCount,
-      todayJoinCount,
+      todaySubscriberCount,
       affiliateCount: affiliates.length,
       activeAffiliateCount: activeAffiliates.length,
       catalogCount,
@@ -100,6 +121,7 @@ const statsPage = {
       counselingCount: counseling.length,
       resolvedCounselingCount: resolvedCounseling.length,
       mockRevenue,
+      todayRevenue,
     };
   },
 
@@ -161,8 +183,8 @@ const statsPage = {
           subJoinCounts.set(startPrefix, subJoinCounts.get(startPrefix) + 1);
         }
       }
-      if (!m.subscribed && m.subscription_started_at) {
-        const endSource = m.subscription_ended_at || m.subscription_canceled_at || m.subscription_started_at;
+      const endSource = m.subscription_ended_at || m.subscription_canceled_at;
+      if (endSource) {
         const endKst = this.formatKstDateTime(endSource);
         const endPrefix = endKst.slice(0, keyLength);
         if (subLeaveCounts.has(endPrefix)) {
@@ -172,8 +194,9 @@ const statsPage = {
     }
 
     const todayKey = this.getKstTodayDateStr().slice(0, keyLength);
-    const mockRevenueKrw = Number(this.liveOverview?.overview?.mock_revenue_krw || 0);
-    const revenueManWon = mockRevenueKrw > 0 ? Number((mockRevenueKrw / 10000).toFixed(2)) : 0;
+    // Only today's mock-payment total is known per day; the 30-day total must not be drawn as one day.
+    const todayMockKrw = Number(this.liveOverview?.overview?.today_mock_revenue_krw || 0);
+    const revenueManWon = todayMockKrw > 0 ? Number((todayMockKrw / 10000).toFixed(2)) : 0;
 
     return {
       unitLabel,
@@ -292,7 +315,7 @@ const statsPage = {
 
       <!-- 하단 안내 캡션 -->
       <div class="mt-4 text-sm text-slate-500">
-        기간 집계 기준: KST &nbsp;·&nbsp; 팀 서버 DB에서 조회된 실제 구독 가입·해지 및 매출 데이터를 표시합니다.
+        기간 집계 기준: KST &nbsp;·&nbsp; 구독 가입·해지는 팀 서버 DB 기준입니다. 매출은 개발용 모의 결제이며 오늘 합계만 표시합니다(실매출 아님).
       </div>
     `;
   },

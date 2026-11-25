@@ -71,7 +71,10 @@ async def overview(req:Request,uid=Depends(admin_member)):
                     WHERE started_at >= (today.day::timestamp AT TIME ZONE 'Asia/Seoul')
                     AND started_at < ((today.day+1)::timestamp AT TIME ZONE 'Asia/Seoul')) AS today_subscribers
             FROM today''')
-        revenue=await row(m,'''SELECT coalesce(sum(i.amount),0)::text AS mock_revenue_krw
+        # Mock payments only (BILLING_MODE=mock). Today = KST calendar day, like today_subscribers.
+        revenue=await row(m,'''SELECT coalesce(sum(i.amount),0)::text AS mock_revenue_krw,
+            coalesce(sum(i.amount) FILTER (WHERE (p.paid_at AT TIME ZONE 'Asia/Seoul')::date
+                = (now() AT TIME ZONE 'Asia/Seoul')::date),0)::text AS today_mock_revenue_krw
             FROM app.payments p JOIN app.invoices i USING(invoice_id)
             WHERE p.status='succeeded' AND p.provider='mock' AND i.currency='KRW'
             AND p.paid_at>=now()-interval '30 days' ''')

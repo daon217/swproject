@@ -136,8 +136,9 @@ const loginPage = {
     const headers = {};
     if (token) headers.Authorization = `Bearer ${token}`;
     if (body) headers['Content-Type'] = 'application/json';
+    // String concatenation keeps the /backend proxy prefix (new URL('/v2/..', base) would drop it).
     const response = await fetch(this.getAdminAuthOrigin() + endpoint, {
-      method, headers, body: body && JSON.stringify(body), signal: AbortSignal.timeout(5000),
+      method, headers, body: body && JSON.stringify(body), signal: AbortSignal.timeout(15000),
     });
     if (!response.ok) {
       const details = await response.json().catch(() => null);
@@ -148,15 +149,15 @@ const loginPage = {
     return response.status === 204 ? null : (await response.json()).data;
   },
 
+  // Older builds kept admin tokens here for a local approval workaround. Never keep them.
+  purgeLegacyApprovalCache() {
+    try { window.localStorage.removeItem('kkulpick-admin-approvals'); } catch { /* storage disabled */ }
+  },
+
   async requestAdminAccount(action, options) {
-    const legacyPath = '/v2/auth/' + action;
-    if (this.isLocalAuthDemo()) return this.requestAdminAuth(legacyPath, options);
-    try {
-      return await this.requestAdminAuth('/v2/admin/auth/' + action, options);
-    } catch (error) {
-      if (error.status !== 404 || action === 'signup') throw error;
-      return this.requestAdminAuth(legacyPath, options);
-    }
+    if (this.isLocalAuthDemo()) return this.requestAdminAuth('/v2/auth/' + action, options);
+    // Staff accounts are separate from members: no fallback to member signup/login.
+    return this.requestAdminAuth('/v2/admin/auth/' + action, options);
   },
 
   // Drop cached server data so the next account never sees the previous account's lists.
@@ -170,12 +171,14 @@ const loginPage = {
   },
 
   async activateAdminSession(session) {
+    this.purgeLegacyApprovalCache();
+    // The server decides the role. A pending or revoked account fails here with 401/403.
     const account = await this.requestAdminAuth('/v2/admin/me', { token: session.token });
     if (account?.role !== 'admin' && account?.role !== 'support') {
       throw Object.assign(new Error('Unsupported administrator role'), { status: 403 });
     }
     this.adminSession = { ...session, role: account.role };
-    this.saveAdminSession(session);
+    this.saveAdminSession(this.adminSession);
     this.showAdminLoginMessage('');
     this.clearLiveConsoleData();
     // Each page loads its own live data when routed (see consoleLayout.navigate).
@@ -204,10 +207,15 @@ const loginPage = {
       }
       token = session.token;
       await this.activateAdminSession({
-        token, expiresAt: Date.now() + session.expires_in * 1000, apiBase: this.getAdminAuthOrigin(),
+        token,
+        loginId: loginId.value.trim(),
+        expiresAt: Date.now() + session.expires_in * 1000,
+        apiBase: this.getAdminAuthOrigin(),
       });
     } catch (error) {
-      if (token) this.requestAdminAccount('logout', { method: 'POST', token }).catch(() => {});
+      if (token && error.code !== 'ADMIN_APPROVAL_REQUIRED') {
+        this.requestAdminAccount('logout', { method: 'POST', token }).catch(() => {});
+      }
       const messages = {
         401: '아이디 또는 비밀번호를 확인해 주세요.',
         403: '관리자 또는 상담 담당자 권한이 필요합니다.',
@@ -224,13 +232,15 @@ const loginPage = {
   },
 
   async signOutAdmin() {
-    const token = this.adminSession?.token;
+    const token = this.adminSession?.memberToken || this.adminSession?.token;
+    const isDelegated = Boolean(this.adminSession?.memberToken);
     this.adminSession = null;
     this.clearLiveConsoleData();
+    this.purgeLegacyApprovalCache();
     this.pendingReply = null;
     this.saveAdminSession(null);
     this.renderRoute();
-    if (!token) return;
+    if (!token || isDelegated) return;
     const submit = document.getElementById('admin-login-submit');
     submit.disabled = true;
     try {
@@ -310,8 +320,8 @@ const loginPage = {
     list.replaceChildren();
     try {
       const requests = await this.requestAdminAuth('/v2/admin/auth/requests', { token: session.token });
-      if (!list.isConnected || this.adminSession !== session) return;
       if (!Array.isArray(requests)) throw new Error('Invalid signup request list');
+      if (!list.isConnected || this.adminSession !== session) return;
       const dateFormat = new Intl.DateTimeFormat('ko-KR', {
         timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short',
       });
@@ -324,7 +334,7 @@ const loginPage = {
               <p class="font-semibold text-slate-900">${loginId}</p>
               <p class="text-sm text-slate-500">${this.escapeHtml(requestedAt)} · KST</p>
             </div>
-            <form class="flex flex-wrap items-center gap-2" data-user-id="${this.escapeHtml(request.user_id)}"
+            <form class="flex flex-wrap items-center gap-2" data-user-id="${this.escapeHtml(request.user_id)}" data-login-id="${loginId}"
               onsubmit="app.approveAdminSignup(event)">
               <label>
                 <span class="sr-only">${loginId} 권한</span>
@@ -345,7 +355,6 @@ const loginPage = {
       const messages = {
         401: '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
         403: '가입 신청을 조회할 권한이 없습니다.',
-        404: '팀 서버에 관리자 가입 승인 기능이 아직 배포되지 않았습니다.',
       };
       status.textContent = messages[error.status] || '가입 신청을 불러오지 못했습니다. 다시 시도해 주세요.';
     }

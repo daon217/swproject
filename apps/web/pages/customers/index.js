@@ -1,16 +1,27 @@
 const customersPage = {
   liveCustomers: null,
 
+  isMemberSubscribed(member) {
+    if (!member) return false;
+    if (member.subscribed === true || member.subscribed === 'O') return true;
+    return Boolean(
+      member.subscription_started_at &&
+      !member.subscription_ended_at &&
+      !member.subscription_canceled_at
+    );
+  },
+
   formatMemberRow(member) {
     const genderMap = {
       male: '남성',
       female: '여성',
       prefer_not_to_say: '응답 안 함',
     };
+    const subscribed = this.isMemberSubscribed(member);
     return {
       id: member.login_id,
       userId: member.user_id,
-      subscribed: member.subscribed ? 'O' : '',
+      subscribed: subscribed ? 'O' : '',
       gender: genderMap[member.gender] || '미등록',
       ageGroup: member.age_decade == null ? '미등록' : `${member.age_decade}대`,
       status: '정상',

@@ -452,6 +452,12 @@ def test_console_aggregates_settings_and_public_basic(client):
     r=client.get('/v2/admin/overview',headers=admin)
     assert r.status_code==200,r.text
     assert r.json()['data']['today_subscribers']==baseline['today_subscribers']+1
+    # Today's mock revenue is a real server total (both payments were made today), not an estimate.
+    with db('member') as c:
+        paid_today=c.execute('SELECT coalesce(sum(amount),0) FROM app.invoices WHERE invoice_id=ANY(%s::uuid[])',
+            ([older_payment.json()['data']['invoice_id'],payment.json()['data']['invoice_id']],)).fetchone()[0]
+    from decimal import Decimal
+    assert Decimal(r.json()['data']['today_mock_revenue_krw'])-Decimal(baseline['today_mock_revenue_krw'])==paid_today
     path='/v2/admin/support/settings'
     r=client.get(path,headers=admin);assert r.status_code==200,r.text
     v=r.json()['data']['version']

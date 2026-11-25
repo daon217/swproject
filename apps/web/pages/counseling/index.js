@@ -81,6 +81,34 @@ const counselingPage = {
     if (this.isCurrentCounselingView(view)) this.renderContent();
   },
 
+  async pollCounselingList() {
+    const view = this.liveCounseling;
+    if (document.hidden || this.isLocalAuthDemo() || this.state.counselingSubView !== 'list' ||
+      view?.page !== 'counseling' || view.phase !== 'ready' || view.polling ||
+      !this.isCurrentCounselingView(view)) return;
+
+    view.polling = true;
+    try {
+      const items = await this.requestCounselingList(view.session.token, view.session.role === 'admin');
+      if (!this.isCurrentCounselingView(view) || this.state.counselingSubView !== 'list') return;
+      const unchanged = items.length === view.items.length && items.every((item, index) => {
+        const previous = view.items[index];
+        return item.id === previous.id && item.version === previous.version && item.status === previous.status &&
+          item.lastMessageAt === previous.lastMessageAt && item.agent === previous.agent &&
+          item.customerLoginId === previous.customerLoginId;
+      });
+      if (unchanged) return;
+      view.items = items;
+      this.handleCounselingFilterChange(null, null);
+      const total = document.getElementById('counseling-total-count');
+      if (total) total.textContent = items.length;
+    } catch {
+      // Keep showing the current list through a transient polling failure.
+    } finally {
+      view.polling = false;
+    }
+  },
+
   refreshCounselingView() {
     const view = this.liveCounseling;
     if (view?.busy) return;
@@ -224,7 +252,7 @@ const counselingPage = {
 
       <!-- 하단 캡션 -->
       <div class="mt-4 text-sm text-slate-500">
-        ${demo ? '최근 메시지 시간순' : '최근 갱신순'} · <span id="counseling-result-count">${filtered.length}</span> / ${this.getCounselingItems().length}건
+        ${demo ? '최근 메시지 시간순' : '최근 갱신순'} · <span id="counseling-result-count">${filtered.length}</span> / <span id="counseling-total-count">${this.getCounselingItems().length}</span>건
       </div>
     `;
   },

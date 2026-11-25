@@ -8,7 +8,8 @@
 - 시각: observed_at은 시간대 포함 실제 수집 시각. 현재 수신 시각으로 재작성 금지.
 - 응답 확장: change_kind(created/updated/unchanged/stale/failed/not_found/quarantined), changed_fields(변경 컬럼명 배열). 기존 state/error_code/offer_id/observation_id 보존.
 - HTTP: 201 관측 생성, 200 같은 관측 재전송, 409 키/실행 충돌, 422 형식 오류, 401 수집 인증 실패, 413 본문 초과. 201이어도 state=quarantine이면 적용되지 않은 것.
-- 조회: `GET /v2/offers?selected_domain=product|food`, condition=new|used|all(기본 new), availability=available|out_of_stock|ended|suspect|all(기본 available), 선택 source/currency, limit 최대100, after 커서.
+- 조회: `GET /v2/offers?selected_domain=product|food`, condition=new|used|unknown|all(기본 all), availability=available|out_of_stock|ended|suspect|all(기본 available), 선택 source/currency, limit 최대100, after 커서.
+- **condition(신품·중고 상태)**: `new` | `used` | `unknown`. 생략하면 `new`(기존 호환). 판매처가 신품·중고를 표시하지 않으면 `unknown`을 보낸다. `unknown` 관측은 이전 관측이 확인한 `new`/`used`를 덮어쓰지 않는다. 필터: 전체 `all`=new+used+unknown(기본값), 새 상품만 `new`, 중고만 `used`, 미확인만 `unknown`. 기본 추천(`/v2/recommendations/basic`)·유사 상품(`/v2/offers/{id}/matches`, `include_used` 기본 true)도 new+used+unknown. 상품 카드에는 `condition`이 포함되며 `unknown`은 신품으로 표시하지 않고 '상태 미확인'으로 표시한다. 개인 맞춤 AI 추천은 회원이 설정한 '중고 포함' 여부를 따른다. 식품은 `used` 불가.
 - 조회 응답 확장: condition,availability,source_listing_id,last_seen_at,last_checked_at,last_changed_at. 기존 필드 유지. 가격은 소수 문자열, 통화는 원본 통화, 배송비 NULL은 미확인.
 - 변경점: 수집 시 갱신 정책으로 24시간 자동 숨김 제거. 마지막 확인 시각을 표시해야 하며 최신 가격/재고를 보증하지 않는다.
 - 이름/설명/배송비 미제공 시 기존 값 유지. 명시적 null은 허용된 description/shipping_fee만 지움. 통화 변경 시 미제공 배송비는 미확인으로 전환.

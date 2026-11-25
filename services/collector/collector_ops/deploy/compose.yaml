@@ -1,0 +1,495 @@
+{
+  "services": {
+    "domeggook": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/collector_ops/deploy/Dockerfile"
+      },
+      "image": "kkulpick-collector:${COLLECTOR_RELEASE:-local-review}",
+      "init": true,
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "profiles": [
+        "domeggook"
+      ],
+      "environment": {
+        "COLLECTOR_CONFIG": "/run/config.json",
+        "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
+        "KKULPICK_STATE_DIR": "/state",
+        "KKULPICK_MARKETPLACE_STATE_DIR": "/state",
+        "DOMEGGOOK_API_KEY_FILE": "/run/secrets/domeggook_api_key",
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token"
+      },
+      "secrets": [
+        "domeggook_api_key",
+        "kkulpick_backend_token"
+      ],
+      "volumes": [
+        "${CONFIG_DIR:-/srv/kkulpick/config}/domeggook.json:/run/config.json:ro",
+        "${OPS_STATE_DIR:-/srv/kkulpick/state/ops}/domeggook:/state/ops/domeggook",
+        "${DOMEGGOOK_STATE_DIR:-/srv/kkulpick/state/domeggook}/domeggook_ops:/state/domeggook_ops",
+        "${DOMEGGOOK_STATE_DIR:-/srv/kkulpick/state/domeggook}/domeggook_open:/state/domeggook_open"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.collector_ops",
+        "--provider",
+        "domeggook",
+        "--watch"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python",
+          "-m",
+          "services.collector.collector_ops",
+          "--provider",
+          "domeggook",
+          "--health",
+          "--state-dir",
+          "/state"
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "start_period": "40s",
+        "retries": 3
+      }
+    },
+    "serper": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/collector_ops/deploy/Dockerfile"
+      },
+      "image": "kkulpick-collector:${COLLECTOR_RELEASE:-local-review}",
+      "init": true,
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "profiles": [
+        "serper"
+      ],
+      "environment": {
+        "COLLECTOR_CONFIG": "/run/config.json",
+        "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
+        "KKULPICK_STATE_DIR": "/state",
+        "KKULPICK_MARKETPLACE_STATE_DIR": "/state",
+        "SERPER_API_KEY_FILE": "/run/secrets/serper_api_key",
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token"
+      },
+      "secrets": [
+        "serper_api_key",
+        "kkulpick_backend_token"
+      ],
+      "volumes": [
+        "${CONFIG_DIR:-/srv/kkulpick/config}/serper.json:/run/config.json:ro",
+        "${OPS_STATE_DIR:-/srv/kkulpick/state/ops}/serper:/state/ops/serper",
+        "${MARKETPLACE_STATE_DIR:-/srv/kkulpick/state/marketplace}/serper_google_shopping:/state/serper_google_shopping"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.collector_ops",
+        "--provider",
+        "serper",
+        "--watch"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python",
+          "-m",
+          "services.collector.collector_ops",
+          "--provider",
+          "serper",
+          "--health",
+          "--state-dir",
+          "/state"
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "start_period": "40s",
+        "retries": 3
+      }
+    },
+    "ebay": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/collector_ops/deploy/Dockerfile"
+      },
+      "image": "kkulpick-collector:${COLLECTOR_RELEASE:-local-review}",
+      "init": true,
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "profiles": [
+        "ebay"
+      ],
+      "environment": {
+        "COLLECTOR_CONFIG": "/run/config.json",
+        "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
+        "KKULPICK_STATE_DIR": "/state",
+        "KKULPICK_MARKETPLACE_STATE_DIR": "/state",
+        "EBAY_CLIENT_ID_FILE": "/run/secrets/ebay_client_id",
+        "EBAY_CLIENT_SECRET_FILE": "/run/secrets/ebay_client_secret",
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token"
+      },
+      "secrets": [
+        "ebay_client_id",
+        "ebay_client_secret",
+        "kkulpick_backend_token"
+      ],
+      "volumes": [
+        "${CONFIG_DIR:-/srv/kkulpick/config}/ebay.json:/run/config.json:ro",
+        "${OPS_STATE_DIR:-/srv/kkulpick/state/ops}/ebay:/state/ops/ebay",
+        "${MARKETPLACE_STATE_DIR:-/srv/kkulpick/state/marketplace}/ebay_browse:/state/ebay_browse"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.collector_ops",
+        "--provider",
+        "ebay",
+        "--watch"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python",
+          "-m",
+          "services.collector.collector_ops",
+          "--provider",
+          "ebay",
+          "--health",
+          "--state-dir",
+          "/state"
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "start_period": "40s",
+        "retries": 3
+      }
+    },
+    "ebay_used": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/collector_ops/deploy/Dockerfile"
+      },
+      "image": "kkulpick-collector:${COLLECTOR_RELEASE:-local-review}",
+      "init": true,
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "profiles": [
+        "ebay_used"
+      ],
+      "environment": {
+        "COLLECTOR_CONFIG": "/run/config.json",
+        "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
+        "KKULPICK_STATE_DIR": "/state",
+        "KKULPICK_MARKETPLACE_STATE_DIR": "/state",
+        "EBAY_CLIENT_ID_FILE": "/run/secrets/ebay_client_id",
+        "EBAY_CLIENT_SECRET_FILE": "/run/secrets/ebay_client_secret",
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token"
+      },
+      "secrets": [
+        "ebay_client_id",
+        "ebay_client_secret",
+        "kkulpick_backend_token"
+      ],
+      "volumes": [
+        "${CONFIG_DIR:-/srv/kkulpick/config}/ebay_used.json:/run/config.json:ro",
+        "${OPS_STATE_DIR:-/srv/kkulpick/state/ops}/ebay_used:/state/ops/ebay_used",
+        "${MARKETPLACE_STATE_DIR:-/srv/kkulpick/state/marketplace}/ebay_browse:/state/ebay_browse",
+        "${MARKETPLACE_STATE_DIR:-/srv/kkulpick/state/marketplace}/ebay_used:/state/ebay_used"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.collector_ops",
+        "--provider",
+        "ebay_used",
+        "--watch"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python",
+          "-m",
+          "services.collector.collector_ops",
+          "--provider",
+          "ebay_used",
+          "--health",
+          "--state-dir",
+          "/state"
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "start_period": "40s",
+        "retries": 3
+      }
+    },
+    "yes24": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/collector_ops/deploy/Dockerfile"
+      },
+      "image": "kkulpick-collector:${COLLECTOR_RELEASE:-local-review}",
+      "init": true,
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "profiles": [
+        "yes24"
+      ],
+      "environment": {
+        "COLLECTOR_CONFIG": "/run/config.json",
+        "COLLECTOR_RUN_APPROVED": "${COLLECTOR_RUN_APPROVED:-no}",
+        "KKULPICK_STATE_DIR": "/state",
+        "KKULPICK_MARKETPLACE_STATE_DIR": "/state",
+        "YES24_API_KEY_FILE": "/run/secrets/yes24_api_key",
+        "KKULPICK_BACKEND_TOKEN_FILE": "/run/secrets/kkulpick_backend_token"
+      },
+      "secrets": [
+        "yes24_api_key",
+        "kkulpick_backend_token"
+      ],
+      "volumes": [
+        "${CONFIG_DIR:-/srv/kkulpick/config}/yes24.json:/run/config.json:ro",
+        "${OPS_STATE_DIR:-/srv/kkulpick/state/ops}/yes24:/state/ops/yes24",
+        "${MARKETPLACE_STATE_DIR:-/srv/kkulpick/state/marketplace}/yes24_api:/state/yes24_api"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.collector_ops",
+        "--provider",
+        "yes24",
+        "--watch"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "python",
+          "-m",
+          "services.collector.collector_ops",
+          "--provider",
+          "yes24",
+          "--health",
+          "--state-dir",
+          "/state"
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "start_period": "40s",
+        "retries": 3
+      }
+    },
+    "mock": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/collector_ops/deploy/Dockerfile"
+      },
+      "image": "kkulpick-collector:${COLLECTOR_RELEASE:-local-review}",
+      "init": true,
+      "restart": "no",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "profiles": [
+        "mock"
+      ],
+      "network_mode": "none",
+      "volumes": [
+        "mock_state:/state"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.collector_ops",
+        "--provider",
+        "ebay",
+        "--mock",
+        "--state-dir",
+        "/state"
+      ]
+    },
+    "synthetic": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/collector_ops/deploy/Dockerfile"
+      },
+      "image": "kkulpick-collector:${COLLECTOR_RELEASE:-local-review}",
+      "init": true,
+      "restart": "no",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "mem_limit": "512m",
+      "pids_limit": 128,
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "profiles": [
+        "synthetic"
+      ],
+      "network_mode": "none",
+      "volumes": [
+        "synthetic_data:/datasets"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.synthetic_catalog",
+        "--output",
+        "/datasets/1000",
+        "--count",
+        "1000"
+      ]
+    }
+  },
+  "secrets": {
+    "domeggook_api_key": {
+      "file": "${SECRETS_DIR:-/srv/kkulpick/secrets}/domeggook_api_key"
+    },
+    "kkulpick_backend_token": {
+      "file": "${SECRETS_DIR:-/srv/kkulpick/secrets}/kkulpick_backend_token"
+    },
+    "serper_api_key": {
+      "file": "${SECRETS_DIR:-/srv/kkulpick/secrets}/serper_api_key"
+    },
+    "ebay_client_id": {
+      "file": "${SECRETS_DIR:-/srv/kkulpick/secrets}/ebay_client_id"
+    },
+    "ebay_client_secret": {
+      "file": "${SECRETS_DIR:-/srv/kkulpick/secrets}/ebay_client_secret"
+    },
+    "yes24_api_key": {
+      "file": "${SECRETS_DIR:-/srv/kkulpick/secrets}/yes24_api_key"
+    }
+  },
+  "volumes": {
+    "mock_state": {},
+    "synthetic_data": {}
+  }
+}

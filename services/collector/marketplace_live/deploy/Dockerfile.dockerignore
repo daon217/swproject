@@ -1,0 +1,14 @@
+**
+!services/
+!services/collector/
+!services/collector/domeggook_live/
+!services/collector/domeggook_live/*.py
+!services/collector/domeggook_live/requirements.txt
+!services/collector/domeggook_live/config.json
+!services/collector/marketplace_live/
+!services/collector/marketplace_live/*.py
+!services/collector/marketplace_live/config.example.json
+!services/collector/marketplace_live/vendor/
+!services/collector/marketplace_live/vendor/*.py
+!services/collector/marketplace_live/deploy/
+!services/collector/marketplace_live/deploy/Dockerfile

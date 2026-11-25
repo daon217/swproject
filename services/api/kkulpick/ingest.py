@@ -107,7 +107,9 @@ async def accept(c, rid, obs):
     if "description" in present:
         fields["description_observed_at"] = dict(description=obs.description)
     if obs.result == "success" and "condition" in obs.model_fields_set:
-        fields["condition_observed_at"] = dict(condition=obs.condition)
+        # "unknown" means the shop did not say. It must not erase a new/used that an earlier page stated.
+        if not (obs.condition == "unknown" and old and old["condition"] in ("new", "used")):
+            fields["condition_observed_at"] = dict(condition=obs.condition)
     if old and any(old[clock] == at and any(old[k] != v for k, v in values.items())
                    for clock, values in fields.items()):
         return await finish("quarantine", offer, "SAME_TIME_CONFLICT", "quarantined")

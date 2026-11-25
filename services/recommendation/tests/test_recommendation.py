@@ -230,3 +230,10 @@ def test_torch_threads_default_avoids_oversubscription():
     assert torch_threads(cpu_count=14, env="8") == 8
     with pytest.raises(ValueError):
         torch_threads(cpu_count=14, env="0")
+
+
+def test_condition_unknown_is_accepted_and_not_treated_as_used():
+    p = CollectedProduct.from_dict(dict(source="demo", source_listing_id="u", name="상태 미표시 상품", condition="unknown"))
+    assert p.condition == "unknown" and not p.is_used
+    with pytest.raises(ContractError):
+        CollectedProduct.from_dict(dict(source="demo", source_listing_id="r", name="리퍼", condition="refurbished"))

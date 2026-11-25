@@ -1,0 +1,2 @@
+# Reuse the existing HTTP transport and Observation validator dependencies.
+-r ../domeggook_live/requirements.txt

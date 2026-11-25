@@ -5,6 +5,7 @@ from fastapi import APIRouter,Depends,Query,Request
 from pydantic import Field
 from .access import access, admin_member
 from .members import Strict,member,row,execute,fail,wrap,throttle
+from .accounts import member_summaries
 
 router=APIRouter()
 
@@ -69,8 +70,17 @@ async def admin_conversations(req:Request,limit:int=Query(20,ge=1,le=100),after:
                 WHERE user_id=ANY(CAST(:ids AS uuid[]))''',
                 ids=agent_ids)).mappings().all()
             agent_names = {agent['user_id']: agent['login_id'] for agent in agents}
+        # Support staff answer these customers but cannot read the admin-only member list, and that list
+        # stops at 100 members. Return each owner's summary here instead (devlog #72).
+        owners = await member_summaries(member_conn, list({r['owner_id'] for r in rows}))
+
+    def owner(r):
+        o = owners.get(r['owner_id'])
+        return None if o is None else {k: o[k] for k in ('login_id','gender','age_decade','subscribed','subscription_started_at')}
 
     return wrap([conversation(r) | {'owner_id': r['owner_id'],
+        'owner_login_id': (owners.get(r['owner_id']) or {}).get('login_id'),
+        'owner': owner(r),
         'agent_name': agent_names.get(r['last_agent_id'])} for r in rows], req)
 
 

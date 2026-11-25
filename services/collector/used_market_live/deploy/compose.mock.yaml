@@ -1,0 +1,88 @@
+{
+  "services": {
+    "bunjang-mock": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/used_market_live/deploy/Dockerfile"
+      },
+      "init": true,
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "network_mode": "none",
+      "restart": "no",
+      "volumes": [
+        "bunjang-mock:/state"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.used_market_live",
+        "--provider",
+        "bunjang",
+        "--mock",
+        "--state-dir",
+        "/state"
+      ]
+    },
+    "joongna-mock": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/used_market_live/deploy/Dockerfile"
+      },
+      "init": true,
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "network_mode": "none",
+      "restart": "no",
+      "volumes": [
+        "joongna-mock:/state"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.used_market_live",
+        "--provider",
+        "joongna",
+        "--mock",
+        "--state-dir",
+        "/state"
+      ]
+    }
+  },
+  "volumes": {
+    "bunjang-mock": {},
+    "joongna-mock": {}
+  }
+}

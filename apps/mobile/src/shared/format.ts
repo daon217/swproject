@@ -65,3 +65,9 @@ export function safeHttpUrl(url: string): string | null {
     return null;
   }
 }
+
+/** 카드 보조 문구 + 상품 상태. unknown은 새 상품으로 보이지 않게 '상태 미확인'으로 표시한다(new는 표시 생략). */
+export function offerSubtitle(subtitle: string, condition?: string | null): string {
+  const label = condition === 'used' ? '중고' : condition === 'unknown' ? '상태 미확인' : '';
+  return [subtitle, label].filter(Boolean).join(' · ');
+}

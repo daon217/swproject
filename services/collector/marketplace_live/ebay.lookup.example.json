@@ -1,0 +1,45 @@
+{
+  "sources": [
+    {
+      "source": "ebay_browse",
+      "enabled": false,
+      "backend_enabled": false,
+      "backend_owner_approved": false,
+      "price_semantics_confirmed": false,
+      "queries": [
+        "mechanical keyboard"
+      ],
+      "requests_per_cycle": 5,
+      "requests_per_hour": 5,
+      "requests_per_24h": 5,
+      "request_interval_seconds": 10,
+      "cycle_interval_seconds": 7200,
+      "page_size": 3,
+      "max_pages_per_cycle": 1,
+      "max_task_attempts": 1,
+      "max_units_per_month": 0,
+      "cost_per_request": "0",
+      "max_cost_per_month": "0",
+      "allowed_product_hosts": [
+        "www.ebay.com"
+      ],
+      "currencies": [
+        "USD"
+      ],
+      "rights": {
+        "reference": "",
+        "expires_at": "1970-01-01T00:00:00+00:00",
+        "allowed_uses": [],
+        "exception_agreement_reference": ""
+      },
+      "backend_delivery": {
+        "base_url": "",
+        "max_attempts": 5,
+        "max_requests_per_flush": 1,
+        "max_pending": 100,
+        "retry_base_seconds": 5
+      },
+      "marketplace_id": "EBAY_US"
+    }
+  ]
+}

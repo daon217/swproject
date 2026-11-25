@@ -69,7 +69,7 @@ docker compose --env-file infra/db/.env --env-file services/api/.env --env-file 
 - 변경 트랜잭션이 롤백되면 작업도 남지 않습니다.
 - 여러 worker가 `FOR UPDATE SKIP LOCKED`로 서로 다른 작업을 가져갑니다.
 - 계산 중 상품이 변경되거나 임대가 만료되면 오래된 결과를 저장하거나 새 작업을 삭제하지 않습니다.
-- 실패는 원문 없이 오류 클래스만 기록하고 최대 300초 간격으로 재시도합니다. `EMBEDDING_MAX_ATTEMPTS`(기본 8)회 실패하면 `available_at=infinity`, `last_error='exhausted:<오류>'`로 보류하고 다시 가져가지 않습니다.
+- 실패는 원문 없이 오류 클래스만 기록하고 최대 300초 간격으로 재시도합니다. `EMBEDDING_MAX_ATTEMPTS`(기본 8)회 실패하면 `available_at=infinity`, `last_error='exhausted:<오류>'`로 보류하고 다시 가져가지 않습니다. 작업을 잡은 워커가 강제 종료되는 일이 같은 작업에서 그 횟수만큼 반복되어도 `exhausted:WorkerLost`로 보류되며, 원인을 고친 뒤 `--requeue-failed`로 되살립니다.
 - worker는 `EMBEDDING_BATCH_SIZE`(기본 32)개씩 임대해 한 번에 추론합니다. 묶음 추론이 실패하면 건별로 다시 시도해 문제 있는 상품만 실패 처리합니다.
 - 추론이 끝난 묶음은 **한 트랜잭션으로 저장**합니다(상품마다 커밋하지 않음). 상품별 저장은 savepoint라 한 건이 실패해도 그 건만 되돌리고 재시도합니다. 측정: 상품당 5.3ms → 2.8ms.
 - PyTorch CPU 스레드는 `RECO_TORCH_THREADS`(기본 `min(4, 코어 절반)`)입니다. 코어를 전부 쓰면 스레드끼리 경쟁해 오히려 느립니다(14코어 측정: 14스레드 초당 34건, 4스레드 초당 268건). Vision OCR과 CPU를 나눠 쓰는 NAS에서는 2~4를 권장합니다.

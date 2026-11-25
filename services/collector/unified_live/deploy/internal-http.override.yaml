@@ -1,0 +1,59 @@
+{
+  "services": {
+    "domeggook": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
+    },
+    "serper": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
+    },
+    "ebay": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
+    },
+    "yes24": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
+    },
+    "url": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
+    },
+    "fleet": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
+    },
+    "public_feed": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
+    },
+    "homepage": {
+      "networks": {
+        "default": {},
+        "internal_ingest": {}
+      }
+    }
+  },
+  "networks": {
+    "internal_ingest": {
+      "name": "${COLLECTOR_INTERNAL_NETWORK_NAME:-kkulpick-collector-ingest}",
+      "driver": "bridge",
+      "internal": true
+    }
+  }
+}

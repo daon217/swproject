@@ -33,6 +33,7 @@ CASES = [
     ("out_of_stock", {"availability": "out_of_stock"}, 201, "updated", {"availability": "out_of_stock"}),
     ("sale_ended", {"availability": "ended"}, 201, "updated", {"availability": "ended"}),
     ("used_condition", {"condition": "used"}, 201, "updated", {"condition": "used"}),
+    ("unknown_keeps_known_condition", {"condition": "unknown"}, 201, "unchanged", {}),
     ("renamed", {"name": "Renamed sample"}, 201, "updated", {"name": "Renamed sample"}),
     ("description_added", {"description": "New detail"}, 201, "updated", {"description": "New detail"}),
     ("older_price", {"price": "0.5"}, 201, "stale", {}),
@@ -188,7 +189,7 @@ def test_sample_mutation(case, patch, status, kind, changes):
         # Check public listing visibility as well as the stored row.
         query = "/v2/offers?selected_domain=product&source=" + source
         visible = api.get(query).json()["items"]
-        expected_visible = 0 if case in {"out_of_stock", "sale_ended", "used_condition", "not_found"} else offers
+        expected_visible = 0 if case in {"out_of_stock", "sale_ended", "not_found"} else offers  # default condition=all lists used too
         assert len(visible) == expected_visible
         assert len(api.get(query + "&condition=all&availability=all").json()["items"]) == offers
 

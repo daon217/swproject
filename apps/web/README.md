@@ -12,9 +12,9 @@ WBS 담당: 김호진
 node apps/web/local-demo.cjs --api
 ```
 
-- **백엔드 API 주소**: `apps/web/index.html`의 `<meta name="api-base" ... />`에서 설정합니다.
-  - 현재 기본값은 팀 NAS FastAPI 서버(`http://116.33.229.18:8000`)로 연결되어 있습니다.
-  - 로컬 PC에서 직접 FastAPI를 실행할 경우 `http://localhost:8000`으로 변경해 사용할 수 있습니다.
+- **백엔드 API 주소**: `apps/web/index.html`의 `<meta name="api-base" content="/backend" />`는 같은 웹 서버의 Next.js 프록시(`app/backend/[...path]`)를 가리킵니다.
+  - 프록시가 요청을 넘길 실제 FastAPI 주소는 웹 서버 환경변수 `INTERNAL_API_URL`(기본 `http://127.0.0.1:8000`)로 정합니다.
+  - NAS 서버를 쓸 때는 `INTERNAL_API_URL`에 팀에서 공유한 주소를 넣습니다. 서버 주소·포트는 공개 저장소에 적지 않습니다.
 - **CORS 주의사항**: 백엔드의 `DEV_ORIGINS` 설정에 따라 어드민 콘솔은 반드시 `http://localhost:3000` 주소로 접속해야 API 요청이 허용됩니다 (`file://` 직접 열기나 다른 포트 사용 시 CORS 차단).
 
 ## 2. 관리자 로그인 및 가입 승인

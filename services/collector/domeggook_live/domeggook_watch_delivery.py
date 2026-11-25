@@ -1,5 +1,5 @@
 """Next-restart integration. Uses the existing watch lock; never replaces a running worker."""
-import argparse,json
+import argparse,json,time
 from pathlib import Path
 from .runtime import FileState
 from .domeggook_operations import ROOT,configuration,BudgetWait
@@ -33,10 +33,19 @@ class DeliveryDiscoveryRun(DiscoveryRun):
         if status in ('stage_failed','backpressure_needs_reobserve'):
             markers[key]={'observed_at':row.get('observed_at') or row.get('last_observed_at'),'reason':status}
         elif status in ('pending','delivered','quarantine'):markers.pop(key,None)
+    def wait(self,seconds,stop):
+        # Delivery retries are independent of the 2-hour provider schedule.
+        deadline=time.monotonic()+seconds
+        while not stop.is_set():
+            remaining=deadline-time.monotonic()
+            if remaining<=0:return
+            self.delivery.flush(stop=stop)
+            stop.wait(min(30,remaining,self.delivery.retry_delay()))
+
     def cycle(self,mode='combined'):
-        self.delivery.flush()
+        self.delivery.flush(stop=self.stop)
         if self.delivery.backpressure():raise BudgetWait(30,'backend_outbox_backpressure')
-        result=super().cycle(mode);self.delivery.flush();result['backend_delivery']=self.delivery.report();return result
+        result=super().cycle(mode);self.delivery.flush(stop=self.stop);result['backend_delivery']=self.delivery.report();return result
     def report(self):
         report=super().report()
         if hasattr(self,'delivery'):

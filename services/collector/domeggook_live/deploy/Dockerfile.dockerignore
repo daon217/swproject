@@ -1,0 +1,9 @@
+**
+!services/
+!services/collector/
+!services/collector/domeggook_live/
+!services/collector/domeggook_live/*.py
+!services/collector/domeggook_live/config.json
+!services/collector/domeggook_live/requirements.txt
+!services/collector/domeggook_live/deploy/
+!services/collector/domeggook_live/deploy/Dockerfile

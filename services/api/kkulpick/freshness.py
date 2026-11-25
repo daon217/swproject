@@ -27,7 +27,9 @@ def stale_hours() -> int:
 
 
 # Shared card columns: last successful sighting and whether it is older than the stale threshold.
-CARD_FRESHNESS = ("o.last_seen_at AS seen_at, "
+# Every product card also carries condition (new | used | unknown) so clients can label "중고"/"상태 미확인";
+# unknown is never presented as new.
+CARD_FRESHNESS = ("o.condition, o.last_seen_at AS seen_at, "
                   "(o.last_seen_at < now() - make_interval(hours => CAST(:stale_hours AS int))) AS stale")
 
 

@@ -1,0 +1,26 @@
+{
+  "schema_version": "reviewed-discovery-directory-v1",
+  "reference": "package:official-provider-directories-reviewed-2026-11-23",
+  "sites": [
+    {"name":"도매꾹","domain":"domeggook.com","country":"KR","adapter":"domeggook","kind":"general","official_api":true},
+    {"name":"YES24","domain":"www.yes24.com","country":"KR","adapter":"yes24","kind":"general","official_api":true},
+    {"name":"eBay US","domain":"www.ebay.com","country":"US","adapter":"ebay","kind":"used_and_general","official_api":true},
+    {"name":"11번가","domain":"www.11st.co.kr","country":"KR","adapter":"elevenst_offline","kind":"general","official_api":true},
+    {"name":"쿠팡","domain":"www.coupang.com","country":"KR","kind":"general","official_api":true},
+    {"name":"G마켓","domain":"www.gmarket.co.kr","country":"KR","kind":"general","official_api":true},
+    {"name":"옥션","domain":"www.auction.co.kr","country":"KR","kind":"general","official_api":true},
+    {"name":"롯데ON","domain":"www.lotteon.com","country":"KR","kind":"general","official_api":true},
+    {"name":"SSG","domain":"www.ssg.com","country":"KR","kind":"food_and_general","official_api":null},
+    {"name":"번개장터","domain":"m.bunjang.co.kr","country":"KR","adapter":"blocked_partner_required","kind":"used","official_api":true},
+    {"name":"중고나라","domain":"web.joongna.com","country":"KR","adapter":"blocked_partner_required","kind":"used","official_api":null},
+    {"name":"Etsy","domain":"www.etsy.com","country":null,"kind":"used_and_general","official_api":true},
+    {"name":"Amazon","domain":"www.amazon.com","country":"US","kind":"general","official_api":true},
+    {"name":"AliExpress","domain":"www.aliexpress.com","country":null,"kind":"general","official_api":true},
+    {"name":"Smartify","domain":"smartify.in","country":"IN","adapter":"smartify","kind":"general","official_api":true,"metadata_urls":["https://smartify.in/developers/","https://smartify.in/.well-known/api-catalog"]},
+    {"name":"PerfumeRegistry","domain":"perfumeregistry.com","country":"US","adapter":"perfume_registry","kind":"general","official_api":null,"metadata_urls":["https://perfumeregistry.com/ai"]},
+    {"name":"YappyKids","domain":"www.yappykids.com","country":"LV","adapter":"public_yappy","kind":"general","official_api":true,"metadata_urls":["https://www.yappykids.com/agents","https://www.yappykids.com/.well-known/ucp"]},
+    {"name":"식품안전나라","domain":"www.foodsafetykorea.go.kr","country":"KR","kind":"food_information","official_api":true},
+    {"name":"Open Food Facts","domain":"world.openfoodfacts.org","country":null,"kind":"food_information","official_api":true}
+  ],
+  "notes":"API 존재는 공개 전체 상품 검색, 현재 프로젝트 자격, 저장/재배포 허가를 뜻하지 않는다. 어떤 사이트도 seed만으로 활성화하지 않는다."
+}

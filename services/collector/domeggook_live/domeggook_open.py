@@ -40,15 +40,38 @@ def read_key():
 class OpenClient:
     def __init__(self,cap=None,interval=3,*,ledger_path=None):
         self.__key=read_key();self.interval=max(3,interval)
-        self.session=requests.Session();self.session.trust_env=False
+        from .network import secure_public_session
+        self.session=secure_public_session(requests.Session())
         self.session.headers['User-Agent']='KkulPick-OpenAPI-Verification/1.0'
         self.path=ledger_path or ROOT/'request_ledger.json'
         self.state=read(self.path,{'requests':[],'hold':None,'scope':'getItemList/getItemView; max5 distinct listings; internal cap16'})
         authorized_cap=self.state.get('current_internal_cap',16)
         self.cap=min(cap,authorized_cap) if cap is not None else authorized_cap
-        if any(entry.get('status')=='reserved' for entry in self.state['requests']):
+        if not self.state.get('hold') and any(entry.get('status')=='reserved' and not entry.get('recovered_at') for entry in self.state['requests']):
             self.state['hold']='interrupted_request_outcome_unknown';save(self.path,self.state)
         logging.getLogger('urllib3').setLevel(logging.CRITICAL)
+    def recover_uncertain(self, cooldown=7200, current=None):
+        """Release only uncertain public GETs after cooldown; retain every debit.
+
+        No response is invented and this method never performs HTTP. Access,
+        schema and circuit holds always require review.
+        """
+        from datetime import datetime, timezone
+        from .updates import parsed
+        if self.state.get('hold') not in ('uncertain_request_no_auto_resend','interrupted_request_outcome_unknown'):
+            return None
+        entries=[e for e in self.state['requests'] if e.get('status') in ('reserved','network_error') and not e.get('recovered_at')]
+        if not entries or any(e.get('mode') not in ('getItemList','getItemView') or not parsed(e.get('at')) for e in entries):
+            raise SafeAPIError('uncertain_ledger_requires_review')
+        current=current or datetime.now(timezone.utc)
+        delay=max((parsed(e.get('uncertain_at') or e['at']).timestamp()+max(7200,cooldown)-current.timestamp()) for e in entries)
+        if delay>0:return delay
+        for entry in entries:
+            entry.update(recovered_at=current.isoformat(),outcome='uncertain_counted_no_response')
+        self.state['hold']=None
+        save(self.path,self.state)
+        return 0
+
     def close(self):self.session.close();self.__key=None
     def get(self,mode,**params):
         if mode not in ('getItemList','getItemView'):raise SafeAPIError('private_or_unknown_API_forbidden')
@@ -93,7 +116,7 @@ class OpenClient:
                 entry['outcome']='success';save(self.path,self.state)
                 return payload,entry['at']
             except requests.RequestException:
-                entry['status']='network_error';self.state['hold']='uncertain_request_no_auto_resend';save(self.path,self.state)
+                entry.update(status='network_error',uncertain_at=now());self.state['hold']='uncertain_request_no_auto_resend';save(self.path,self.state)
                 raise SafeAPIError('network_error_request_outcome_uncertain') from None
         raise SafeAPIError('transient_retry_exhausted')
 

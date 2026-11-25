@@ -89,6 +89,7 @@ export interface OfferCard {
   reason: string;
   affiliate: boolean;
   image_kind: Domain;
+  condition?: 'new' | 'used' | 'unknown'; // 서버 카드에 포함. 없으면(구버전 서버) 표시 생략
 }
 
 export type SectionKind = 'ai' | 'used' | 'alternative';

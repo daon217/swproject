@@ -1,6 +1,6 @@
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { allergenLabel } from '../shared/allergens';
-import { formatPrice } from '../shared/format';
+import { formatPrice, offerSubtitle } from '../shared/format';
 import type { Analysis, OfferCard, ResultSection } from '../shared/types';
 import { Button } from './components';
 import { IconExternal, IconFilter, IconFood, IconPrinter, IconSearch } from './icons';
@@ -39,7 +39,7 @@ export function OfferRow({ card, onOpenUrl, basic = false }: { card: OfferCard; 
               {card.name}
             </Text>
           </View>
-          <Text style={st.sub}>{card.subtitle}</Text>
+          <Text style={st.sub}>{offerSubtitle(card.subtitle, card.condition)}</Text>
           <Text style={st.price}>{formatPrice(card.price, card.currency)}</Text>
         </View>
         <Pressable onPress={() => onOpenUrl(card.url)} hitSlop={10} accessibilityRole="link" accessibilityLabel={`${card.name} 판매처로 이동`}>

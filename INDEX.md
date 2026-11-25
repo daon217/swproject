@@ -82,6 +82,8 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 52 | 분석 워커(`analysis_worker.py`) `ThreadPoolExecutor` 병렬 처리·DB 원재료 폴백 및 단위 CI `psycopg` 가드 | 해결(예외 세분화는 후속 #05) | `4b1f5fc`, `3fd6f83`, `6180147`, `103070f` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-4-argon.md) |
 | 53 | `catalog-context` URL 정규화 매칭 복원 및 `/internal/process` 입력 오류(`422`) vs 의존성 장애(`503`) 분리 | 해결(호스트 식 인덱스는 후속 #02) | `3d7d6ed` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |
 | 54 | `image_urls` 중복 제거·`/v2/offers/{id}/matches` 200건 절단 및 `asyncpg` 동적 조건 수정·도메인 전환 시 잔류 임베딩 작업 자동 정리 | 해결(유사 후보 세부 정렬은 후속 #03) | `3d7d6ed`, `2c65ccd` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |
+| 63 | (부분) 화면 1장 캡처 → 스크롤 정지 시 성분표 재캡처(`scrollCapture`, 최대 15회·Early Exit) 및 DOM 상품명(`page_title`) 서버 전달·보존 연결 | 부분 해결 | `2a2e521` | Gemini 4 Argon | [기록](journal/2026-11-26-gemini-bootrun-scroll-capture-page-title-gemini-4-argon.md) |
+| 80 | 로컬 통합 부트런 점검(Windows `pgserver` `Asia/Seoul` 타임존 보완, LLM 랭커 연동 및 품목 명사 중심 후보 검색·식품 시드 보강) | 해결(로컬 런타임·maintest 반영) | `2a2e521` | Gemini 4 Argon | [기록](journal/2026-11-26-gemini-bootrun-scroll-capture-page-title-gemini-4-argon.md) |
 
 ## 개발일지 목록
 
@@ -131,3 +133,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-26 | Claude Opus 5.5 | [미사용 DB·테이블·컬럼 점검(다른 AI 결과 검증)](journal/2026-11-26-db-unused-review-claude-opus-5.5.md) |
 | 2026-11-26 | Claude Opus 5.5 | [DB 정규화·비정규화 점검과 최적화](journal/2026-11-26-db-normalization-review-claude-opus-5.5.md) — 0014/member_0005, 한국어 ERD |
 | 2026-11-26 | Claude Opus 5.5 | [새 브랜치 3개 병합·백엔드 연결](journal/2026-11-26-branch-merge-extension-web-crawler-claude-opus-5.5.md) — 서지웅·김호진·박정우, 홈페이지 크롤러 백엔드 전송, 알레르기 묶음 코드 |
+| 2026-11-26 | Gemini 4 Argon | [#63·#80 로컬 통합 부트런 점검·확장 스크롤 재캡처 및 페이지 상품명 연동](journal/2026-11-26-gemini-bootrun-scroll-capture-page-title-gemini-4-argon.md) — `2a2e521`, 스크롤 성분표 재탐색·`page_title` 보존·LLM 추천 및 타임존 점검 |

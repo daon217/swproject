@@ -2,16 +2,11 @@
 import hashlib
 import re
 from decimal import Decimal
-from services.collector.food_evidence.extract import extract,ALIASES,terms
+from services.collector.food_evidence.extract import extract,terms,allergen_codes
 
 def normalized_terms(text):
-    if not text:return [],[]
-    known=[];unknown=[]
-    for token in terms(text):
-        token=re.sub(r'\s*(?:함유|포함|contains?)\s*',' ',token,flags=re.I).strip()
-        code=ALIASES.get(token.casefold())
-        (known if code else unknown).append(code or token)
-    return sorted(set(known)),sorted(set(unknown))
+    known,unknown=allergen_codes(text)
+    return sorted(known),sorted(unknown)
 
 def evidence(fields,*,source,url,at,previous_hash=None):
     lines=[fields.get('description') or '']

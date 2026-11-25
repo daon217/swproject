@@ -206,6 +206,14 @@ def test_domains_availability_and_missing_food_ingredients(db):
            evidence_status='reported' WHERE item_id=%s""",
         (milk_item,),
     )
+    # #59: only a structured code declares shellfish; 'shellfish' is not text-matchable and notice text is unrelated.
+    shell_item, shell_food, _ = seed(conn,source,name='현미 해물 쿠키',kind='food',listing='shell-'+uuid4().hex)
+    conn.execute(
+        """UPDATE app.foods SET ingredients_raw='현미, 천일염', ingredients='["현미","천일염"]'::jsonb,
+           allergen_notice_raw='밀 함유 없음', allergens_declared='["shellfish"]'::jsonb,
+           evidence_status='reported' WHERE item_id=%s""",
+        (shell_item,),
+    )
     visible = seed(conn,source)[1]
     drain(conn)
     with TestClient(app) as client:
@@ -218,6 +226,16 @@ def test_domains_availability_and_missing_food_ingredients(db):
         assert milk_food not in response.json()['offer_ids']
         assert safe_food in response.json()['offer_ids']
         assert response.json()['warnings'][0]['allergen'] == 'milk'
+        assert shell_food in response.json()['offer_ids']  # not allergic to shellfish -> still recommended
+        shell = request(client,query='쿠키',selected_domain='food',profile={'user_id':'test','allergens':['shellfish']},
+                        ingredients=['현미'])
+        assert shell.status_code == 200
+        assert shell_food not in shell.json()['offer_ids'] and safe_food in shell.json()['offer_ids']
+        # The page itself: catalog-context hands the declared codes to the worker separately from ingredients.
+        listing = conn.execute('SELECT source_listing_id FROM app.offers WHERE offer_id=%s',(shell_food,)).fetchone()[0]
+        context = client.post('/internal/catalog-context',headers={'Authorization':'Bearer '+TOKEN},
+            json={'page_url':'https://store.example.test/'+listing,'selected_domain':'food'}).json()['match']
+        assert context['allergens_declared'] == ['shellfish'] and context['ingredients'] == ['현미','천일염']
 
 
 def test_missing_contract_returns_503_not_memory_fallback(db):

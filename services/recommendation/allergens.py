@@ -34,6 +34,29 @@ ALLERGENS: dict[str, tuple[str, list[str]]] = {
     "pine_nut": ("잣", ["잣", "pine nut"]),
 }
 
+# 클라이언트(확장·모바일·회원 프로필)와 백엔드 allergens_declared 는 'soybean' 을 쓴다. 내부 코드는 'soy'.
+CODE_ALIASES: dict[str, str] = {"soybean": "soy", "pinenut": "pine_nut"}
+_CODE_KEY = re.compile(r"[\s\-]+")
+
+
+def normalize_code(value: object) -> str | None:
+    """구조화된 알레르기 코드(또는 표시 이름)를 내부 코드로. 모르는 값이면 None.
+
+    allergens_declared 는 '코드 목록'이므로 글자 매칭(detect)에 넣지 않고 여기서 직접 판정한다.
+    (detect 의 동의어에는 'shellfish'·'pine_nut' 같은 코드 철자가 없어 놓친다 — #59)
+    """
+    if not isinstance(value, str):
+        return None
+    key = _CODE_KEY.sub("_", value.strip().lower())
+    key = CODE_ALIASES.get(key.replace("_", ""), CODE_ALIASES.get(key, key))
+    if key in ALLERGENS:
+        return key
+    for code, (label, _) in ALLERGENS.items():
+        if value.strip() == label:
+            return code
+    return None
+
+
 # '콩'은 대두 외에 강낭콩·완두콩 등도 있지만, 표시상 혼동 위험이 커서 대두로 간주(안전 쪽).
 _SPLIT = re.compile(r"[,，、/·\n;]+")
 _PAREN = re.compile(r"[()\[\]{}]")
@@ -98,9 +121,20 @@ def assess(product: CollectedProduct, profile: UserProfile) -> SafetyVerdict:
 
     tokens = ingredient_tokens(product)
     notice = split_ingredients(product.allergen_notice_raw)
-    has_info = bool(tokens or notice)
+    declared = list(product.allergens_declared or [])
+    has_info = bool(tokens or notice or declared)
 
-    for source_name, texts in (("성분", tokens), ("알레르기 표시", notice)):
+    # 판매처가 구조화해 신고한 코드는 표시 원문이 있어도 항상 직접 반영한다 (#59).
+    unknown_declared = []
+    for value in declared:
+        code = normalize_code(value)
+        if code is None:
+            unknown_declared.append(value)
+        elif code in wanted and code not in detected:
+            detected.add(code)
+            reasons.append(f"{ALLERGENS[code][0]}({code}): 알레르기 신고 코드 '{value}'")
+    # 코드 체계 밖의 값(예: '조개류 함유')은 버리지 않고 글자 매칭으로 한 번 더 본다 (놓치지 않기 우선).
+    for source_name, texts in (("성분", tokens), ("알레르기 표시", notice), ("알레르기 신고", unknown_declared)):
         for code, hit in detect(texts).items():
             if code in wanted and code not in detected:
                 detected.add(code)

@@ -48,7 +48,7 @@ def cmd_validate(a) -> int:
             print(f"{a.file}:{no}: " + " / ".join(errs))
         else:
             ok += 1
-            if not (p.ingredients_raw or p.ingredients or p.allergen_notice_raw):
+            if not (p.ingredients_raw or p.ingredients or p.allergen_notice_raw or p.allergens_declared):
                 no_info += 1
                 print(f"{a.file}:{no}: 경고: 성분 정보 없음 → 알레르기 사용자에게 추천 안 됨 ({p.product_id})")
     print(f"통과 {ok}건, 실패 {bad}건, 성분없음 {no_info}건")
@@ -118,7 +118,7 @@ def _store(a, products: list, bad: int, label: str) -> int:
     rec = _recommender(a)
     rec.catalog.upsert(products)
     n = rec.reindex([p.product_id for p in products])
-    no_info = sum(1 for p in products if not (p.ingredients_raw or p.ingredients or p.allergen_notice_raw))
+    no_info = sum(1 for p in products if not (p.ingredients_raw or p.ingredients or p.allergen_notice_raw or p.allergens_declared))
     print(f"{label}: 저장 {len(products)}건, 임베딩 {n}건 ({rec.embedder.name}), 실패 {bad}건, "
           f"성분없음 {no_info}건(알레르기 사용자에게는 추천 안 됨) → {a.data}")
     return 1 if bad and not products else 0

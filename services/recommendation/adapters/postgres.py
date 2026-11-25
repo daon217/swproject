@@ -163,7 +163,6 @@ class PgCatalog:
             pid = join_product_id(s, l, v)
             ing = [str(x) for x in ing_list if str(x).strip()] if isinstance(ing_list, list) and ing_list else None
             dec = [str(x) for x in declared if str(x).strip()] if isinstance(declared, list) and declared else []
-            notice = notice_raw or (", ".join(dec) if dec else None)
             out[pid] = CollectedProduct.from_dict({
                 k: x for k, x in {"source": s, "source_listing_id": f"{l}#{v}" if v else l, "name": name,
                                   "description": desc, "category": cat or self.kind, "brand": brand,
@@ -172,7 +171,8 @@ class PgCatalog:
                                   "condition": cond, "availability": avail,
                                   "checked_at": checked.isoformat() if checked else None,
                                   "ingredients_raw": ing_raw, "ingredients": ing,
-                                  "allergen_notice_raw": notice,
+                                  "allergen_notice_raw": notice_raw,
+                                  "allergens_declared": dec or None,
                                   "cross_contact_raw": cross_raw}.items()
                 if x is not None})
         # 요청한 id 철자(variant 생략 등) 그대로 돌려주기

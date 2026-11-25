@@ -37,6 +37,10 @@ POST /internal/v2/crawl-runs/{run_id}/observations. UUID run_id를 생성하고 
   수집기가 다시 확인했는데 내용이 같아 관측을 보내지 않은 매물을 묶어 보낸다. 카탈로그의 price·currency·availability가 같을 때만 last_seen_at/last_checked_at을 앞으로 옮긴다(가격·상태와 그 관측 시각은 바꾸지 않음).
   응답 `{"confirmed": n, "mismatch": [...], "unknown": [...], "rejected": [...]}`. mismatch(카탈로그와 다름)·unknown(없음/삭제됨)은 전체 관측을 다시 보내야 한다. observed_at이 미래 5분 초과이거나 30일보다 오래되면 rejected.
 - 상품 카드(기본 추천·제휴·분석 결과)에 `seen_at`(마지막으로 판매 확인된 시각)과 `stale`(CATALOG_STALE_HOURS, 기본 72시간 초과)을 포함한다. 추천 서비스는 RECO_MAX_STALENESS_HOURS(기본 0=끔)를 넘긴 매물을 후보에서 뺄 수 있다.
+- **식품 알레르기 신고 코드**: 리스팅 확장의 `food_evidence.allergens_declared`는 아래 코드로 보낸다(회원 프로필·확장·모바일과 같은 코드).
+  `egg milk buckwheat peanut soybean wheat mackerel crab shrimp pork peach tomato sulfite walnut chicken beef squid shellfish pine_nut`.
+  `soy`, `대두`, `조개류`, `pine nut`처럼 별칭·한글 표시명은 저장 시 위 코드로 바뀐다. 코드가 아닌 문구(예: "새우 함유")는 그대로 저장되고 추천 서비스가 글자로 한 번 더 확인한다.
+  추천 서비스는 이 코드를 표시 원문(`allergen_notice_raw`)과 별개로 항상 직접 판정한다(#59).
 - food와 product는 분리 조회한다. 중고는 condition=used로 조회한다. 제휴·회원·상담 API는 위 업무별 문서를 참고한다. 실제 상품 상세정보 수집 연동은 별도다.
 
 ## 정우: 임베딩 연결

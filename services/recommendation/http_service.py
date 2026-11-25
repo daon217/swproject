@@ -17,7 +17,7 @@ from . import embedding_config as config
 from .contracts import UserProfile, ContractError
 from .pipeline import Recommender
 from .rankers import make_ranker
-from .allergens import ALLERGENS,detect
+from .allergens import ALLERGENS,detect,normalize_code
 
 
 class Input(BaseModel):
@@ -25,6 +25,7 @@ class Input(BaseModel):
     query: str = Field(min_length=1, max_length=1000)
     selected_domain: Literal['product','food']
     ingredients: list[str] = Field(default_factory=list,max_length=100)
+    allergens_declared: list[str] = Field(default_factory=list,max_length=32)
     profile: dict = Field(default_factory=lambda: {'user_id':'worker'})
 
 
@@ -118,7 +119,7 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
     candidates, host, suffix = _normalized_url_candidates(body.page_url)
     try:
         with config.connect() as conn:
-            row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw
+            row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw,f.allergens_declared
                 FROM app.offers o
                 JOIN app.catalog_items i USING(item_id)
                 LEFT JOIN app.foods f USING(item_id)
@@ -129,7 +130,7 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
                 # Host-case fallback. The host expression matches the offers_url_host index (0010)
                 # and the exact path/query comparison runs in SQL, so a busy host cannot push the
                 # matching offer past an arbitrary row limit.
-                row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw
+                row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw,f.allergens_declared
                     FROM app.offers o
                     JOIN app.catalog_items i USING(item_id)
                     LEFT JOIN app.foods f USING(item_id)
@@ -145,6 +146,10 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
         match={'name':row[0],'kind':row[1]}
         if ing:
             match['ingredients']=ing
+        declared=[str(x) for x in (row[4] or []) if str(x).strip()]
+        if declared:
+            # Structured seller-declared codes travel separately; they are never mixed into OCR text (#59).
+            match['allergens_declared']=declared[:32]
         return {'match':match}
     except PG_ERRORS + (KeyError, OSError) as error:
         raise HTTPException(503,'CATALOG_UNAVAILABLE') from error
@@ -157,22 +162,29 @@ def process(body:Input,authorization:str=Header(default='')):
         requested=raw.get('allergens',[])
         if not isinstance(requested, (list, tuple)):
             raise ValueError('allergens must be a list')
-        normalized=['soy' if a=='soybean' else a for a in requested]
+        normalized=[normalize_code(a) or a for a in requested]
         unsupported=[a for a in normalized if a not in ALLERGENS]
         raw['allergens']=[a for a in normalized if a in ALLERGENS] if body.selected_domain=='food' else []
         if body.selected_domain!='food':raw['avoid_ingredients']=[]
         profile=UserProfile.from_dict(raw)
-        detected=detect(body.ingredients) if body.selected_domain=='food' else {}
+        food=body.selected_domain=='food'
+        declared={normalize_code(x) for x in body.allergens_declared} - {None} if food else set()
+        unknown_declared=[x for x in body.allergens_declared if normalize_code(x) is None] if food else []
+        detected=detect(list(body.ingredients)+unknown_declared) if food else {}
         warnings=[{'type':'allergy','allergen':a,'evidence':'contains',
+            'message':f"판매처 알레르기 표시에 {ALLERGENS[a][0]}이(가) 포함되어 있습니다. 상품 표시를 직접 확인해 주세요."}
+            for a in raw['allergens'] if a in declared]
+        warnings+=[{'type':'allergy','allergen':a,'evidence':'contains',
             'message':f"OCR에서 {ALLERGENS[a][0]} 관련 표현이 감지되었습니다. 상품 표시를 직접 확인해 주세요."}
-            for a in raw['allergens'] if a in detected]
+            for a in raw['allergens'] if a in detected and a not in declared]
         # 식품이 아닌 상품(노트북·가전 등)에는 알레르기 경고를 붙이지 않는다.
         # 식품일 때만 자동 검증을 지원하지 않는 항목을 '확인 필요'로 알린다.
         unchecked=unsupported if body.selected_domain=='food' else []
         warnings += [{'type':'allergy','allergen':a,'evidence':'unknown',
             'message':'이 알레르기 항목의 자동 검증은 지원하지 않습니다. 상품 표시를 직접 확인해 주세요.'} for a in unchecked]
         if body.selected_domain=='food' and raw['allergens'] and not body.ingredients:
-            warnings += [{'type':'allergy','allergen':a,'evidence':'unknown','message':'페이지 성분을 확인하지 못했습니다.'} for a in raw['allergens']]
+            warnings += [{'type':'allergy','allergen':a,'evidence':'unknown','message':'페이지 성분을 확인하지 못했습니다.'}
+                         for a in raw['allergens'] if a not in declared and a not in detected]
         # Internal code 'soy' is the clients' 'soybean'; answer in the code the client sent so its label lookup works.
         for w in warnings:
             if w['allergen']=='soy':w['allergen']='soybean'

@@ -261,7 +261,7 @@ def test_listing_extension_matching_and_food_evidence(catalog):
             'ingredients_raw': '유기농 현미 98%, 천일염 2%',
             'ingredients': ['유기농 현미', '천일염'],
             'allergen_notice_raw': '대두 함유',
-            'allergens_declared': ['soy'],
+            'allergens_declared': ['soy', '조개류', 'Pine Nut', '새우 함유'],
             'evidence_status': 'reported',
         },
     }
@@ -270,7 +270,8 @@ def test_listing_extension_matching_and_food_evidence(catalog):
     food_items = api.get(f'/v2/offers?selected_domain=food&source={source}').json()['items']
     assert len(food_items) == 1
     assert food_items[0]['ingredients'] == ['유기농 현미', '천일염']
-    assert food_items[0]['allergens_declared'] == ['soy']
+    # #59: known codes/labels are stored as the shared client codes; unknown text is kept, never dropped.
+    assert food_items[0]['allergens_declared'] == ['soybean', 'shellfish', 'pine_nut', '새우 함유']
 
 
 def test_uploaded_300_import_and_replay(monkeypatch):

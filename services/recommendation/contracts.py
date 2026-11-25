@@ -43,6 +43,7 @@ class CollectedProduct:
     allergen_notice_raw: str | None = None  # "우유, 대두 함유" 같은 알레르기 표시 원문
     cross_contact_raw: str | None = None    # "같은 제조시설에서 땅콩 ... 제조" 원문
     ingredients: list[str] | None = None    # 수집기가 이미 나눈 성분 목록 (없으면 원문을 파싱)
+    allergens_declared: list[str] | None = None  # 판매처가 신고한 알레르기 코드. 예: ["milk", "soybean"] (글자 매칭 안 함)
     description: str | None = None
     collected_at: str | None = None         # ISO-8601
     condition: str | None = None            # "new" | "used" (없으면 new 로 봄)
@@ -86,7 +87,10 @@ class CollectedProduct:
         ing = data.get("ingredients")
         if ing is not None and (not isinstance(ing, list) or not all(isinstance(x, str) for x in ing)):
             errors.append("ingredients 는 문자열 목록")
-        if not any(data.get(k) for k in ("ingredients_raw", "ingredients", "allergen_notice_raw")):
+        dec = data.get("allergens_declared")
+        if dec is not None and (not isinstance(dec, list) or not all(isinstance(x, str) for x in dec)):
+            errors.append("allergens_declared 는 문자열 목록")
+        if not any(data.get(k) for k in ("ingredients_raw", "ingredients", "allergen_notice_raw", "allergens_declared")):
             # 저장은 허용하지만 알레르기 사용자에게는 추천되지 않음 (정보 없음 = 안전 확인 불가)
             pass
         if errors:

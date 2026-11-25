@@ -70,6 +70,14 @@ def test_body_limit_preserves_valid_json():
     assert response.status_code == 200 and response.json() == {'name': '상품'}
 
 
+def test_food_evidence_allergen_codes_are_canonical():
+    from kkulpick.extensions import FOOD_ALLERGENS, FoodEvidence, canonical_allergen
+    assert all(canonical_allergen(code) == code for code in FOOD_ALLERGENS)
+    assert [canonical_allergen(x) for x in ('soy', 'SOYBEAN', '대두', 'pine-nut', 'pinenut', '잣', '조개류', '조개 함유')] ==         ['soybean', 'soybean', 'soybean', 'pine_nut', 'pine_nut', 'pine_nut', 'shellfish', None]
+    evidence = FoodEvidence(allergens_declared=['soy', 'soybean', '대두', 'shellfish', '조개 함유'])
+    assert evidence.allergens_declared == ['soybean', 'shellfish', '조개 함유']  # deduplicated, unknown text kept
+
+
 def test_listing_extension_validation_gtin_and_images():
     from kkulpick.extensions import ListingExtension, canonical_gtin
     assert canonical_gtin("8801043014809") == "08801043014809"

@@ -78,6 +78,7 @@ class Worker:
             kind=job.get('selected_domain') or (match['kind'] if match else None)
             title=match['name'] if match else None
             catalog_ingredients=list(match.get('ingredients') or []) if match else []
+            declared=[str(a)[:64] for a in (match.get('allergens_declared') or [])[:32]] if match else []
             ingredients=[]
             if job.get('image_url'):
                 image=self.http.get(self.api+job['image_url'],headers=self.auth|{'X-Worker-Lease':job['lease_token']})
@@ -117,6 +118,7 @@ class Worker:
             r=self.http.post(self.reco+'/internal/process',headers=self.service_auth,json={
                 'query':title[:1000],'selected_domain':kind,
                 'ingredients':[str(i)[:500] for i in ingredients[:100]],
+                **({'allergens_declared':declared} if declared else {}),
                 'profile':job.get('profile',{'user_id':'worker'})})
             r.raise_for_status();result=r.json()
             warnings=list(result.get('warnings',[]))

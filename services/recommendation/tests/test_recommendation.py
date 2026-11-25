@@ -5,7 +5,7 @@ import pytest
 
 from services.recommendation import cli
 from services.recommendation.adapters.local import InMemoryVectorIndex, JsonCatalog, JsonProfiles
-from services.recommendation.allergens import assess, split_ingredients
+from services.recommendation.allergens import ALLERGENS, assess, detect, normalize_code, split_ingredients
 from services.recommendation.contracts import CollectedProduct, ContractError, UserProfile
 from services.recommendation.embedders import HashEmbedder
 from services.recommendation.pipeline import Recommender
@@ -62,6 +62,31 @@ def test_milk_detected_from_ingredients_and_notice(by_id):
     assert not assess(by_id["yogurt-010"], milk).safe  # '원유' + 표시
     assert not assess(by_id["protein-bar-004"], milk).safe  # 분리유청단백
     assert assess(by_id["juice-007"], milk).safe
+
+
+def test_declared_codes_are_judged_as_codes_not_text():
+    """#59: 'shellfish'·'pine_nut' 은 동의어 글자 매칭으로는 안 잡힌다. 신고 코드는 코드로 판정해야 한다."""
+    assert not detect(split_ingredients("shellfish")) and not detect(split_ingredients("pine_nut"))
+    for code in ALLERGENS:
+        assert normalize_code(code) == code
+    assert [normalize_code(x) for x in ("soybean", "Soybean", "pine nut", "pine-nut", "조개류", "잣", "unknown")] ==         ["soy", "soy", "pine_nut", "pine_nut", "shellfish", "pine_nut", None]
+    base = dict(source="demo", source_listing_id="decl", name="해물 과자")
+    shell = CollectedProduct.from_dict(base | {"allergens_declared": ["shellfish", "pine_nut", "soybean"]})
+    for allergen in ("shellfish", "pine_nut", "soy"):
+        v = assess(shell, UserProfile("u", allergens=[allergen]))
+        assert not v.safe and v.detected == [allergen] and "신고 코드" in v.reasons[0]
+    assert assess(shell, UserProfile("u", allergens=["milk"])).safe  # 신고 코드도 성분 정보로 인정
+
+
+def test_declared_codes_apply_even_when_notice_text_exists():
+    p = CollectedProduct.from_dict(dict(source="demo", source_listing_id="n", name="과자",
+                                        allergen_notice_raw="밀 함유", allergens_declared=["shellfish"]))
+    assert not assess(p, UserProfile("u", allergens=["shellfish"])).safe
+    # 코드 체계 밖의 신고 값은 버리지 않고 글자로 한 번 더 확인한다.
+    q = CollectedProduct.from_dict(dict(source="demo", source_listing_id="q", name="과자", allergens_declared=["새우 함유"]))
+    assert not assess(q, UserProfile("u", allergens=["shrimp"])).safe
+    with pytest.raises(ContractError):
+        CollectedProduct.from_dict(dict(source="demo", source_listing_id="x", name="과자", allergens_declared="milk"))
 
 
 def test_cross_contact_respected(by_id):

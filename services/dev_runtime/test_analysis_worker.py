@@ -52,6 +52,12 @@ def test_recommendation_http_auth_domain_and_allergens():
     assert result.json()['offer_ids']==[] # Missing catalog ingredients cannot be called safe.
     # Clients send and label 'soybean'; the internal 'soy' code must not leak back.
     assert {w['allergen'] for w in result.json()['warnings']}=={'soybean','milk'}
+    # #59: seller-declared codes from the catalog are judged as codes (shellfish/pine_nut are not text-matchable).
+    body.update(ingredients=['밀가루'],allergens_declared=['shellfish','pine_nut','Soybean'])
+    body['profile']['allergens']=['shellfish','pine_nut','soybean','wheat','milk']
+    warnings=c.post('/internal/process',json=body,headers={'Authorization':'Bearer '+TOKEN}).json()['warnings']
+    assert {w['allergen']:w['evidence'] for w in warnings}=={'shellfish':'contains','pine_nut':'contains',
+        'soybean':'contains','wheat':'contains'} # milk: ingredients were read and do not contain it
 
 
 
@@ -104,7 +110,8 @@ def test_worker_claim_image_8100_rank_complete(vision):
         if path.endswith('/claim'):payload={'analysis_id':'job','lease_token':'lease','page_url':OFFER['current_url'],
             'selected_domain':'product','image_url':'/internal/image' if vision else None,
             'profile':{'user_id':'u','allergens':['milk']}}
-        elif path=='/internal/catalog-context':return httpx.Response(200,json={'match':{'kind':'product','name':OFFER['name']}})
+        elif path=='/internal/catalog-context':return httpx.Response(200,json={'match':{'kind':'product','name':OFFER['name'],
+            'allergens_declared':['shellfish']}})
         elif path=='/internal/image':
             assert req.headers['X-Worker-Lease']=='lease';return httpx.Response(200,content=b'image')
         elif path.startswith('/api/v1/vision/'):
@@ -112,6 +119,7 @@ def test_worker_claim_image_8100_rank_complete(vision):
             return httpx.Response(200,json={'status':'success','ingredients':['우유']})
         elif path=='/internal/process':
             body=json.loads(req.content);assert body['profile']['allergens']==['milk'];assert 'offers' not in body
+            assert body['allergens_declared']==['shellfish'] # catalog codes are forwarded as codes, not mixed into OCR text
             return httpx.Response(200,json={'offer_ids':[OFFER['offer_id']],'reasons':{},'ranker':'rule'})
         elif path.endswith('/complete'):
             assert json.loads(req.content)['offer_ids']==[OFFER['offer_id']];payload={'state':'completed'}
@@ -148,6 +156,7 @@ def test_worker_capture_only_job_uses_ocr_title_and_client_domain():
             return httpx.Response(200,json={'status':'success','product_name':'주전자','ingredients':[]})
         elif path=='/internal/process':
             assert json.loads(req.content)['query']=='주전자'
+            assert 'allergens_declared' not in json.loads(req.content) # no catalog match -> field omitted
             return httpx.Response(200,json={'offer_ids':[OFFER['offer_id']],'reasons':{},'ranker':'rule'})
         elif path.endswith('/complete'):
             body=json.loads(req.content);assert body['selected_domain']=='product' and body['offer_ids']==[OFFER['offer_id']];payload={'state':'completed'}

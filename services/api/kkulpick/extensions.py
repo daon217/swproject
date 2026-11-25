@@ -25,6 +25,24 @@ _PRIVATE_HOST = re.compile(
 )
 
 
+# Food allergen codes shared with the extension/mobile clients and member profiles.
+FOOD_ALLERGENS = {
+    "egg": "알류", "milk": "우유", "buckwheat": "메밀", "peanut": "땅콩", "soybean": "대두", "wheat": "밀",
+    "mackerel": "고등어", "crab": "게", "shrimp": "새우", "pork": "돼지고기", "peach": "복숭아", "tomato": "토마토",
+    "sulfite": "아황산류", "walnut": "호두", "chicken": "닭고기", "beef": "쇠고기", "squid": "오징어",
+    "shellfish": "조개류", "pine_nut": "잣",
+}
+_ALLERGEN_ALIASES = {"soy": "soybean", "pinenut": "pine_nut"} | {label: code for code, label in FOOD_ALLERGENS.items()}
+
+
+def canonical_allergen(value: str) -> str | None:
+    """'Soybean', 'soy', '대두', 'pine nut' -> client code; None when not a known code or label."""
+    key = re.sub(r"[\s\-]+", "_", value.strip().lower())
+    if key in FOOD_ALLERGENS:
+        return key
+    return _ALLERGEN_ALIASES.get(key) or _ALLERGEN_ALIASES.get(key.replace("_", "")) or _ALLERGEN_ALIASES.get(value.strip())
+
+
 def collector_auth(req: Request, auth: HTTPAuthorizationCredentials | None = Depends(bearer)):
     if not auth or not secrets.compare_digest(auth.credentials.encode(), req.app.state.token.encode()):
         raise HTTPException(401, "COLLECTOR_AUTH_REQUIRED")
@@ -138,6 +156,18 @@ class FoodEvidence(BaseModel):
     evidence_status: Literal[
         "not_reported", "reported", "negative_claim_unverified", "conflicting", "image_only", "ocr_unverified"
     ] = "reported"
+
+    @field_validator("allergens_declared")
+    @classmethod
+    def canonical_allergens(cls, values):
+        # Store the client/profile code set (soybean, pine_nut, ...) so every reader compares the same codes (#59).
+        # Unknown text is kept verbatim (never dropped): the recommender still text-matches it, safety first.
+        out = []
+        for value in values:
+            code = canonical_allergen(value) or value
+            if code not in out:
+                out.append(code)
+        return out
 
 
 class ListingExtension(BaseModel):

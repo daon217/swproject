@@ -16,7 +16,7 @@ test('admin real login, affiliate save, support reply, settings persistence and 
  await page.goto('http://127.0.0.1:3000');
  await page.locator('#admin-login-id').fill(id);await page.locator('#admin-login-password').fill(pw);
  await page.locator('#admin-login-submit').click();
- await expect(page.getByText('서비스 현황',{exact:true})).toBeVisible();
+ await expect(page.getByText('MAIN · 대시보드',{exact:true})).toBeVisible();
  await page.goto('http://127.0.0.1:3000/console/index.html#/counseling/detail/'+conv);
  await expect(page.getByText('실제 상담 연결 테스트',{exact:true})).toBeVisible();
  await page.locator('#chat-reply-input').fill('DB 저장된 관리자 답변');
@@ -26,7 +26,7 @@ test('admin real login, affiliate save, support reply, settings persistence and 
  await page.goto('http://127.0.0.1:3000/console/index.html#/counseling/settings');
  await page.locator('#cs-setting-start').fill('10:00');await page.locator('#cs-setting-end').fill('19:00');
  await page.getByRole('button',{name:'설정 저장',exact:true}).click();
- await expect(page.getByText('상담 설정을 DB에 저장했습니다.',{exact:true})).toBeVisible();
+ await expect(page.getByText('상담 설정을 팀 서버 DB에 저장했습니다.',{exact:true})).toBeVisible();
  await page.reload();await expect(page.locator('#cs-setting-start')).toHaveValue('10:00');
  await page.goto('http://127.0.0.1:3000/console/index.html#/affiliate/create');
  await page.locator('#aff-form-partner').fill('통합 테스트 제휴사');
@@ -35,7 +35,7 @@ test('admin real login, affiliate save, support reply, settings persistence and 
  await page.locator('#aff-form-offer').selectOption(offer.offer_id);
  await page.locator('#aff-form-start').fill('2026.01.01 00:00');
  await page.getByRole('button',{name:'제휴 상품 등록',exact:true}).click();
- await expect(page.getByText('제휴상품을 저장했습니다.',{exact:true})).toBeVisible();
+ await expect(page.getByText('새 제휴 상품을 서버에 등록했습니다.',{exact:true})).toBeVisible();
  await page.reload();await expect(page.getByText('통합 테스트 제휴사',{exact:true})).toBeVisible();
  const affiliates=(await (await request.get(api+'/v2/admin/affiliate-offers',{headers})).json()).data;
  expect(affiliates.some(a=>a.offer_id===offer.offer_id&&a.partner_name==='통합 테스트 제휴사')).toBeTruthy();

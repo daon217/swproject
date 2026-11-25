@@ -124,7 +124,8 @@ const consoleLayout = {
     const offers = new Map();
     for (const domain of ['product', 'food']) {
       try {
-        const url = new URL('/v2/offers', this.getApiBase());
+        // Keep the /backend proxy prefix: new URL('/v2/...', base) would drop the base path.
+        const url = new URL(this.getApiBase() + '/v2/offers');
         url.search = new URLSearchParams({
           selected_domain: domain, condition: 'all', availability: 'all', limit: '100',
         });

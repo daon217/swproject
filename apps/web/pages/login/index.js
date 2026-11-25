@@ -159,6 +159,16 @@ const loginPage = {
     }
   },
 
+  // Drop cached server data so the next account never sees the previous account's lists.
+  clearLiveConsoleData() {
+    this.liveAffiliates = null;
+    this.liveCounseling = null;
+    this.liveCatalog = null;
+    this.liveCustomers = null;
+    this.liveOverview = null;
+    this.state.offerCatalog = [];
+  },
+
   async activateAdminSession(session) {
     const account = await this.requestAdminAuth('/v2/admin/me', { token: session.token });
     if (account?.role !== 'admin' && account?.role !== 'support') {
@@ -167,7 +177,8 @@ const loginPage = {
     this.adminSession = { ...session, role: account.role };
     this.saveAdminSession(session);
     this.showAdminLoginMessage('');
-    await this.loadConsoleData();
+    this.clearLiveConsoleData();
+    // Each page loads its own live data when routed (see consoleLayout.navigate).
     this.renderRoute();
   },
 
@@ -215,7 +226,7 @@ const loginPage = {
   async signOutAdmin() {
     const token = this.adminSession?.token;
     this.adminSession = null;
-    this.clearConsoleData();
+    this.clearLiveConsoleData();
     this.pendingReply = null;
     this.saveAdminSession(null);
     this.renderRoute();

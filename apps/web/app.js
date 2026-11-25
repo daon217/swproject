@@ -9,7 +9,6 @@ const app = {
   ...counselingPage,
   ...statsPage,
   ...dashboardPage,
-  ...consoleBackend,
 };
 
 window.addEventListener('DOMContentLoaded', () => {

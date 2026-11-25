@@ -98,7 +98,7 @@ const crawlingPage = {
   },
 
   async fetchDomainOffersAll(domain) {
-    const url = new URL('/v2/offers', this.getApiBase());
+    const url = new URL(this.getApiBase() + '/v2/offers');
     url.search = new URLSearchParams({
       selected_domain: domain, condition: 'all', availability: 'all', limit: '100',
     });

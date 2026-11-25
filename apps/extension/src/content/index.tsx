@@ -52,6 +52,37 @@ function ContentApp() {
     return () => chrome.runtime.onMessage.removeListener(onMsg);
   }, []);
 
+  // 식품 페이지이거나 아직 성분표를 찾지 못한 경우(ingredient_status === 'not_found')
+  // 사용자가 상세페이지를 스크롤해 멈추면 현재 화면을 다시 캡처해 성분표를 탐색하도록 요청한다.
+  useEffect(() => {
+    let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastScrollY = window.scrollY;
+    let capturesSent = 0;
+
+    const onScroll = () => {
+      if (capturesSent >= 15) return; // 최대 15프레임 제한(Hard Timeout)
+      if (!state || state.url !== location.href) return;
+      if (state.status !== 'done' || !state.analysis) return;
+      // 이미 성분을 찾았으면(partial/found) 더 이상 스크롤 캡처를 보내지 않음(Early Exit)
+      if (state.analysis.ingredient_status && state.analysis.ingredient_status !== 'not_found') return;
+      if (Math.abs(window.scrollY - lastScrollY) < 250) return;
+
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        lastScrollY = window.scrollY;
+        capturesSent += 1;
+        dlog('content', `스크롤 멈춤 감지(${capturesSent}/15) → 성분표 탐색용 화면 재캡처 요청`);
+        void sendMessage({ type: 'scrollCapture' });
+      }, 900);
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (scrollTimer) clearTimeout(scrollTimer);
+    };
+  }, [state]);
+
   return (
     // 카드를 끌어서 옮길 수 있다(drag.ts). 짧게 누르면 평소처럼 사이드 패널이 열린다.
     <div className="kp-root fl-root" ref={drag.ref} style={drag.style} onPointerDown={drag.onPointerDown} onClickCapture={drag.onClickCapture}>

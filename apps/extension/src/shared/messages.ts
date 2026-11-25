@@ -24,7 +24,8 @@ export type Message =
   | { type: 'openSidePanel'; route: PanelRoute } // content → bg (사용자 클릭)
   | { type: 'openUrl'; url: string }
   | { type: 'tabState'; state: TabState } // bg → content / sidepanel
-  | { type: 'extractProduct' }; // bg → content: 상품 표시 여부 + [임시] 페이지 상품명·가격 읽기(PageScan)
+  | { type: 'extractProduct' } // bg → content: 상품 표시 여부 + [임시] 페이지 상품명·가격 읽기(PageScan)
+  | { type: 'scrollCapture' }; // content → bg: 스크롤 후 성분표 재탐색 캡처 요청
 
 export function sendMessage<T = unknown>(msg: Message): Promise<T | undefined> {
   if (typeof chrome === 'undefined' || !chrome.runtime?.id) {

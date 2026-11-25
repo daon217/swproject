@@ -50,12 +50,12 @@ export function createHttpApi(baseUrl: string): KkulpickApi {
     createAnalysis: (req) => {
       const form = new FormData();
       if (req.image) form.append('image', req.image, 'capture.jpg');
-      // 페이지 URL(열람 기록)은 서버로 보내지 않는다. 캡처 이미지와 상품/식품 선택만 전송한다.
       if (req.selected_domain) form.append('selected_domain', req.selected_domain); // 기본은 미전송(서버 자동 판단)
+      if (req.page_url) form.append('page_url', req.page_url);
+      if (req.page_product?.name) form.append('page_title', req.page_product.name);
       form.append('page_session_id', req.page_session_id);
       form.append('page_revision', String(req.page_revision));
       form.append('request_key', req.request_key);
-      // 페이지에서 읽은 임시 정보는 서버의 검증된 상품 정보로 취급하지 않는다.
       return request('POST', '/analyses', form);
     },
     getAnalysis: (id) => request('GET', `/analyses/${encodeURIComponent(id)}`),

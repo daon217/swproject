@@ -80,7 +80,7 @@ class Worker:
             log.info('analysis %s: page_url=%s selected_domain=%s catalog_match=%s',
                      job['analysis_id'],'yes' if page else 'none',job.get('selected_domain'),bool(match))
             kind=job.get('selected_domain') or (match['kind'] if match else None)
-            title=match['name'] if match else None
+            title=(match['name'] if match else None) or job.get('page_title')
             catalog_ingredients=list(match.get('ingredients') or []) if match else []
             declared=[str(a)[:64] for a in (match.get('allergens_declared') or [])[:32]] if match else []
             ingredients=[]

@@ -23,6 +23,7 @@ worker_bearer=HTTPBearer(auto_error=False)
 class AnalysisInput(Strict):
     # 선택: 클라이언트는 기본적으로 캡처 이미지만 보낸다. 페이지 URL은 사용자 열람 기록이므로 필수로 받지 않는다.
     page_url:HttpUrl|None=None
+    page_title:str|None=Field(default=None,max_length=500)
     page_session_id:str=Field(min_length=1,max_length=180)
     page_revision:int=Field(ge=0)
     request_key:str=Field(min_length=1,max_length=180)
@@ -130,7 +131,7 @@ async def input_data(req):
     image=None
     content=req.headers.get('content-type','').lower()
     if content.startswith('multipart/form-data'):
-        async with req.form(max_files=1,max_fields=5,max_part_size=4096) as form:
+        async with req.form(max_files=1,max_fields=7,max_part_size=4096) as form:
             if len(form.multi_items())!=len(form):fail(422,'DUPLICATE_FIELDS')
             raw={k:v for k,v in form.items() if k!='image'}
             upload=form.get('image')
@@ -170,11 +171,12 @@ async def create_analysis(req:Request,response:Response,owner=Depends(analysis_o
                 pending=await row(c,"SELECT count(*) AS n FROM app.analyses WHERE owner_id=:u AND state IN ('queued','running')",u=uid)
                 if pending['n']>=3:fail(429,'ANALYSIS_LIMIT')
                 if image is not None:image_id=save_image(image)
+                init_meta=json.dumps({'page_title':data.page_title.strip()}) if data.page_title and data.page_title.strip() else None
                 result=await row(c,'''INSERT INTO app.analyses(owner_id,guest,request_key,request_hash,page_url,page_session_id,page_revision,
-                    selected_domain,image_id,image_hash)
-                    VALUES(:u,:guest,:k,:h,:url,:session,:revision,:kind,:image,:ih)
+                    selected_domain,image_id,image_hash,result_metadata)
+                    VALUES(:u,:guest,:k,:h,:url,:session,:revision,:kind,:image,:ih,CAST(:meta AS jsonb))
                     RETURNING analysis_id,state''',u=uid,guest=guest,k=data.request_key,h=digest,url=str(data.page_url) if data.page_url else None,session=data.page_session_id,
-                    revision=data.page_revision,kind=data.selected_domain,image=image_id,ih=image_hash)
+                    revision=data.page_revision,kind=data.selected_domain,image=image_id,ih=image_hash,meta=init_meta)
     except BaseException:
         remove_image(image_id)
         raise
@@ -316,14 +318,15 @@ async def claim(data:Claim,req:Request):
         lease=uuid4()
         result=await row(c,"""UPDATE app.analyses SET state='running',attempt=attempt+1,worker_id=:w,lease_token=:lease,
             lease_until=least(deadline,now()+interval '2 minutes'),updated_at=now() WHERE analysis_id=:id
-            RETURNING analysis_id,owner_id,guest,page_url,selected_domain,lease_token,lease_until,attempt,image_id""",w=data.worker_id,lease=lease,id=r['analysis_id'])
+            RETURNING analysis_id,owner_id,guest,page_url,selected_domain,lease_token,lease_until,attempt,image_id,result_metadata""",w=data.worker_id,lease=lease,id=r['analysis_id'])
+    page_title=(result.get('result_metadata') or {}).get('page_title') if isinstance(result.get('result_metadata'),dict) else None
     # Release the catalog connection before taking a member connection: public
     # routes use member -> catalog order, so nesting here could exhaust both pools.
     if result['guest']:
         # 비회원: 회원 DB를 조회하지 않고 기본 설정으로 추천한다(알레르기 없음, 중고·해외 제외, 무료 개수).
         # 설정 화면의 중고·해외 스위치가 비회원에게 꺼짐으로 보이므로 그와 같게 둔다.
-        return wrap({k:v for k,v in result.items() if k not in {'image_id','owner_id','guest'}}|
-                    {'profile':{'user_id':'guest','allergens':[],'include_used':False,'include_overseas':False,
+        return wrap({k:v for k,v in result.items() if k not in {'image_id','owner_id','guest','result_metadata'}}|
+                    {'page_title':page_title,'profile':{'user_id':'guest','allergens':[],'include_used':False,'include_overseas':False,
                         'avoid_ingredients':[],'preferences':''},
                      'image_url':'/internal/v2/analyses/'+str(result['analysis_id'])+'/image' if result['image_id'] else None},req)
     async with req.app.state.member_engine.connect() as m:
@@ -333,8 +336,8 @@ async def claim(data:Claim,req:Request):
         async with req.app.state.engine.begin() as c:
             await execute(c,"UPDATE app.analyses SET state='cancelled',lease_token=NULL,updated_at=now() WHERE analysis_id=:id AND lease_token=:lease",id=result['analysis_id'],lease=lease)
         return wrap(None,req)
-    return wrap({k:v for k,v in result.items() if k not in {'image_id','owner_id','guest'}}|
-                {'profile':{'user_id':str(result['owner_id']),'allergens':profile['profile']['allergies'],
+    return wrap({k:v for k,v in result.items() if k not in {'image_id','owner_id','guest','result_metadata'}}|
+                {'page_title':page_title,'profile':{'user_id':str(result['owner_id']),'allergens':profile['profile']['allergies'],
                     'include_used':profile['profile']['include_used'],
                     'include_overseas':profile['profile']['include_overseas'],
                     'avoid_ingredients':profile['profile']['ingredient_filter']['avoid'] if profile['premium'] else [],

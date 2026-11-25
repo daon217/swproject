@@ -335,6 +335,17 @@ chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {
     case 'reanalyze':
       void reanalyzeActive();
       return false;
+    case 'scrollCapture': {
+      const tab = sender.tab;
+      if (tab?.id !== undefined && tab.url) {
+        void readState(tab.id).then((s) => {
+          if (!s || s.url !== tab.url || s.status !== 'done') return;
+          if (s.analysis?.ingredient_status && s.analysis.ingredient_status !== 'not_found') return;
+          void analyze(tab.id!, tab.url!, true);
+        });
+      }
+      return false;
+    }
     case 'retry': {
       const p = raw.tabId !== undefined ? chrome.tabs.get(raw.tabId) : activeTab();
       Promise.resolve(p).then((tab) => {

@@ -20,12 +20,13 @@ from .product_contract import normalize,merge_offer,offer_key
 ROOT=STATE_ROOT/'domeggook_ops'
 CONFIG=PACKAGE/'config.json'
 KST=timezone(timedelta(hours=9))
-CONTENT=('description','description_html','detail_image_urls','detail_image_alt')
+CONTENT=('description','description_html','description_source_html','detail_image_urls','detail_image_alt')
 CORE=('product_name','price','currency','product_url')
 SAFE_FIELDS=CORE+('image_url','seller','manufacturer','model','category','specifications','stock_quantity','stock_status','availability',
     'unit_price','minimum_order_quantity','minimum_purchase_quantity','minimum_product_total','shipping_fee','shipping_conditions',
     'estimated_minimum_checkout_total','checkout_total_is_exact','checkout_total_basis','purchase_unit',
-    'option_name','option_price_delta','native_option_status','stock','option_values','observed_at')+CONTENT
+    'option_name','option_price_delta','native_option_status','stock','option_values','observed_at',
+    'native_category','category_levels','classification','is_food','condition','region','service_type','product_notices','product_identifiers','matching_profile')+CONTENT
 
 
 def configuration(path=CONFIG):

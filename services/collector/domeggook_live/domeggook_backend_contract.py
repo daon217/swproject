@@ -16,7 +16,7 @@ class Observation(BaseModel):
     selected_domain:Literal['product','food']
     source_listing_id:Key|None=None
     variant_key:Key|None=None
-    condition:Literal['new','used']='new'
+    condition:Literal['new','used','unknown']='new'
     name:Annotated[str,Field(min_length=1,max_length=500)]|None=None
     description:Annotated[str,Field(max_length=4000)]|None=None
     price:Money|None=None

@@ -25,7 +25,12 @@ def prepare_observation(row,cfg,*,selected_domain,condition,model=None):
     elif row['source']!='domeggook':raise ValueError('source_not_approved')
     if not row.get('variant_key'):raise ValueError('nonempty_native_variant_required')
     if not test and not cfg.get('price_semantics_confirmed'):raise PermissionError('backend_unit_price_MOQ_display_agreement_required')
-    if condition not in ('new','used') or selected_domain not in ('product','food'):raise ValueError('explicit_domain_and_condition_required')
+    classification=row.get('classification')
+    if not test and isinstance(classification,dict):
+        selected_domain=classification.get('selected_domain')
+        condition=classification.get('condition','unknown')
+        if selected_domain not in ('product','food'):raise PermissionError('native_category_domain_unconfirmed')
+    if condition not in ('new','used','unknown') or selected_domain not in ('product','food'):raise ValueError('explicit_domain_and_condition_required')
     stamp=row.get('observed_at') or row.get('last_observed_at')
     body={'schema_version':2,'source':row['source'],'source_listing_id':row['source_listing_id'],'variant_key':row['variant_key'],
           'observed_at':stamp,'result':'success','selected_domain':selected_domain,'condition':condition}
@@ -35,6 +40,7 @@ def prepare_observation(row,cfg,*,selected_domain,condition,model=None):
             body[target]=None;continue
         if not test and (not grant_valid(grants,source) or grants[source].get('reuse') is not True):continue
         value=row.get(source)
+        if target=='description':value=value[:4000] if isinstance(value,str) else None
         if value is not None:body[target]=str(Decimal(str(value))) if target in ('price','shipping_fee') else value
     if not {'name','price','currency','availability','url'}.issubset(body):raise PermissionError('required_field_storage_reuse_or_value_missing')
     body['field_presence']=sorted(set(body)&set(FIELD_MAP))

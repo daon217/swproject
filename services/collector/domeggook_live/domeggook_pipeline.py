@@ -89,16 +89,19 @@ def normalize_detail(listing,payload,stamp):
     specs={k:detail[k] for k in ('manufacturer','model','size','weight','country','itemCustomCode') if detail.get(k) not in (None,'',{},[])}
     row['specifications']=specs or None
     raw_options=payload.get('selectOpt');options=None
+    row['native_option_state']=('explicit_null' if 'selectOpt' in payload and raw_options is None else 'provided' if 'selectOpt' in payload else 'absent')
     if isinstance(raw_options,str) and raw_options:
         try:options=json.loads(raw_options)
         except ValueError:options=None
     elif isinstance(raw_options,dict):options=copy.deepcopy(raw_options)
+    if row['native_option_state']=='provided' and not isinstance(options,dict):row['native_option_state']='unparseable'
     row['native_options']=options
     # Preserve native option data in RAM. Unknown key semantics are never fabricated as variant IDs.
     row['option_identity_status']='native_option_schema_requires_verified_identifier_mapping'
     permitted=flag((desc.get('license') or {}).get('usable'))
     row.update(detail_content_license_usable=permitted,description_html=None,detail_image_urls=[],detail_image_alt={})
     contents=(desc.get('contents') or {}).get('item')
+    row['description_source_html']=contents if permitted is True and isinstance(contents,str) and len(contents.encode())<=4_000_000 else None
     if permitted is True and isinstance(contents,str) and contents.strip():
         cleaned=parse_view_desc('<div class="ifrm_prdc_detail">'+contents+'</div>',row.get('product_url'))
         for field in ('description','description_html','detail_image_urls','detail_image_alt'):row[field]=cleaned[field]
@@ -114,8 +117,28 @@ def normalize_detail(listing,payload,stamp):
                          else 'out_of_stock' if row['stock_status']=='판매중' and row['stock_quantity']==0
                          else 'ended' if row['stock_status'] in ('기간종료','판매종료') else None)
     row['shipping_conditions']['regional_surcharges']=copy.deepcopy(deli.get('feeExtra'))
+    from .classification import classify
+    row['classification']=classify(listing,payload)
+    row['category_levels']=copy.deepcopy(row['classification']['category_levels'])
+    row['is_food']=row['classification']['is_food']
+    row['condition']=row['classification']['condition']
+    row['region']=row['classification']['region']
+    row['service_type']=row['classification']['service_type']
+    row['evidence']['field_paths']['classification']='category.parents.elem/category.current; detail.infoDuty; deli.fromOversea'
+    from services.collector.product_evidence.identifiers import extract_identifiers
+    duties=detail.get('infoDuty') or {};notice_items=duties.get('item') or []
+    if isinstance(notice_items,dict):notice_items=[notice_items]
+    api_values={k:(detail[n], 'detail.'+n) for k,n in (('manufacturer','manufacturer'),('model_name','model'),('sku','itemCustomCode'),('size','size'),('brand','brand'),('mpn','mpn'),('gtin','gtin'),('model_number','modelNumber'),('color','color')) if detail.get(n) not in (None,'')}
+    identifiers=extract_identifiers(api_values=api_values,notices=notice_items,
+        html=contents if isinstance(contents,str) else '',html_allowed=permitted is True,product_url=row['product_url'])
+    row['product_identifiers']=identifiers
+    row['matching_profile']=copy.deepcopy(identifiers['values'])
+    # GTIN/SKU are sent via the already supported identifiers list, never made-up IDs.
+    native_ids=[{'type':k,'value':v,'source_field':identifiers['evidence'][k]['sources'][0]['source_field'][:64]} for k,v in identifiers['values'].items() if k in ('gtin','mpn','sku')]
+    row['matching_profile'].pop('sku',None);row['matching_profile'].pop('gtin',None)
+    if native_ids:row['matching_profile']['identifiers']=native_ids[:8]
     row['field_usage']={field:{'storage':'unverified','reuse':'unverified'} for field in row}
-    for field in ('description','description_html','detail_image_urls','detail_image_alt'):
+    for field in ('description','description_html','description_source_html','detail_image_urls','detail_image_alt'):
         row['field_usage'][field]={'storage':'unverified','reuse':'permitted_by_desc_license' if permitted is True else 'denied' if permitted is False else 'unverified'}
     recalculate_totals(row)
     row['stock']={'quantity':row['stock_quantity'],'status':row['stock_status'],'availability':row['availability']}

@@ -3,7 +3,7 @@
   "scope": "Open getItemList discovery and getItemView incremental refresh; shared bounded ledger",
   "limit": 5,
   "request_interval_seconds": 10,
-  "cycle_interval_seconds": 3600,
+  "cycle_interval_seconds": 7200,
   "requests_per_cycle": 6,
   "requests_per_hour": 12,
   "requests_per_kst_day": 120,

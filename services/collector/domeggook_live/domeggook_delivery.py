@@ -28,7 +28,7 @@ class DeliveryPipeline:
         if self.enabled:
             if self.test and self.settings.get('synthetic_test_approved') is not True:raise PermissionError('isolated_synthetic_test_approval_required')
             if not self.test and self.settings.get('mode')!='live_authorized':raise PermissionError('explicit_delivery_mode_required')
-            if self.settings.get('selected_domain') not in ('product','food') or self.settings.get('condition') not in ('new','used'):raise ValueError('explicit_domain_condition_required')
+            if self.settings.get('selected_domain') not in ('product','food') or self.settings.get('condition') not in ('new','used','unknown'):raise ValueError('explicit_domain_condition_required')
             if self.settings.get('run_id'):
                 run=str(uuid.UUID(self.settings['run_id']))
                 if self.path.exists() and run!=self.state['run_id']:raise ValueError('outbox_run_id_cannot_change')
@@ -65,6 +65,12 @@ class DeliveryPipeline:
     def stage(self,row):
         if not self.enabled:self.skipped+=1;return {'status':'disabled'}
         if not self.ready:self.count('permission_blocked');return {'status':'permission_blocked'}
+        if not self.test and isinstance(row.get('classification'),dict):
+            cls=row['classification']
+            if cls.get('selected_domain') not in ('product','food'):
+                self.count('classification_held');return {'status':'classification_unconfirmed'}
+            if cls.get('selected_domain')=='food' and cls.get('condition')=='used':
+                self.count('classification_held');return {'status':'classification_contract_conflict'}
         try:body=prepare_observation(row,self.cfg,selected_domain=self.settings['selected_domain'],condition=self.settings['condition'])
         except PermissionError:self.count('permission_blocked');return {'status':'permission_blocked'}
         key=body['observation_key'];sha=digest(body);previous=self.state['entries'].get(key)

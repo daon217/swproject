@@ -24,6 +24,15 @@ def decode_options(value):
 
 
 def option_offers(row):
+    if row.get('variant_key') is None and row.get('native_option_state')=='explicit_null':
+        candidate=copy.deepcopy(row)
+        # Contract-reserved listing identity; never a generated provider option ID.
+        candidate.update(variant_key='default',variant_scope='backend_listing_default')
+        candidate.setdefault('identity_evidence',{})['variant_key']={
+            'value':'default','path':'backend.ListingExtension.variant_key.default',
+            'basis':'backend listing-level contract; domeggook.selectOpt explicitly null'}
+        return [resolve(candidate)],[]
+    if row.get('native_option_state') in ('absent','unparseable'):return [],['unconfirmed_option_structure']
     options=row.get('native_options')
     # Missing/empty options are not proof of option absence.
     if not isinstance(options,dict) or options.get('type')!='combination' or not isinstance(options.get('data'),dict) or not options['data']:

@@ -133,6 +133,21 @@ class DiscoveryTests(unittest.TestCase):
         self.assertFalse((self.root/'permitted_offers.json').exists())
         row=run.latest_rows['90000001']
         for key in ('stock','option_values','observed_at','minimum_product_total','estimated_minimum_checkout_total'):self.assertIn(key,row)
+    def test_refresh_replaces_component_notices_and_revoked_image_permissions(self):
+        run=self.run_object();pid='90000001';payload=fixture(pid)[1]
+        payload['desc']['license']['usable']=True
+        payload['detail']['infoDuty']={'item':[{'name':'재질','desc':'PP'}]}
+        run.state['listings'][pid]={'origin':'discovery','attempts':0}
+        run.state['cycle_refresh_done']=[]
+        first=datetime.now(timezone.utc)
+        run._detail_result({'pid':pid},payload,first.isoformat(),'discovery')
+        self.assertEqual(run.latest_rows[pid]['product_notices']['item'][0]['desc'],'PP')
+        newer=copy.deepcopy(payload);newer['detail'].pop('infoDuty');newer['desc']['license']['usable']=False
+        run._detail_result({'pid':pid},newer,(first+timedelta(seconds=1)).isoformat(),'refresh')
+        row=run.latest_rows[pid]
+        self.assertIsNone(row['product_notices']);self.assertIsNone(row['description_html'])
+        self.assertEqual(row['detail_image_urls'],[]);self.assertFalse(row['detail_content_license_usable'])
+
     def test_option_ambiguity_quarantined_without_fabricated_ID(self):
         run=self.run_object()
         payload=fixture('90000001')[1];payload['selectOpt']=None

@@ -1,0 +1,5 @@
+# Optional food-detail OCR only; CPU wheels, no GPU runtime.
+--extra-index-url https://download.pytorch.org/whl/cpu
+easyocr==1.7.2
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu

@@ -212,13 +212,25 @@ class DiscoveryRun:
             # instead merges newly observed fields with the current in-memory row,
             # preserving fields absent from a partial refresh and rejecting stale data.
             previous=self.latest_rows.get(pid)
+            observed_options=(row.get('native_option_state'),copy.deepcopy(row.get('native_options')))
+            detail_fields=('product_identifiers','matching_profile','product_notices','description_source_html','description_html','detail_image_urls','detail_image_alt','detail_content_license_usable','observed_at')
+            observed_detail={field:copy.deepcopy(row.get(field)) for field in detail_fields}
             row,operation,changed=merge_fields(previous,row,(
                 'product_name','price','currency','seller','product_url','image_url',
-                'category','brand','description','specifications','rating',
+                'category','native_category','category_levels','classification','is_food','region','service_type',
+                'brand','description','specifications','rating',
                 'rating_scale','review_count','condition','shipping_fee',
                 'stock_status','stock_quantity','minimum_order_quantity',
                 'purchase_unit','availability','unit_price','stock',
             ))
+            previous_at=parsed((previous or {}).get('evidence',{}).get('observed_at'))
+            current_at=parsed(stamp)
+            if current_at and (not previous_at or current_at>=previous_at):
+                # Option absence/parse failure is explicit evidence too: never reuse a
+                # previous option map after the latest response became unconfirmed.
+                row['native_option_state'],row['native_options']=observed_options
+                # Fresh permission/notice/image absence must supersede old detail data.
+                row.update(observed_detail)
             offers,reasons=option_offers(row)
             for candidate in offers:self.store.put(candidate)
             self.latest_rows[pid]=row;self.latest_rows.move_to_end(pid)

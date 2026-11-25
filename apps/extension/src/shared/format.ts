@@ -71,3 +71,9 @@ export function offerSubtitle(subtitle: string, condition?: string | null): stri
   const label = condition === 'used' ? '중고' : condition === 'unknown' ? '상태 미확인' : '';
   return [subtitle, label].filter(Boolean).join(' · ');
 }
+
+/** 마이페이지 신체 정보 한 줄. 예: '키 170cm · 몸무게 60kg · 발 260mm' */
+export function bodySizeLabel(p: { height_cm?: number | null; weight_kg?: number | null; foot_mm?: number | null }): string {
+  const v = (n: number | null | undefined, unit: string) => (n === null || n === undefined ? '미입력' : `${n}${unit}`);
+  return `키 ${v(p.height_cm, 'cm')} · 몸무게 ${v(p.weight_kg, 'kg')} · 발 ${v(p.foot_mm, 'mm')}`;
+}

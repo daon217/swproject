@@ -22,8 +22,9 @@ import { FEATURED, mockPageFor, PRINTER_AI, PRINTER_USED, SNACK_AI } from './moc
 // 서버 규칙 중 화면에 드러나는 부분(무료/프리미엄 한도, 잠긴 후보 URL 미포함, 비회원 중고 OFF,
 // expected_version 충돌, 알레르기 경고)을 흉내 낸다.
 
-const FREE_LIMIT = 1;
-const PREMIUM_LIMIT = 3;
+// AI 추천 공개 개수(서버 analyses.py FREE_AI_ITEMS·PREMIUM_AI_ITEMS와 같다)
+const FREE_LIMIT = 3;
+const PREMIUM_LIMIT = 5;
 const USED_LIMIT = 3;
 const AI_DELAY = 900;
 const USED_DELAY = 2600;
@@ -141,8 +142,17 @@ function buildAnalysis(job: MockJob, user: MockUser | null): Analysis {
     source_summary: { catalog: 'success' },
   };
 
+  // AI 추천에는 국내(원화) 상품만. 해외 판매처 상품은 회원이 해외 상품 포함을 켜 두었을 때만 따로 '해외 추천' 구역에 둔다.
+  // 비회원은 설정 화면 스위치가 꺼짐으로 보이므로 해외 상품을 넣지 않는다(서버와 같은 규칙).
+  const domestic = (cards: OfferCard[]) => cards.filter((c) => c.currency === 'KRW');
+  const overseasOn = !!user && user.profile.include_overseas !== false;
+
   if (page.domain === 'product') {
-    result.sections.push(section('ai', PRINTER_AI, limit, premium ? '판매처에서 최종 가격과 배송 조건을 확인하세요.' : null));
+    result.sections.push(section('ai', domestic(PRINTER_AI), limit, premium ? '판매처에서 최종 가격과 배송 조건을 확인하세요.' : null));
+    if (overseasOn) {
+      const items = PRINTER_AI.filter((c) => c.currency !== 'KRW').slice(0, USED_LIMIT);
+      result.sections.push({ kind: 'overseas', state: 'ready', items, locked_count: 0, lock_reason: null, footnote: null });
+    }
     // 중고는 product 도메인 + 회원 include_used일 때만. 비회원 기본값은 false(명세 9.4).
     if (user?.profile.include_used) {
       const ready = elapsed >= USED_DELAY;
@@ -221,6 +231,10 @@ function createMockImpl(): KkulpickApi {
           gender: req.gender,
           birth_date: req.birth_date,
           include_used: false,
+          include_overseas: true,
+          height_cm: req.height_cm ?? null,
+          weight_kg: req.weight_kg ?? null,
+          foot_mm: req.foot_mm ?? null,
           allergies: req.allergies,
           ingredient_filter: { avoid: [], prefer: [] },
         },
@@ -377,7 +391,7 @@ function createMockImpl(): KkulpickApi {
           price: null, // 요금 미확정(D01)
           currency: 'KRW',
           interval: 'month',
-          benefits: ['AI 추천 상품 3개 전체 보기', '기피·선호 재료로 식품 필터', '내 취향에 맞는 후보 비교'],
+          benefits: ['AI 추천 상품 5개 보기', '기피·선호 재료로 식품 필터', '내 취향에 맞는 후보 비교'],
         },
       ];
     },
@@ -419,8 +433,23 @@ function createMockImpl(): KkulpickApi {
     },
 
     async getSupportConversation() {
-      const u = await requireUser(await load());
+      const db = await load();
+      const u = await requireUser(db);
+      // 개발용 종료 표시가 켜져 있으면 새 상담을 연다(이전 대화는 비운다).
+      if (await getItem<boolean>('kp.mock.supportResolved', false)) {
+        await setItem('kp.mock.supportResolved', false);
+        u.support = [];
+        await save(db);
+      }
       return { conversation_id: `conv-${u.user_id}`, agent_name: '김상담', status: 'open' };
+    },
+
+    async listSupportConversations() {
+      const u = await requireUser(await load());
+      if (!u.support.length) return [];
+      // 개발용: kp.mock.supportResolved=true면 상담원이 상담을 종료한 상태로 본다.
+      const resolved = await getItem<boolean>('kp.mock.supportResolved', false);
+      return [{ conversation_id: `conv-${u.user_id}`, agent_name: '김상담', status: resolved ? 'resolved' : 'open' }];
     },
 
     async listSupportMessages() {
@@ -430,6 +459,7 @@ function createMockImpl(): KkulpickApi {
     async sendSupportMessage(_id, body, client_message_id) {
       const db = await load();
       const u = await requireUser(db);
+      if (await getItem<boolean>('kp.mock.supportResolved', false)) throw new ApiError(409, 'CONVERSATION_CLOSED', '상담이 종료되었어요.');
       const existing = u.support.find((m) => m.message_id === client_message_id);
       if (existing) return existing;
       const msg: SupportMessage = {

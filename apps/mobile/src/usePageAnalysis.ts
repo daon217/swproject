@@ -2,8 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ComponentRef, type RefOb
 import { Platform, type View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import { onReanalyze } from './session';
-import { api, isMockApi } from './shared/api';
-import { getAuthToken } from './shared/auth';
+import { api } from './shared/api';
 import { captureRule } from './shared/pageFilter';
 import { uuid } from './shared/platform';
 import type { PageScan } from './shared/pageProductScript';
@@ -47,7 +46,8 @@ export function usePageAnalysis(
       const stale = () => current.current.rev !== rev || current.current.url !== target;
 
       const rule = captureRule(target);
-      if (!rule || (!isMockApi && !(await getAuthToken()))) {
+      // 로그인하지 않아도 분석한다(서버가 기기별 비회원 키로 기본 설정 추천).
+      if (!rule) {
         setState({ status: 'none', analysis: null, error: null, pageSessionId });
         return;
       }
@@ -91,6 +91,8 @@ export function usePageAnalysis(
         const page_product = scan?.product;
         const created = await api.createAnalysis({
           image,
+          // 페이지 상품명·카테고리로 식품이 확실할 때만 알린다(그 밖에는 서버가 캡처로 판단).
+          selected_domain: scan?.domain ?? undefined,
           page_url: target,
           page_session_id: pageSessionId,
           page_revision: rev,

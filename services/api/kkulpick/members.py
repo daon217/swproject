@@ -47,6 +47,10 @@ class Profile(Strict):
     gender: Literal['male', 'female', 'prefer_not_to_say'] | None = None
     birth_date: date | None = None
     allergies: list[Preference] = Field(default_factory=list, max_length=50)
+    # 선택 입력. 비우면 None. 범위는 app.members CHECK 제약과 같다(member_0005).
+    height_cm: Annotated[float, Field(ge=50, le=250)] | None = None
+    weight_kg: Annotated[float, Field(ge=10, le=300)] | None = None
+    foot_mm: Annotated[int, Field(ge=150, le=350)] | None = None
 
     @field_validator('birth_date')
     @classmethod
@@ -78,6 +82,7 @@ class Login(Strict):
 class ProfilePatch(Profile):
     expected_version: int = Field(ge=1)
     include_used: bool = False
+    include_overseas: bool = True
     ingredient_filter: IngredientFilter | None = None
 
 
@@ -165,7 +170,10 @@ async def me(c, uid):
     values = {k: [p['value'] for p in prefs if p['kind'] == k] for k in ('allergy', 'avoid', 'prefer')}
     return {'user_id': uid, 'login_id': r['login_id'], 'premium': (await subscription_status(c, uid))['active'],
             'profile': {'version': r['profile_version'], 'gender': r['gender'], 'birth_date': r['birth_date'],
-                        'include_used': r['include_used'], 'allergies': values['allergy'],
+                        'include_used': r['include_used'], 'include_overseas': r['include_overseas'],
+                        'height_cm': float(r['height_cm']) if r['height_cm'] is not None else None,
+                        'weight_kg': float(r['weight_kg']) if r['weight_kg'] is not None else None,
+                        'foot_mm': r['foot_mm'], 'allergies': values['allergy'],
                         'ingredient_filter': {'avoid': values['avoid'], 'prefer': values['prefer']}}}
 
 
@@ -191,9 +199,10 @@ async def signup(data: Signup, req: Request):
     async with req.app.state.member_engine.begin() as c:
         if await login_id_taken(c, data.login_id):
             fail(409, 'LOGIN_ID_TAKEN')
-        r = await row(c, """INSERT INTO app.members(login_id,password_hash,gender,birth_date,consent_version)
-            VALUES(:l,:p,:g,:b,:v) ON CONFLICT DO NOTHING RETURNING user_id""",
-            l=data.login_id, p=encoded, g=data.gender, b=data.birth_date, v=data.consent_version)
+        r = await row(c, """INSERT INTO app.members(login_id,password_hash,gender,birth_date,height_cm,weight_kg,foot_mm,consent_version)
+            VALUES(:l,:p,:g,:b,:h,:w,:f,:v) ON CONFLICT DO NOTHING RETURNING user_id""",
+            l=data.login_id, p=encoded, g=data.gender, b=data.birth_date,
+            h=data.height_cm, w=data.weight_kg, f=data.foot_mm, v=data.consent_version)
         if not r:
             fail(409, 'LOGIN_ID_TAKEN')
         await preferences(c, r['user_id'], 'allergy', data.allergies)
@@ -252,7 +261,7 @@ async def profile(data: ProfilePatch, req: Request, uid=Depends(member)):
                 fail(403, 'PREMIUM_REQUIRED')
             for key in ('avoid', 'prefer'):
                 await preferences(c, uid, key, getattr(data.ingredient_filter, key))
-        for key in ('gender', 'birth_date', 'include_used'):
+        for key in ('gender', 'birth_date', 'include_used', 'include_overseas', 'height_cm', 'weight_kg', 'foot_mm'):
             if key in data.model_fields_set:
                 await execute(c, f'UPDATE app.members SET {key}=:v WHERE user_id=:u', v=getattr(data, key), u=uid)
         if 'allergies' in data.model_fields_set:

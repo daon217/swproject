@@ -14,7 +14,7 @@ export default function PaymentDoneScreen() {
           ✓
         </Text>
         <H1 style={{ fontSize: 30, lineHeight: 40 }}>{'프리미엄 구독이\n완료되었어요!'}</H1>
-        <Desc>이제 추천 상품 3개와 식품 재료 필터를 이용할 수 있어요.</Desc>
+        <Desc>이제 AI 추천 상품 5개와 식품 재료 필터를 이용할 수 있어요.</Desc>
         <Note>프리미엄 혜택이 지금부터 적용돼요.</Note>
       </Page>
     </View>

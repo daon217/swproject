@@ -31,6 +31,9 @@ FOOD_ALLERGENS = {
     "mackerel": "고등어", "crab": "게", "shrimp": "새우", "pork": "돼지고기", "peach": "복숭아", "tomato": "토마토",
     "sulfite": "아황산류", "walnut": "호두", "chicken": "닭고기", "beef": "쇠고기", "squid": "오징어",
     "shellfish": "조개류", "pine_nut": "잣",
+    "almond": "아몬드", "cashew": "캐슈넛", "pistachio": "피스타치오", "hazelnut": "헤이즐넛", "macadamia": "마카다미아",
+    "sesame": "참깨", "kiwi": "키위", "banana": "바나나", "apple": "사과", "mango": "망고", "salmon": "연어",
+    "tuna": "참치", "octopus": "문어·낙지", "lamb": "양고기", "celery": "셀러리", "mustard": "겨자", "corn": "옥수수",
 }
 _ALLERGEN_ALIASES = {"soy": "soybean", "pinenut": "pine_nut"} | {label: code for code, label in FOOD_ALLERGENS.items()}
 

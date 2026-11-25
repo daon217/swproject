@@ -426,3 +426,8 @@
     animation: none;
   }
 }
+
+/* 알레르기 경고 문장(여러 항목을 경고창 하나에 담는다) */
+.kp-warning-line {
+  margin: 4px 0 0;
+}

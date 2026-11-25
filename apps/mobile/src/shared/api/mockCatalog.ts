@@ -5,13 +5,13 @@ import type { Domain, OfferCard } from '../types';
 
 const now = () => new Date().toISOString();
 
-function card(id: string, kind: Domain, name: string, subtitle: string, price: string, reason: string): OfferCard {
+function card(id: string, kind: Domain, name: string, subtitle: string, price: string, reason: string, currency = 'KRW'): OfferCard {
   return {
     offer_id: id,
     name,
     subtitle,
     price,
-    currency: 'KRW',
+    currency,
     observed_at: now(),
     availability: 'available',
     url: `https://example.com/offers/${id}`,
@@ -25,6 +25,9 @@ export const PRINTER_AI = [
   card('p-ink', 'product', '잉크탱크 흑백 프린터', '흑백 인쇄 · 프린터', '169000', '예상 출력량과 잉크 유지비를 비교하세요.'),
   card('p-laser', 'product', '소형 흑백 레이저 프린터', '흑백 인쇄 · 프린터', '139000', '문서 출력 속도와 토너 비용을 비교하세요.'),
   card('p-wifi', 'product', '무선 흑백 프린터', '흑백 인쇄 · 프린터', '159000', '무선 연결과 지원 기기를 확인하세요.'),
+  card('p-duplex', 'product', '자동 양면 흑백 프린터', '양면 인쇄 · 프린터', '189000', '양면 인쇄로 종이 사용량을 줄일 수 있어요.'),
+  card('p-mono-us', 'product', 'Compact Mono Laser Printer', '해외 판매처 · 프린터', '129.99', '해외 배송비와 전압(110V/220V)을 확인하세요.', 'USD'),
+  card('p-multi', 'product', '흑백 복합기(스캔·복사)', '복합기 · 프린터', '199000', '스캔·복사까지 필요하면 비교해 보세요.'),
 ];
 
 export const PRINTER_USED = [
@@ -37,6 +40,8 @@ export const SNACK_AI = [
   card('f-rice', 'food', '라이스 크리스프', '쌀과자 · 120g', '12000', '설정한 재료를 고려한 추천 후보예요.'),
   card('f-brown', 'food', '담백한 현미 스낵', '현미 · 3개입', '10200', '선호 재료인 현미를 포함한 후보예요.'),
   card('f-orig', 'food', '오리지널 쌀과자', '쌀과자 · 2개입', '9900', '담백한 맛을 찾는 분께 추천해요.'),
+  card('f-corn', 'food', '구운 옥수수칩', '옥수수 · 60g', '2500', '튀기지 않고 구운 과자를 찾는 분께 추천해요.'),
+  card('f-seaweed', 'food', '김부각 스낵', '김 · 50g', '4900', '짭짤한 간식을 찾는 분께 추천해요.'),
 ];
 
 /** 비회원 시작 화면 추천 상품(목업 제휴 상품). 제휴 사실은 화면에 표시한다(명세 10.3). */

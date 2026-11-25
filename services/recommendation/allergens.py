@@ -32,6 +32,24 @@ ALLERGENS: dict[str, tuple[str, list[str]]] = {
     "shellfish": ("조개류", ["조개", "굴", "전복", "홍합", "바지락", "가리비", "모시조개", "oyster", "clam", "mussel",
                              "abalone", "scallop"]),
     "pine_nut": ("잣", ["잣", "pine nut"]),
+    # 표시 대상 19종 밖이지만 자주 보고되는 식품 알레르기(확장·모바일 선택 항목과 같은 코드).
+    "almond": ("아몬드", ["아몬드", "almond"]),
+    "cashew": ("캐슈넛", ["캐슈", "cashew"]),
+    "pistachio": ("피스타치오", ["피스타치오", "pistachio"]),
+    "hazelnut": ("헤이즐넛", ["헤이즐넛", "개암", "hazelnut"]),
+    "macadamia": ("마카다미아", ["마카다미아", "macadamia"]),
+    "sesame": ("참깨", ["참깨", "깨", "참기름", "깨소금", "세서미", "sesame"]),
+    "kiwi": ("키위", ["키위", "참다래", "kiwi"]),
+    "banana": ("바나나", ["바나나", "banana"]),
+    "apple": ("사과", ["사과", "apple"]),
+    "mango": ("망고", ["망고", "mango"]),
+    "salmon": ("연어", ["연어", "salmon"]),
+    "tuna": ("참치", ["참치", "다랑어", "tuna"]),
+    "octopus": ("문어·낙지", ["문어", "낙지", "주꾸미", "쭈꾸미", "octopus"]),
+    "lamb": ("양고기", ["양고기", "lamb", "mutton"]),
+    "celery": ("셀러리", ["셀러리", "샐러리", "celery"]),
+    "mustard": ("겨자", ["겨자", "머스타드", "머스터드", "mustard"]),
+    "corn": ("옥수수", ["옥수수", "콘시럽", "corn"]),
 }
 
 # 클라이언트(확장·모바일·회원 프로필)와 백엔드 allergens_declared 는 'soybean' 을 쓴다. 내부 코드는 'soy'.
@@ -83,6 +101,8 @@ _FALSE_FRIENDS: dict[str, tuple[str, ...]] = {
              "코코넛밀크", "코코넛크림", "아몬드밀크", "오트밀크", "귀리밀크", "라이스밀크", "cocoabutter",
              "coconutmilk"),
     "wheat": ("메밀",),
+    "apple": ("파인애플", "pineapple"),
+    "mango": ("망고스틴",),
 }
 
 

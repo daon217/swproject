@@ -51,7 +51,7 @@ export function WebPage({ uri, onNavigation, onNewWindow, onPageProduct, ref }: 
       onMessage={(e: WebViewMessageEvent) => {
         try {
           const msg = JSON.parse(e.nativeEvent.data) as PageProductMessage;
-          if (msg?.type === 'kp-product') onPageProduct?.(msg.url, { signal: !!msg.signal, product: msg.product ?? null });
+          if (msg?.type === 'kp-product') onPageProduct?.(msg.url, { signal: !!msg.signal, product: msg.product ?? null, domain: msg.domain === 'food' ? 'food' : null });
         } catch {
           /* 페이지가 보낸 다른 메시지는 무시 */
         }

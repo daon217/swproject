@@ -1,12 +1,12 @@
 import { clearAccountData } from '../../shared/accountData';
-import { loginIdError, passwordError, signupErrors } from '../../shared/validation';
+import { bodySizeErrors, bodySizeForm, bodySizes, loginIdError, passwordError, signupErrors, type BodySizeForm } from '../../shared/validation';
 import { useEffect, useRef, useState } from 'react';
-import { allergenLabel } from '../../shared/allergens';
+import { allergenLabel, knownAllergens } from '../../shared/allergens';
 import { api } from '../../shared/api';
-import { ageGroupLabel, formatDate, GENDER_LABEL, todaySeoul } from '../../shared/format';
+import { ageGroupLabel, bodySizeLabel, formatDate, GENDER_LABEL, todaySeoul } from '../../shared/format';
 import { CONSENT_VERSION, PRIVACY_CONSENT_SECTIONS, PRIVACY_CONSENT_TITLE } from '../../shared/terms';
 import { ApiError, type Gender, type SubscriptionStatus } from '../../shared/types';
-import { AllergyPicker, Checkbox, ConfirmDialog, Field, GenderSelect, Note, Page, SubHeader, Toast } from '../components';
+import { AllergyPicker, BodySizeFields, Checkbox, ConfirmDialog, Field, GenderSelect, Note, Page, SubHeader, Toast } from '../components';
 import { useNav } from '../nav';
 import { useSession } from '../session';
 
@@ -87,6 +87,7 @@ export function SignupScreen() {
   const { login } = useSession();
   const [form, setForm] = useState({ id: '', pw: '', pw2: '', birth: '', gender: '' });
   const [allergies, setAllergies] = useState<string[]>([]);
+  const [body, setBody] = useState<BodySizeForm>(bodySizeForm(null));
   const [consent, setConsent] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -127,6 +128,7 @@ export function SignupScreen() {
     if (passwordError(form.pw)) er.pw = passwordError(form.pw)!;
     if (form.pw2 !== form.pw) er.pw2 = '비밀번호가 일치하지 않아요.';
     if (form.birth && form.birth > todaySeoul()) er.birth = '미래 날짜는 입력할 수 없어요.';
+    Object.assign(er, bodySizeErrors(body));
     if (!consent) er.consent = '개인정보 수집 및 이용에 동의해 주세요.';
     setErrors(er);
     return er;
@@ -172,6 +174,7 @@ export function SignupScreen() {
         allergies,
         gender: (form.gender || null) as Gender | null,
         birth_date: form.birth || null,
+        ...bodySizes(body),
       });
       await login(form.id, form.pw);
       nav.reset('settings');
@@ -230,6 +233,8 @@ export function SignupScreen() {
           <Field label="생년월일" type="date" max={todaySeoul()} value={form.birth} onChange={set('birth')} error={errors.birth} />
           <GenderSelect value={form.gender} onChange={(v) => setForm({ ...form, gender: v })} />
         </div>
+        <h2 className="sp-subtitle">신체 정보 (선택)</h2>
+        <BodySizeFields value={body} onChange={setBody} errors={errors} />
         <h2 className="sp-subtitle">알레르기 설정</h2>
         <AllergyPicker value={allergies} onChange={setAllergies} />
 
@@ -297,9 +302,10 @@ export function MyPageScreen() {
           <div className="sp-desc">
             연령 {ageGroupLabel(p.birth_date)} · 성별 {p.gender ? GENDER_LABEL[p.gender] : '미입력'}
           </div>
+          <div className="sp-desc">{bodySizeLabel(p)}</div>
         </div>
         <h2 className="sp-subtitle">선택한 알레르기</h2>
-        <div className="sp-chipbox">{p.allergies.length ? p.allergies.map(allergenLabel).join(' · ') : '선택한 알레르기가 없어요'}</div>
+        <div className="sp-chipbox">{knownAllergens(p.allergies).length ? knownAllergens(p.allergies).map(allergenLabel).join(' · ') : '선택한 알레르기가 없어요'}</div>
         <button className="kp-btn kp-btn-outline kp-btn-block sp-mt16" onClick={() => nav.push('profileEdit')}>
           개인정보 수정
         </button>
@@ -407,7 +413,9 @@ export function ProfileEditScreen() {
   const { me, setMe, refresh } = useSession();
   const [birth, setBirth] = useState(me?.profile.birth_date ?? '');
   const [gender, setGender] = useState<string>(me?.profile.gender ?? '');
-  const [allergies, setAllergies] = useState<string[]>(me?.profile.allergies ?? []);
+  const [allergies, setAllergies] = useState<string[]>(knownAllergens(me?.profile.allergies ?? []));
+  const [body, setBody] = useState<BodySizeForm>(bodySizeForm(me?.profile));
+  const [bodyErrors, setBodyErrors] = useState<Partial<Record<keyof BodySizeForm, string>>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -417,10 +425,14 @@ export function ProfileEditScreen() {
   const dirty =
     birth !== (me.profile.birth_date ?? '') ||
     gender !== (me.profile.gender ?? '') ||
+    JSON.stringify(body) !== JSON.stringify(bodySizeForm(me.profile)) ||
     [...allergies].sort().join() !== [...me.profile.allergies].sort().join();
 
   const save = async () => {
     if (birth && birth > todaySeoul()) return setError('미래 날짜는 입력할 수 없어요.');
+    const be = bodySizeErrors(body);
+    setBodyErrors(be);
+    if (Object.keys(be).length) return;
     setBusy(true);
     setError(null);
     try {
@@ -430,6 +442,7 @@ export function ProfileEditScreen() {
           expected_version: me.profile.version,
           birth_date: birth || null, // 비우면 명시적 null로 삭제
           gender: (gender || null) as Gender | null,
+          ...bodySizes(body), // 비우면 null로 삭제
           allergies,
         }),
       );
@@ -458,6 +471,8 @@ export function ProfileEditScreen() {
         </button>
         <Field label="생년월일" type="date" max={todaySeoul()} value={birth} onChange={(e) => setBirth(e.target.value)} />
         <GenderSelect value={gender} onChange={setGender} />
+        <h2 className="sp-subtitle">신체 정보 (선택)</h2>
+        <BodySizeFields value={body} onChange={setBody} errors={bodyErrors} />
         <h2 className="sp-subtitle">알레르기 설정</h2>
         <AllergyPicker value={allergies} onChange={setAllergies} />
         <Note>알레르기 선택 항목은 회원가입과 동일해요. 저장한 내용은 다음 추천부터 반영돼요.</Note>

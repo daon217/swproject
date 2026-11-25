@@ -203,6 +203,15 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+/* 키·몸무게·발 사이즈 */
+.sp-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.sp-grid3 label {
+  white-space: nowrap;
+}
 .sp-note {
   background: var(--kp-primary-soft);
   color: #4a5465;
@@ -678,9 +687,15 @@ body {
   background: var(--kp-surface);
   border-top: 1px solid var(--kp-border);
 }
+.sp-chat-input .sp-input {
+  flex: 1;
+  min-width: 0;
+}
 .sp-chat-input .kp-btn {
+  flex: none;
   height: 46px;
   padding: 0 20px;
+  white-space: nowrap;
 }
 
 /* 프리미엄·결제 */
@@ -872,6 +887,8 @@ body {
   font-size: 13px;
   text-decoration: underline;
   background: none;
+  border: 0;
+  padding: 0;
 }
 .sp-withdraw-warn {
   background: #fff1f1;
@@ -914,4 +931,49 @@ body {
   font-size: 12px;
   color: var(--kp-sub);
   margin-top: 2px;
+}
+
+/* 비회원 분석 결과: 위에 로그인 안내, 아래 결과(결과 영역만 스크롤) */
+.sp-guest-result {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.sp-guest-banner {
+  flex: none;
+  padding-bottom: 0;
+}
+.sp-guest-result > .kp-result,
+.sp-guest-result > .kp-empty {
+  flex: 1;
+  min-height: 0;
+}
+
+/* 상담 종료: 대화 마지막 가운데 ---- 상담이 종료되었습니다. ---- */
+.sp-chat-closed {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 8px;
+  color: var(--kp-sub);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sp-chat-closed::before,
+.sp-chat-closed::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed var(--kp-border);
+}
+.sp-dot.is-off {
+  background: var(--kp-muted);
+}
+.sp-chat-restart {
+  padding-top: 8px;
+}
+.sp-chat-input .sp-input:disabled {
+  background: var(--kp-surface-muted);
+  color: var(--kp-muted);
+  cursor: not-allowed;
 }

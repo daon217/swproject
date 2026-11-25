@@ -1,58 +1,97 @@
 import { useEffect, useRef, useState } from 'react';
-import { allergenLabel } from '../../shared/allergens';
+import { allergenLabel, knownAllergens } from '../../shared/allergens';
 import { api } from '../../shared/api';
 import { formatDate, formatPrice, formatTime } from '../../shared/format';
 import { sendMessage } from '../../shared/messages';
-import type { PaymentMethod, SubscriptionPlan, SupportConversation, SupportMessage } from '../../shared/types';
+import { ApiError, type PaymentMethod, type SubscriptionPlan, type SupportConversation, type SupportMessage } from '../../shared/types';
 import { Checkbox, ConfirmDialog, Field, Note, Page, SubHeader } from '../components';
 import { useNav } from '../nav';
 import { useSession } from '../session';
 
 // ---------- 고객지원 상담 채팅 (E14) ----------
+/** 상담원이 상담을 끝냈는지(서버 status가 resolved·closed) */
+const isClosed = (c: SupportConversation | null) => c?.status === 'resolved' || c?.status === 'closed';
+
 export function SupportScreen() {
   const [conv, setConv] = useState<SupportConversation | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const convId = conv?.conversation_id;
+  const closed = isClosed(conv);
 
+  // 처음 열 때: 진행 중인 상담이 있으면 그것을, 없으면 가장 최근 상담(종료됐으면 종료 상태로)을 보여준다.
+  // 상담 기록이 하나도 없을 때만 새 상담을 연다(POST는 종료된 상담 대신 새 상담을 만든다).
   useEffect(() => {
     let alive = true;
-    let timer: ReturnType<typeof setInterval>;
-    api
-      .getSupportConversation()
-      .then(async (c) => {
-        if (!alive) return;
-        setConv(c);
-        const load = async () => {
-          const m = await api.listSupportMessages(c.conversation_id).catch(() => null);
-          if (alive && m) setMessages(m);
-        };
-        await load();
-        timer = setInterval(load, 3000); // 실시간 채널 확정 전까지 폴링
-      })
-      .catch(() => setError('상담을 불러오지 못했어요.'));
+    (async () => {
+      const list = await api.listSupportConversations().catch(() => [] as SupportConversation[]);
+      return list[0] ?? (await api.getSupportConversation());
+    })()
+      .then((c) => alive && setConv(c))
+      .catch(() => alive && setError('상담을 불러오지 못했어요.'));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // 메시지와 상담 상태를 3초마다 갱신한다(실시간 채널 확정 전까지 폴링). 종료되면 더 묻지 않는다.
+  useEffect(() => {
+    if (!convId) return;
+    let alive = true;
+    const load = async () => {
+      const [m, list] = await Promise.all([
+        api.listSupportMessages(convId).catch(() => null),
+        api.listSupportConversations().catch(() => null),
+      ]);
+      if (!alive) return;
+      if (m) setMessages(m);
+      const cur = list?.find((c) => c.conversation_id === convId);
+      if (cur) setConv((prev) => (prev && prev.status !== cur.status ? { ...prev, status: cur.status } : prev));
+    };
+    void load();
+    if (closed) return () => void (alive = false);
+    const timer = setInterval(load, 3000);
     return () => {
       alive = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [convId, closed]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-  }, [messages.length]);
+  }, [messages.length, closed]);
 
   const send = async () => {
     const body = text.trim();
-    if (!body || !conv) return;
+    if (!body || !conv || closed) return;
     setText('');
     try {
       // 재전송해도 같은 메시지가 되도록 client_message_id를 붙인다.
       const msg = await api.sendSupportMessage(conv.conversation_id, body, crypto.randomUUID());
       setMessages((prev) => (prev.some((m) => m.message_id === msg.message_id) ? prev : [...prev, msg]));
-    } catch {
+    } catch (e) {
       setText(body);
-      setError('메시지를 보내지 못했어요.');
+      // 보내는 사이 상담이 종료됐으면 종료 상태로 바꾼다.
+      if (e instanceof ApiError && e.code === 'CONVERSATION_CLOSED') setConv((prev) => (prev ? { ...prev, status: 'resolved' } : prev));
+      else setError('메시지를 보내지 못했어요.');
+    }
+  };
+
+  const startNew = async () => {
+    setStarting(true);
+    setError(null);
+    try {
+      const c = await api.getSupportConversation();
+      setMessages([]);
+      setText('');
+      setConv(c);
+    } catch {
+      setError('새 상담을 시작하지 못했어요.');
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -63,13 +102,13 @@ export function SupportScreen() {
       <div className="sp-chat">
         <div className="sp-chat-list" ref={listRef}>
           <div className="sp-chat-agent">
-            <span className="sp-dot" aria-hidden="true" />
+            <span className={`sp-dot ${closed ? 'is-off' : ''}`} aria-hidden="true" />
             <div>
               <strong>꿀픽 고객지원</strong>
-              <small>{conv?.agent_name ? `상담사 ${conv.agent_name} · 상담 중` : '상담사 연결 대기 중'}</small>
+              <small>{closed ? '상담 종료' : conv?.agent_name ? `상담사 ${conv.agent_name} · 상담 중` : '상담사 연결 대기 중'}</small>
             </div>
           </div>
-          {messages.length === 0 && <p className="kp-muted-center">궁금한 점을 남겨 주시면 상담사가 답변드려요.</p>}
+          {messages.length === 0 && !closed && <p className="kp-muted-center">궁금한 점을 남겨 주시면 상담사가 답변드려요.</p>}
           {messages.map((m) => {
             const day = formatDate(m.created_at);
             const showDay = day !== lastDay;
@@ -86,8 +125,20 @@ export function SupportScreen() {
               </div>
             );
           })}
+          {closed && (
+            <div className="sp-chat-closed" role="status">
+              상담이 종료되었습니다.
+            </div>
+          )}
         </div>
         {error && <p className="sp-error sp-pad-x">{error}</p>}
+        {closed && (
+          <div className="sp-pad-x sp-chat-restart">
+            <button className="kp-btn kp-btn-outline kp-btn-block" onClick={() => void startNew()} disabled={starting}>
+              새 상담 시작하기
+            </button>
+          </div>
+        )}
         <form
           className="sp-chat-input"
           onSubmit={(e) => {
@@ -95,8 +146,16 @@ export function SupportScreen() {
             void send();
           }}
         >
-          <input className="sp-input" placeholder="메시지를 입력하세요" value={text} maxLength={10000} onChange={(e) => setText(e.target.value)} aria-label="메시지" />
-          <button className="kp-btn kp-btn-primary" disabled={!text.trim() || !conv}>
+          <input
+            className="sp-input"
+            placeholder={closed ? '상담이 종료되어 메시지를 보낼 수 없어요' : '메시지를 입력하세요'}
+            value={text}
+            maxLength={10000}
+            onChange={(e) => setText(e.target.value)}
+            aria-label="메시지"
+            disabled={closed || !conv}
+          />
+          <button className="kp-btn kp-btn-primary" disabled={closed || !text.trim() || !conv}>
             전송
           </button>
         </form>
@@ -152,7 +211,7 @@ export function FilterScreen() {
         <Field label="선호 재료" placeholder="예) 현미" value={prefer} onChange={(e) => setPrefer(e.target.value)} />
         <Note>더 자주 추천받고 싶은 재료를 입력해 주세요.</Note>
         <p className="sp-desc">여러 재료는 쉼표로 구분해 주세요.</p>
-        <h2 className="sp-subtitle">선택한 알레르기 · {me.profile.allergies.length ? me.profile.allergies.map(allergenLabel).join(', ') : '없음'}</h2>
+        <h2 className="sp-subtitle">선택한 알레르기 · {knownAllergens(me.profile.allergies).map(allergenLabel).join(', ') || '없음'}</h2>
         <Note>재료 필터를 바꿔도 알레르기 설정은 유지돼요.</Note>
         {error && <p className="sp-error">{error}</p>}
       </Page>
@@ -332,7 +391,7 @@ export function PaymentDoneScreen() {
           <br />
           완료되었어요!
         </h1>
-        <p className="sp-desc">이제 추천 상품 3개와 식품 재료 필터를 이용할 수 있어요.</p>
+        <p className="sp-desc">이제 AI 추천 상품 5개와 식품 재료 필터를 이용할 수 있어요.</p>
         <Note>프리미엄 혜택이 지금부터 적용돼요.</Note>
       </Page>
     </>

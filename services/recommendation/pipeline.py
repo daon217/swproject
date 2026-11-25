@@ -84,8 +84,11 @@ class Recommender:
     def _sale_filter(self, profile: UserProfile, safe, top_k: int, notes: list[str]):
         """판매 상태 필터. 중고는 설정·도메인 확인 후 상위 후보만 실시간 재확인."""
         keep, excluded, used = [], [], []
-        hidden = 0
+        hidden = overseas = 0
         for p, s in safe:
+            if not profile.include_overseas and p.currency and p.currency != "KRW":
+                overseas += 1  # 해외 상품 OFF: 원화가 아닌 가격의 판매처는 숨김
+                continue
             if p.is_used:
                 if not profile.include_used or p.category == "food":
                     hidden += 1  # 중고 OFF 이거나 식품이면 숨김 (UI 에서도 중고 구역 자체를 숨김)
@@ -97,6 +100,8 @@ class Recommender:
                 keep.append((p, s))
         if hidden:
             notes.append(f"중고 {hidden}건 숨김 (중고 포함 꺼짐 또는 식품)")
+        if overseas:
+            notes.append(f"해외 상품 {overseas}건 숨김 (해외 상품 꺼짐)")
         if not used:
             return keep, excluded
 

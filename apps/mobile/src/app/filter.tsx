@@ -2,7 +2,7 @@ import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useSession } from '../session';
-import { allergenLabel } from '../shared/allergens';
+import { allergenLabel, knownAllergens } from '../shared/allergens';
 import { api } from '../shared/api';
 import { Button, Desc, ErrorText, Field, H1, H2, Note, Page, SubHeader } from '../ui/components';
 
@@ -49,7 +49,7 @@ export default function FilterScreen() {
         <Field label="선호 재료" placeholder="예) 현미" value={prefer} onChangeText={setPrefer} />
         <Note>더 자주 추천받고 싶은 재료를 입력해 주세요.</Note>
         <Desc>여러 재료는 쉼표로 구분해 주세요.</Desc>
-        <H2>선택한 알레르기 · {me.profile.allergies.length ? me.profile.allergies.map(allergenLabel).join(', ') : '없음'}</H2>
+        <H2>선택한 알레르기 · {knownAllergens(me.profile.allergies).map(allergenLabel).join(', ') || '없음'}</H2>
         <Note>재료 필터를 바꿔도 알레르기 설정은 유지돼요.</Note>
         {error && <ErrorText>{error}</ErrorText>}
       </Page>

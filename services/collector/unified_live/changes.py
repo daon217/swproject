@@ -26,14 +26,28 @@ class ChangeDelivery:
                 content={k:v for k,v in body.items() if k not in ('observed_at','observation_key')}
                 self.data['items'][identity]={'signature':digest(content),'key':key,'first_seen_at':body['observed_at'],'last_checked_at':body['observed_at']};recovered=True
         if recovered:atomic(self.path,self.data)
+        from .delivery_extras import Extras
+        self.extras=Extras(self)
     def __getattr__(self,name):return getattr(self.box,name)
     def count(self,k):self.data['totals'][k]=self.data['totals'].get(k,0)+1
     def stage(self,normalized):
+        from services.collector.collector_ops.delivery_contract import catalog_review
+        review=catalog_review(normalized.get('observation') or {},getattr(self.box,'cfg',{}))
+        if review:
+            self.data['catalog_review']=review;atomic(self.path,self.data);return review
+        self.data.pop('catalog_review',None)
         result=self._stage(normalized)
+        if result['status'] in ('pending','delivered','unchanged_skipped'):self.extras.stage(normalized,result)
         if result['status'] in ('pending','delivered','unchanged_skipped') and (normalized.get('metadata') or {}).get('matching_profile'):
             from .matching import MatchingStore
             MatchingStore(self.path.parent,self.box.source).record(normalized,getattr(self.box,'cfg',{}))
         return result
+    def flush(self,stop=None):
+        self.box.flush(stop=stop)
+        self.extras.flush(stop)
+        return self.report()
+    def report(self):
+        return dict(self.box.report(),catalog_review=self.data.get('catalog_review') or self.box.state.get('catalog_review'),extensions_and_checks=self.extras.report())
     def _stage(self,normalized):
         body=normalized.get('observation')
         if not body:return {'status':'incomplete_native_fields'}
@@ -44,11 +58,13 @@ class ChangeDelivery:
         if old:
             queued=entries.get(old['key'])
             if queued is None:raise ValueError('missing_content_outbox_history_no_reset')
-            if queued['status'] in ('quarantine','revoked','held','exhausted','rejected'):return {'status':'previous_event_requires_review'}
+            terminal=queued['status'] in ('quarantine','rejected')
+            revalidated=terminal and old['signature']!=signature and queued.get('error_code') not in ('IDENTITY_CONFLICT','MISSING_IDENTITY','DOMAIN_CONFLICT')
+            if queued['status'] in ('quarantine','revoked','held','exhausted','rejected') and not revalidated:return {'status':'previous_event_requires_review'}
             if old['signature']==signature:
                 old['last_checked_at']=body['observed_at'];self.count('unchanged');atomic(self.path,self.data)
                 return {'status':'unchanged_skipped','observation_key':old['key']}
-            if queued['status']!='delivered':return {'status':'prior_event_pending_reobserve_after_ack'}
+            if queued['status']!='delivered' and not revalidated:return {'status':'prior_event_pending_reobserve_after_ack'}
         # Recover crash between box.stage and saving this checkpoint, preserving event timestamp/key.
         for key,entry in entries.items():
             saved=entry.get('body')

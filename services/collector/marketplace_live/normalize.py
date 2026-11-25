@@ -46,6 +46,7 @@ def yes24(item,at,cfg):
             'currency':item.get('currency'),'seller':item.get('seller'),'url':item.get('link'),
             'condition':item.get('condition'),'availability':item.get('availability'),
             'native_status':item.get('itemStatus'),'missing_fields':missing,'observation':None}
+    result['normalization_diagnostics']={'native_fields_present':sorted(k for k in ('salePrice','currency','sku','condition','availability') if k in item),'missing_native_fields':missing,'unknown_values_not_defaulted':True}
     if body:result['observation']=validate_body(body,cfg)
     return result
 

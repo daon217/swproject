@@ -50,12 +50,12 @@ def validate_body(body,cfg):
     if len(json.dumps(body,ensure_ascii=False,separators=(',',':')).encode())>65536:raise ValueError('observation_body_too_large')
     return body
 
-def safe_ack(value):
+def safe_ack(value,*,extension=False):
     if not isinstance(value,dict):return {}
     result={}
-    if value.get('state') in ('applied','recorded','quarantine'):result['state']=value['state']
-    if value.get('change_kind') in ('created','updated','unchanged','stale','failed','not_found','quarantined'):result['change_kind']=value['change_kind']
-    for key in ('offer_id','observation_id'):
+    if value.get('state') in (('applied','recorded','quarantine','pending') if extension else ('applied','recorded','quarantine')):result['state']=value['state']
+    if value.get('change_kind') in ('created','updated','unchanged','stale','failed','not_found','quarantined','pending'):result['change_kind']=value['change_kind']
+    for key in ('offer_id','observation_id','extension_id'):
         try:result[key]=str(UUID(str(value[key])))
         except (KeyError,ValueError,TypeError,AttributeError):pass
     if isinstance(value.get('error_code'),str) and re.fullmatch(r'[A-Z0-9_]{1,80}',value['error_code']):result['error_code']=value['error_code']
@@ -74,11 +74,15 @@ class HTTPBackendTransport:
         if not loopback:secure_public_session(self.session)
         self.session.headers.update({'Authorization':'Bearer '+token,'Content-Type':'application/json'})
     def __call__(self,path,body):
-        if not re.fullmatch(r'/internal/v2/crawl-runs/[0-9a-f-]{36}/observations',path):raise ValueError('fixed_observation_route_required')
+        if not re.fullmatch(r'/internal/v2/(?:crawl-runs/[0-9a-f-]{36}/(?:observations|extensions)|listing-checks)',path):raise ValueError('fixed_observation_route_required')
         try:
             response=self.session.post(self.base+path,json=body,timeout=(5,15),allow_redirects=False)
-            if response.status_code not in (200,201):return response.status_code,{}
-            return response.status_code,safe_ack(response.json())
+            from services.collector.collector_ops.delivery_contract import safe_error,safe_checks
+            try:value=response.json()
+            except ValueError:value={}
+            if response.status_code not in (200,201,202):return response.status_code,safe_error(value)
+            if path.endswith('/listing-checks'):return response.status_code,safe_checks(value,body)
+            return response.status_code,safe_ack(value,extension=path.endswith('/extensions'))
         except (requests.RequestException,ValueError):return 0,{}
     def close(self):
         self.session.headers.pop('Authorization',None);self.session.close()

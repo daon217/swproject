@@ -26,7 +26,13 @@ def evidence(fields,*,source,url,at,previous_hash=None):
     for value in old.get('may_contain') or []:
         # Do not treat facility wording as direct contains; exact aliases only.
         codes,unknown=normalized_terms(value);possible+=codes;unmapped+=unknown
-    raw_ingredients=fields.get('ingredients') or next((m.group(1).strip() for line in text.splitlines() if (m:=re.match(r'\s*(?:원재료(?:명)?|ingredients)\s*[:：]\s*(.+)',line,re.I))),None)
+    def raw_label(pattern):
+        match=re.search(r'(?:'+pattern+r')\s*[:：]\s*(.+?)(?=\s*(?:원재료(?:명)?|ingredients|알레르기|allergens?|혼입 가능(?:성)?|may contain)\s*[:：]|$)',text,re.I|re.S)
+        return match.group(1).strip() if match else None
+    raw_allergens=fields.get('allergens') or raw_label(r'알레르기|allergens?')
+    raw_cross=fields.get('cross_contact') or raw_label(r'혼입 가능(?:성)?|may contain')
+    raw_ingredients=fields.get('ingredients') or raw_label(r'원재료(?:명)?|ingredients')
+    raw_ingredients=raw_ingredients or next((m.group(1).strip() for line in text.splitlines() if (m:=re.match(r'\s*(?:원재료(?:명)?|ingredients)\s*[:：]\s*(.+)',line,re.I))),None)
     ingredients=[]
     invalid_percentage=False
     for token in terms(raw_ingredients or ''):
@@ -35,9 +41,9 @@ def evidence(fields,*,source,url,at,previous_hash=None):
         ingredients.append({'name':re.sub(r'\s+',' ',ingredient_name),'percentage':m.group(2) if m else None})
         if m and Decimal(m.group(2))>100:invalid_percentage=True
     signature=hashlib.sha256(text.encode()).hexdigest()
-    return {'schema_version':'food-evidence-v1','food_detected':explicit_food or old.get('status')=='food_evidence','ingredients_raw':raw_ingredients,'ingredients_normalized':ingredients or None,
+    return {'schema_version':'food-evidence-v1','food_detected':explicit_food or old.get('status')=='food_evidence','ingredients_raw':raw_ingredients,'allergen_notice_raw':raw_allergens,'ingredients_normalized':ingredients or None,
         'allergens_declared':declared,'allergens_possible_cross_contact':sorted(set(possible)) or None,
-        'cross_contact_raw':old.get('may_contain'),'allergen_status':old['allergen_status'],
+        'cross_contact_raw':raw_cross,'allergen_status':old['allergen_status'],
         'evidence_source':source,'evidence_url':url,'verified_at':at,'raw_sha256':signature,'raw':text,
         'requires_review':invalid_percentage or old['allergen_status']!='reported' or bool(old['unmapped_allergen_terms'] or unmapped) or previous_hash not in (None,signature),
         'unmapped_terms':old['unmapped_allergen_terms']+unmapped,'confidence':'source_text_unverified',

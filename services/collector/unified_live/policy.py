@@ -45,7 +45,7 @@ def grant(cfg,now,storage=True):
     except (KeyError,ValueError,TypeError):return False
 
 def validate(cfg):
-    allowed={'storefront_identity','start_urls','source','base_url','search_url_template','queries','mode','enabled','rights','provider_min_interval_seconds',
+    allowed={'backend_catalog','storefront_identity','start_urls','source','base_url','search_url_template','queries','mode','enabled','rights','provider_min_interval_seconds',
         'requests_per_hour','requests_per_24h','request_interval_seconds','max_pages_per_cycle','max_products_per_cycle',
         'refresh_items_per_cycle','max_tracked_items','max_attempts','selectors','render_javascript','evidence_storage',
         'allowed_product_hosts','currencies','backend_enabled','backend_owner_approved','price_semantics_confirmed','backend_delivery','region','country','category_mapping'}

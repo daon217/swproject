@@ -63,7 +63,7 @@ def profile(native,base,*,origin):
         values=fields.get(key,[])
         return values[0] if len({canonical(v) for v in values})==1 else None
     identifiers=[]
-    for key in ('gtin','gtin8','gtin12','gtin13','gtin14'):
+    for key in ('gtin','gtin8','gtin12','gtin13','gtin14','ean','isbn'):
         raw=native.get(key);raw=raw if isinstance(raw,list) else [raw]
         if key=='gtin':raw=raw+fields.get('gtin',[])
         for candidate in raw[:8]:
@@ -94,7 +94,7 @@ def profile(native,base,*,origin):
 
 def provider_profile(row,source,base):
     """Use only documented native projections; IDs/SKUs never become global identifiers."""
-    p={k:row.get(k) for k in ('brand','manufacturer','mpn','model','modelNumber','gtin','gtin8','gtin12','gtin13','gtin14','color','size','category','description','additionalProperty')}
+    p={k:row.get(k) for k in ('brand','manufacturer','mpn','model','modelNumber','gtin','gtin8','gtin12','gtin13','gtin14','ean','isbn','color','size','category','description','additionalProperty')}
     p['name']=row.get('title') or row.get('name') or row.get('product_name')
     if source=='ebay_browse':
         images=[row.get('image')]+(row.get('additionalImages') if isinstance(row.get('additionalImages'),list) else [])

@@ -10,7 +10,7 @@ from services.collector.domeggook_live.network import PublicHTTPSAdapter,DenyHTT
 from services.collector.marketplace_live.delivery import RetryAwareBackend
 from services.collector.marketplace_live.http import retry_after
 
-ROUTE=re.compile(r'/internal/v2/crawl-runs/[0-9a-f-]{36}/observations')
+ROUTE=re.compile(r'/internal/v2/(?:crawl-runs/[0-9a-f-]{36}/(?:observations|extensions)|listing-checks)')
 
 def origin_check(value,origin):
     p=urlsplit(value);o=urlsplit(origin)

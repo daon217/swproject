@@ -51,6 +51,15 @@ class DeliveryPipeline:
     def prune(self):
         for entry in self.state['entries'].values():
             if 'body' in entry and not self.permitted_body(entry):entry.pop('body');entry['status']='revoked';self.count('revoked')
+        from services.collector.collector_ops.delivery_contract import catalog_review
+        for entry in self.state['entries'].values():
+            body=entry.get('body')
+            if not body:continue
+            review=catalog_review(body,self.cfg)
+            if review and entry['status'] in ('pending','retry_wait','sending'):
+                entry['catalog_previous_status']=entry['status'];entry['status']='catalog_held';entry['catalog_review']=review
+            elif not review and entry['status']=='catalog_held' and (self.cfg.get('backend_catalog') or os.environ.get('COLLECTOR_BACKEND_CATALOG_HOSTS')):
+                entry['status']=entry.pop('catalog_previous_status','pending');entry.pop('catalog_review',None)
     def pending_count(self):return sum('body' in e for e in self.state['entries'].values())
     def backpressure(self):return self.enabled and self.pending_count()>=self.settings.get('max_pending',5000)
     def stage(self,row):
@@ -82,6 +91,14 @@ class DeliveryPipeline:
         for key,entry in self.state['entries'].items():
             if stop is not None and stop.is_set():break
             if sent>=self.settings.get('max_requests_per_flush',10):break
+            if (entry['status']=='exhausted' and entry.get('last_status') in (0,408,425,429,500,502,503,504)
+                    and 'body' in entry and entry.get('recovery_rounds',0)<self.settings.get('max_recovery_rounds',3)):
+                if not entry.get('recovery_after'):
+                    entry['recovery_after']=((parsed(entry.get('next_attempt_at')) or self.clock())+timedelta(seconds=900)).isoformat();self.save()
+                due=parsed(entry['recovery_after'])
+                if due<=self.clock():
+                    entry.update(status='retry_wait',attempts=0,recovery_rounds=entry.get('recovery_rounds',0)+1)
+                    entry.pop('recovery_after',None);self.count('transient_recoveries');self.save()
             if entry['status'] not in ('pending','retry_wait','sending') or 'body' not in entry:continue
             if entry.get('next_attempt_at') and parsed(entry['next_attempt_at'])>self.clock():continue
             if entry['attempts']>=self.settings.get('max_attempts',5):entry['status']='exhausted';continue
@@ -90,18 +107,28 @@ class DeliveryPipeline:
             entry.update(status='sending',attempts=entry['attempts']+1);self.save()
             try:code,ack=self.transport('/internal/v2/crawl-runs/'+self.state['run_id']+'/observations',copy.deepcopy(entry['body']))
             except Exception:code,ack=0,{}  # No raw exception/URL/token is serialized.
-            sent+=1;self.count('HTTP_attempts');ack=safe_ack(ack);entry['last_status']=code
+            sent+=1;self.count('HTTP_attempts');error_fields=ack.get('fields') if isinstance(ack,dict) else None;ack=safe_ack(ack);
+            if isinstance(error_fields,list):ack['fields']=error_fields
+            entry['last_status']=code
+            if ack.get('error_code'):entry['error_code']=ack['error_code']
+            if isinstance(ack.get('fields'),list):entry['error_fields']=ack['fields']
             if code in (200,201) and ack.get('state'):
                 entry.update(status='quarantine' if ack['state']=='quarantine' else 'delivered',ack=ack,delivered_at=self.clock().isoformat())
                 entry.pop('body');entry.pop('next_attempt_at',None)
                 self.count('ack_'+ack['state']);self.count('change_'+ack.get('change_kind','unknown'))
-            elif code in (401,403,409) or 300<=code<400:
+            elif code==409:
+                entry['status']='held';entry['review_required']=True;self.count('item_conflicts')
+                if ack.get('error_code')=='RUN_SOURCE_CONFLICT':
+                    self.state['hold']='backend_run_source_conflict_review_required'
+            elif code in (401,403) or 300<=code<400:
                 entry['status']='held';self.state['hold']='backend_auth_identity_or_redirect_review_required';self.count('held')
             elif code in (0,408,425,429,500,502,503,504) or code in (200,201):
                 entry['status']='retry_wait' if entry['attempts']<self.settings.get('max_attempts',5) else 'exhausted'
                 delay=min(300,self.settings.get('retry_base_seconds',5)*2**(entry['attempts']-1))
                 entry['next_attempt_at']=(self.clock()+timedelta(seconds=delay)).isoformat();self.count('transient_failures')
-            else:entry['status']='rejected';entry.pop('body');self.count('rejected')
+            else:
+                entry['status']='rejected';self.count('rejected')
+                if code!=422:entry.pop('body',None)
             self.save()
             if self.state['hold']:break
         self.save();return self.report()
@@ -113,6 +140,6 @@ class DeliveryPipeline:
 
     def report(self):return {'enabled':self.enabled,'ready':self.ready,'mode':self.settings.get('mode','disabled'),'pending':self.pending_count(),
         'hold':self.state['hold'],'skipped_disabled':self.skipped,'totals':copy.deepcopy(self.state['totals']),
-        'states':{name:sum(e['status']==name for e in self.state['entries'].values()) for name in ('pending','retry_wait','delivered','quarantine','held','exhausted','rejected','revoked')}}
+        'states':{name:sum(e['status']==name for e in self.state['entries'].values()) for name in ('pending','retry_wait','delivered','quarantine','held','catalog_held','exhausted','rejected','revoked')}}
     def close(self):
         if self.transport and hasattr(self.transport,'close'):self.transport.close()

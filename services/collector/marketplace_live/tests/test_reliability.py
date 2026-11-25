@@ -123,7 +123,7 @@ class ReliabilityTests(unittest.TestCase):
         self.current+=timedelta(days=2);d.flush();self.assertNotIn('body',next(iter(d.state['entries'].values())))
 
     def test_outbox_five_attempt_cap_and_payload_survives_exhaustion(self):
-        tx=Mock(return_value=(503,{}));d=Outbox(self.cfg,self.root,tx,clock=lambda:self.current)
+        tx=Mock(return_value=(503,{}));d=Outbox(self.cfg,self.root,tx,clock=lambda:self.current);d.settings['max_recovery_rounds']=0
         d.stage(normalize_yes24(yes24(),self.current.isoformat(),self.cfg))
         for _ in range(8):d.flush();self.current+=timedelta(minutes=10)
         self.assertEqual(tx.call_count,5);self.assertEqual(d.report()['states']['exhausted'],1)

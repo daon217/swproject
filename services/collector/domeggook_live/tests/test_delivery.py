@@ -46,9 +46,9 @@ class DeliveryTests(unittest.TestCase):
         self.assertEqual(first,tx.call_args.args);self.assertEqual(p.pending_count(),0)
     def test_auth_and_conflict_hold_never_blindly_retry(self):
         tx=Mock(return_value=(409,{}));p=self.pipeline(tx);p.stage(row());p.flush();p.flush()
-        self.assertEqual(tx.call_count,1);self.assertTrue(p.report()['hold'])
+        self.assertEqual(tx.call_count,1);self.assertFalse(p.report()['hold']);self.assertEqual(p.report()['states']['held'],1)
     def test_retry_bounded_and_quarantine_not_reported_applied(self):
-        tx=Mock(return_value=(503,{}));p=self.pipeline(tx);p.stage(row())
+        tx=Mock(return_value=(503,{}));p=self.pipeline(tx);p.settings['max_recovery_rounds']=0;p.stage(row())
         for _ in range(8):p.flush();self.now+=timedelta(hours=1)
         self.assertEqual(tx.call_count,5);self.assertEqual(p.report()['states']['exhausted'],1)
     def test_backend_quarantine_is_terminal_review(self):

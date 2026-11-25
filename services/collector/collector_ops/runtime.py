@@ -77,7 +77,8 @@ def worker_context(cfg,root,used=False):
         http=ProviderHTTP(cfg,root/source)
         try:
             adapter=(UsedAdapter if used else Adapter)(cfg,http)
-            delivery=OpsOutbox(cfg,workroot/source)
+            from services.collector.unified_live.changes import ChangeDelivery
+            delivery=ChangeDelivery(OpsOutbox(cfg,workroot/source),workroot/source)
             worker=OpsWorker(cfg,workroot,http=http,adapter=adapter,delivery=delivery)
         except Exception:http.close();raise
         try:yield worker

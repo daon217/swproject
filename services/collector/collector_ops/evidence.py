@@ -9,6 +9,8 @@ class EvidenceAdapter:
     def detail(self,*args):return self.adapter.detail(*args)
     def normalize(self,row,at):
         result=self.adapter.normalize(row,at)
+        from services.collector.unified_live.matching import provider_profile
+        result.setdefault('metadata',{}).setdefault('matching_profile',provider_profile(row,self.cfg['source'],result.get('url') or ''))
         category=row.get('category')
         native_category_id=row.get('categoryId')
         if isinstance(category,dict):

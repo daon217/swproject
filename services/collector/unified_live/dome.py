@@ -7,7 +7,20 @@ from .changes import ChangeDelivery
 
 class DomeBridge(FoodDelivery):
     source='domeggook'
-    def stage(self,result):return super().stage(result['_native_row'])
+    def stage(self,result):
+        if '_native_row' in result:return super().stage(result['_native_row'])
+        from services.collector.domeggook_live.domeggook_backend import validate_body
+        from services.collector.domeggook_live.domeggook_delivery import digest
+        import copy
+        body=result['observation'];validate_body(body,self.cfg)
+        if not self.ready or not self.permitted_body({'body':body}):return {'status':'permission_blocked'}
+        key=body['observation_key'];sha=digest(body);old=self.state['entries'].get(key)
+        if old:
+            if old['sha256']!=sha:raise ValueError('immutable_outbox_payload_conflict')
+            return {'status':old['status'],'duplicate':True}
+        if self.backpressure():return {'status':'backpressure_needs_reobserve'}
+        self.state['entries'][key]={'body':copy.deepcopy(body),'sha256':sha,'status':'pending','attempts':0,'created_at':self.clock().isoformat()}
+        self.count('staged');self.save();return {'status':'pending','observation_key':key}
     def flush(self,stop=None):
         if os.environ.get('COLLECTOR_DELIVERY_APPROVED')!='yes':return self.report()
         return super().flush(stop)
@@ -25,7 +38,7 @@ class DomeContent:
             result=dict(result,status=self.state['entries'][result['observation_key']]['status'],unchanged=True)
         return result
     def report(self):
-        return dict(self.gate.box.report(),content_changes=self.gate.data['totals'])
+        return dict(self.gate.report(),content_changes=self.gate.data['totals'])
 
 def run(cfg,root,stop,once=False):
     from services.collector.domeggook_live.domeggook_operations import configuration,ROOT

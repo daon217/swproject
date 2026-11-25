@@ -100,7 +100,13 @@ class URLWorker:
             if self.cfg['evidence_storage'] and 'evidence_storage' in self.cfg['rights']['allowed_uses']:
                 side=self.root/'evidence'/ (hashlib.sha256(task['url'].encode()).hexdigest()+'.json')
                 atomic(side,ev);known['evidence_hash']=ev['raw_sha256']
-            result['observation']=None;result['missing_fields'].append('food_extension_contract_required')
+            if self.cfg['evidence_storage'] and 'evidence_storage' in self.cfg['rights']['allowed_uses'] and result['observation'] and result['observation']['condition']=='new':
+                result['food_evidence']=dict(ev)
+                result['observation']['selected_domain']='food'
+                from .changes import rekey
+                rekey(result['observation'])
+            else:
+                result['observation']=None;result['missing_fields'].append('food_extension_contract_required')
         previous_meta=known.get('metadata_hash')
         # verified_at changes alone are not a product change.
         meta_hash=digest({k:v for k,v in result['metadata'].items() if k!='verified_at'})

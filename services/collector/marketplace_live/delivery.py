@@ -46,6 +46,9 @@ class Outbox(DeliveryPipeline):
         body=normalized.get('observation')
         if not body:return {'status':'incomplete_native_fields'}
         if not self.ready or not self.permitted_body({'body':body}):return {'status':'permission_blocked'}
+        from services.collector.collector_ops.delivery_contract import catalog_review
+        review=catalog_review(body,self.cfg)
+        if review:self.state['catalog_review']=review;self.save();return review
         validate_body(body,self.cfg);key=body['observation_key'];sha=digest(body)
         old=self.state['entries'].get(key)
         if old:
@@ -65,7 +68,7 @@ class Outbox(DeliveryPipeline):
         self.prune()
         if self.state['totals'].get('revoked',0)!=revoked:self.save()
         if not self.enabled or not self.ready or self.state['hold'] or stop is not None and stop.is_set():return self.report()
-        actionable=any(e['status'] in ('pending','retry_wait','sending') and 'body' in e and
+        actionable=any((e['status'] in ('pending','retry_wait','sending') or e['status']=='exhausted' and e.get('last_status') in (0,408,425,429,500,502,503,504) and e.get('recovery_rounds',0)<self.settings.get('max_recovery_rounds',3)) and 'body' in e and
                        (not e.get('next_attempt_at') or stamp(e['next_attempt_at'])<=self.clock())
                        for e in self.state['entries'].values())
         if not actionable:return self.report()

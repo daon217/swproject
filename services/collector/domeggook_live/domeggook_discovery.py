@@ -106,8 +106,13 @@ class DiscoveryRun:
         task=self.state.get('inflight')
         if not task:return
         entries=[e for e in self.client.state['requests'][task['ledger_start']:] if e.get('task_id')==task['task_id']]
-        if any(e.get('status')=='reserved' or e.get('status')=='network_error' for e in entries):
-            raise SafeAPIError('queue_inflight_request_outcome_unknown')
+        uncertain=[e for e in entries if e.get('status') in ('reserved','network_error')]
+        if uncertain:
+            if any(not e.get('recovered_at') for e in uncertain):
+                if self.client.state.get('hold') in ('uncertain_request_no_auto_resend','interrupted_request_outcome_unknown'):return
+                raise SafeAPIError('queue_inflight_request_outcome_unknown')
+            if not task.get('failure_recorded'):self._record_failure(task)
+            self.count('uncertain_requests_deferred')
         if entries and any(e.get('status')==200 for e in entries):
             if task['kind']=='page':
                 # No response payload persisted: do not pretend IDs were checkpointed or resend automatically.
@@ -256,12 +261,19 @@ class DiscoveryRun:
             if sent and any(e.get('status')!=200 or e.get('outcome')=='API_error' for e in sent):self._record_failure(task)
             self.state['inflight']=None;self.checkpoint();raise
         except SafeAPIError:
-            self._record_failure(task);self.state['inflight']=None;self.checkpoint();raise
+            self._record_failure(task)
+            if self.client.state.get('hold') in ('uncertain_request_no_auto_resend','interrupted_request_outcome_unknown'):
+                active['failure_recorded']=True
+            else:self.state['inflight']=None
+            self.checkpoint();raise
         if task['kind']=='page':self._page_result(task,payload,stamp)
         else:self._detail_result(task,payload,stamp,lane)
         # The ID receipt, next cursor, pending IDs and inflight completion commit together.
         self.state['inflight']=None;self.checkpoint()
     def cycle(self,mode='combined'):
+        delay=self.client.recover_uncertain(self.cfg['cycle_interval_seconds'])
+        if delay:raise BudgetWait(delay,'uncertain_request_cooldown')
+        self.recover_inflight()
         if self.state.get('recovery_hold'):raise SafeAPIError('discovery_recovery_hold_response_unavailable')
         if self.state['phase'] in ('idle','cycle_complete'):
             self.state.update(phase='active',cycle=self.state['cycle']+1,cycle_requests_start=len(self.client.state['requests']),cycle_refresh_done=[])
@@ -269,13 +281,15 @@ class DiscoveryRun:
         self.client.begin_cycle(self.state['cycle_requests_start'])
         for lane in (('discovery',) if mode=='discovery' else ('refresh',) if mode=='refresh' else ('discovery','refresh')):
             while True:
+                if self.stop.is_set():return self.report()
                 entries=self.client.state['requests'][self.state['cycle_requests_start']:]
                 if sum(e.get('queue')==lane for e in entries)>=self.cfg[lane]['requests_per_cycle']:break
                 task=self.next_discovery() if lane=='discovery' else self.next_refresh(force=mode=='refresh')
                 if not task:break
                 try:self.execute(task,lane)
                 except LaneExhausted:break
-        self.state['phase']='cycle_complete';self.count('cycles_completed');self.checkpoint()
+        self.state['phase']='cycle_complete';self.count('cycles_completed')
+        self.state['next_cycle_at']=(datetime.now(timezone.utc)+timedelta(seconds=self.cfg['cycle_interval_seconds'])).isoformat();self.checkpoint()
         report=self.report();save(self.root/'discovery_last_run.json',report)
         update('도매꾹 발견/갱신 큐 주기 완료·상품값은 RAM·원장/ID 체크포인트 저장',
             next_action='Start-Domeggook.ps1 -Status 또는 -Watch; 예산 소진 시 다음 허용 시각까지 대기',
@@ -308,12 +322,19 @@ def status(cfg,state=None,ledger=None):
                         'shared_cycle':cfg['requests_per_cycle'],'shared_hour':cfg['requests_per_hour'],'shared_day':cfg['requests_per_kst_day']},
         'budget_wait_seconds':delay,'next_budget_at':(datetime.now(timezone.utc)+timedelta(seconds=delay)).isoformat(),
         'wait_reason':reason,'provider_hold':ledger.get('hold'),'recovery_hold':state.get('recovery_hold'),
+        'next_cycle_at':state.get('next_cycle_at'),
         'permanent_product_storage':False,'backend_enabled':False,'private_API_used':False}
 
 
 def queue_loop(run,mode,watch=False,cycles=None,wait=interruptible_wait):
     completed=0
+    wait=getattr(run,'wait',wait)
     while not run.stop.is_set() and (cycles is None or completed<cycles):
+        due=parsed(run.state.get('next_cycle_at'))
+        delay=(due-datetime.now(timezone.utc)).total_seconds() if due else 0
+        if watch and delay>0:
+            wait(delay,run.stop)
+            if run.stop.is_set():break
         try:run.cycle(mode);completed+=1
         except BudgetWait as exc:
             save(run.root/'discovery_wait_status.json',{'at':now(),'reason':str(exc),'seconds':exc.seconds,
@@ -321,8 +342,16 @@ def queue_loop(run,mode,watch=False,cycles=None,wait=interruptible_wait):
             if not watch:return {'status':'budget_wait','completed':completed,'report':run.report()}
             if str(exc)=='cycle_budget_wait':run.state['phase']='cycle_complete';run.checkpoint()
             wait(exc.seconds,run.stop);continue
+        except SafeAPIError as exc:
+            if not watch:raise
+            if run.client.state.get('hold') in ('uncertain_request_no_auto_resend','interrupted_request_outcome_unknown'):
+                delay=run.client.recover_uncertain(run.cfg['cycle_interval_seconds'])
+                wait(delay or 1,run.stop);continue
+            if not run.client.state.get('hold') and str(exc) in ('HTTP_unsuccessful','transient_retry_exhausted'):
+                run.state.update(phase='cycle_complete',next_cycle_at=(datetime.now(timezone.utc)+timedelta(seconds=run.cfg['cycle_interval_seconds'])).isoformat())
+                run.checkpoint();continue
+            raise
         if not watch or cycles is not None and completed>=cycles:break
-        wait(run.cfg['cycle_interval_seconds'],run.stop)
     return {'status':'stopped' if run.stop.is_set() else 'completed','completed':completed,'report':run.report()}
 
 
@@ -332,6 +361,12 @@ def dispatch(args,cfg):
     mode='discovery' if args.discover_once or args.discover_watch else 'combined' if args.watch else 'refresh'
     if args.status or args.dry_run:
         result=status(cfg);result.update(command_mode=mode,HTTP_requests=0,writes=False,key_read=False)
+        if cfg.get('backend_enabled') is True:
+            outbox=read(ROOT/'backend_delivery/backend_outbox.json',{'entries':{},'hold':None})
+            result['backend_enabled']=True
+            result['backend_delivery']={'hold':outbox.get('hold'),'states':{}}
+            for entry in outbox['entries'].values():
+                states=result['backend_delivery']['states'];name=entry['status'];states[name]=states.get(name,0)+1
         if args.dry_run:result['dry_run']=True
         print(json.dumps(result,ensure_ascii=True));return 0
     with FileState(ROOT/'state').lock():
@@ -339,9 +374,16 @@ def dispatch(args,cfg):
         try:
             from .domeggook_watch_delivery import DeliveryDiscoveryRun
             run=DeliveryDiscoveryRun(cfg,client)
+            import signal
+            previous={}
+            if threading.current_thread() is threading.main_thread():
+                for sig in (signal.SIGTERM,signal.SIGINT):
+                    previous[sig]=signal.signal(sig,lambda *_:run.stop.set())
             try:result=queue_loop(run,mode,args.watch or args.discover_watch,args.cycles)
             except KeyboardInterrupt:
                 run.stop.set();run.checkpoint();result={'status':'user_stopped','report':run.report()}
+            finally:
+                for sig,handler in previous.items():signal.signal(sig,handler)
             print(json.dumps(result,ensure_ascii=True));return 0
         except SafeAPIError as exc:
             save(ROOT/'discovery_safe_failure.json',{'at':now(),'error_code':str(exc),'report':run.report() if run else None})

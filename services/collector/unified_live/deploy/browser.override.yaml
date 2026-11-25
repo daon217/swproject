@@ -1,0 +1,52 @@
+{
+  "services": {
+    "url": {
+      "image": "kkulpick-unified-browser:${COLLECTOR_RELEASE:-local-review}",
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/unified_live/deploy/Dockerfile.browser",
+        "args": {
+          "COLLECTOR_BASE_IMAGE": "kkulpick-unified-collector:${COLLECTOR_RELEASE:-local-review}"
+        }
+      },
+      "mem_limit": "1g",
+      "pids_limit": 256
+    },
+    "fleet": {
+      "image": "kkulpick-unified-browser:${COLLECTOR_RELEASE:-local-review}",
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/unified_live/deploy/Dockerfile.browser",
+        "args": {
+          "COLLECTOR_BASE_IMAGE": "kkulpick-unified-collector:${COLLECTOR_RELEASE:-local-review}"
+        }
+      },
+      "mem_limit": "1g",
+      "pids_limit": 256
+    },
+    "discovery": {
+      "image": "kkulpick-unified-browser:${COLLECTOR_RELEASE:-local-review}",
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/unified_live/deploy/Dockerfile.browser",
+        "args": {
+          "COLLECTOR_BASE_IMAGE": "kkulpick-unified-collector:${COLLECTOR_RELEASE:-local-review}"
+        }
+      },
+      "mem_limit": "1g",
+      "pids_limit": 256
+    },
+    "homepage": {
+      "image": "kkulpick-unified-browser:${COLLECTOR_RELEASE:-local-review}",
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/unified_live/deploy/Dockerfile.browser",
+        "args": {
+          "COLLECTOR_BASE_IMAGE": "kkulpick-unified-collector:${COLLECTOR_RELEASE:-local-review}"
+        }
+      },
+      "mem_limit": "1g",
+      "pids_limit": 256
+    }
+  }
+}

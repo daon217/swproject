@@ -1,0 +1,8 @@
+# Paths only; never put API keys or tokens here. Copy outside Git.
+COLLECTOR_RELEASE=reviewed-commit-sha
+COLLECTOR_RUN_APPROVED=no
+SECRETS_DIR=/srv/kkulpick/secrets
+CONFIG_DIR=/srv/kkulpick/config
+DOMEGGOOK_STATE_DIR=/srv/kkulpick/state/domeggook
+MARKETPLACE_STATE_DIR=/srv/kkulpick/state/marketplace
+OPS_STATE_DIR=/srv/kkulpick/state/ops

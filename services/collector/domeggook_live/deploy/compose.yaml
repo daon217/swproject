@@ -1,0 +1,27 @@
+services:
+  domeggook:
+    build:
+      context: ../../../..
+      dockerfile: services/collector/domeggook_live/deploy/Dockerfile
+    init: true
+    restart: on-failure:5
+    stop_grace_period: 60s
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs: [/tmp]
+    environment:
+      DOMEGGOOK_API_KEY: ${DOMEGGOOK_API_KEY:?set API key}
+      KKULPICK_BACKEND_TOKEN: ${KKULPICK_BACKEND_TOKEN:?set collector token}
+      KKULPICK_STATE_DIR: /state
+      KKULPICK_BACKEND_CONFIG: /run/backend-profile.json
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONUNBUFFERED: '1'
+    volumes:
+      - ${DOMEGGOOK_STATE_DIR:?set existing state directory}:/state
+      - ${DOMEGGOOK_BACKEND_PROFILE:?set approved profile}:/run/backend-profile.json:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'

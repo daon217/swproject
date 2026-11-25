@@ -1,0 +1,6 @@
+**
+!services/
+!services/collector/
+!services/collector/unified_live/
+!services/collector/unified_live/deploy/
+!services/collector/unified_live/deploy/Dockerfile.browser

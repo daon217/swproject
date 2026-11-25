@@ -1,0 +1,19 @@
+{
+  "marketplace-replace-after-independent-review": {
+    "reference": "",
+    "terms_reference": "",
+    "expires_at": "2000-01-01T00:00:00+00:00",
+    "allowed_uses": [],
+    "allowed_hosts": ["shop.example.invalid"],
+    "backend_enabled": false,
+    "backend_owner_approved": false,
+    "price_semantics_confirmed": false,
+    "currencies": ["KRW"],
+    "queries": ["검토한 검색어"],
+    "requests_per_hour": 10,
+    "requests_per_24h": 40,
+    "request_interval_seconds": 3,
+    "provider_min_interval_seconds": 7200,
+    "backend_delivery": {"base_url": "https://team.example.invalid", "max_pending": 100, "max_attempts": 3}
+  }
+}

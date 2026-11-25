@@ -1,0 +1,49 @@
+{
+  "services": {
+    "ebay-used": {
+      "build": {
+        "context": "../../../..",
+        "dockerfile": "services/collector/used_market_live/deploy/Dockerfile"
+      },
+      "init": true,
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/tmp"
+      ],
+      "stop_grace_period": "60s",
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "restart": "on-failure:5",
+      "env_file": [
+        "${EBAY_ENV_FILE:?set external env file}"
+      ],
+      "environment": {
+        "KKULPICK_USED_CONFIG": "/run/used.json",
+        "KKULPICK_MARKETPLACE_STATE_DIR": "/state"
+      },
+      "volumes": [
+        "${MARKETPLACE_STATE_DIR:?existing shared state root}:/state",
+        "${USED_CONFIG:?approved used profile}:/run/used.json:ro"
+      ],
+      "command": [
+        "python",
+        "-m",
+        "services.collector.used_market_live",
+        "--provider",
+        "ebay_used",
+        "--status"
+      ]
+    }
+  }
+}

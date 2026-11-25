@@ -1,0 +1,20 @@
+[
+  {
+    "url": "https://moakit.win/link/shop",
+    "selector": "a[href]",
+    "platform": "unknown",
+    "metadata_read_approved": false,
+    "exclude_domains": [
+      "youtube.com",
+      "facebook.com",
+      "instagram.com"
+    ]
+  },
+  {
+    "url": "https://storeleads.app/reports/cafe24/KR/top-stores",
+    "selector": "a[href]",
+    "platform": "cafe24_reported",
+    "domain_label_only": true,
+    "metadata_read_approved": false
+  }
+]

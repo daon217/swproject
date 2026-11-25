@@ -1,0 +1,66 @@
+x-runtime: &runtime
+  build:
+    context: ../../../..
+    dockerfile: services/collector/marketplace_live/deploy/Dockerfile
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  stop_grace_period: 60s
+  tmpfs: [/tmp]
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '3'
+services:
+  domeggook:
+    <<: *runtime
+    profiles: [domeggook]
+    restart: on-failure:5
+    env_file: ['${DOMEGGOOK_ENV_FILE:?set external env file}']
+    environment:
+      KKULPICK_STATE_DIR: /state
+      KKULPICK_BACKEND_CONFIG: /run/domeggook-profile.json
+    volumes:
+      - ${DOMEGGOOK_STATE_DIR:?preserve existing state}:/state
+      - ${DOMEGGOOK_PROFILE:?approved existing profile}:/run/domeggook-profile.json:ro
+    command: [python, -m, services.collector.domeggook_live, --watch, --interval, '7200']
+  yes24:
+    <<: *runtime
+    profiles: [lookup]
+    restart: 'no'
+    env_file: ['${YES24_ENV_FILE:?set external env file}']
+    environment:
+      KKULPICK_MARKETPLACE_STATE_DIR: /state
+      KKULPICK_MARKETPLACE_CONFIG: /run/lookup.json
+    volumes:
+      - ${MARKETPLACE_STATE_DIR:?set shared state root}/yes24_api:/state/yes24_api
+      - ${LOOKUP_CONFIG:?set lookup profile}:/run/lookup.json:ro
+    # Plan only by default. After separate YES24 request approval, override with
+    # `probe --source yes24_api --live --max-products 3`. No backend token needed.
+    command: [python, -m, services.collector.marketplace_live.probe, --source, yes24_api, --plan]
+  serper:
+    <<: *runtime
+    profiles: [overseas]
+    restart: on-failure:5
+    env_file: ['${SERPER_ENV_FILE:?set external env file}']
+    environment:
+      KKULPICK_MARKETPLACE_STATE_DIR: /state
+      KKULPICK_MARKETPLACE_CONFIG: /run/collection.json
+    volumes:
+      - ${MARKETPLACE_STATE_DIR:?set shared state root}/serper_google_shopping:/state/serper_google_shopping
+      - ${COLLECTION_CONFIG:?approved collection profile}:/run/collection.json:ro
+    command: [python, -m, services.collector.marketplace_live, --source, serper_google_shopping, --watch]
+  ebay:
+    <<: *runtime
+    profiles: [overseas]
+    restart: on-failure:5
+    env_file: ['${EBAY_ENV_FILE:?set external env file}']
+    environment:
+      KKULPICK_MARKETPLACE_STATE_DIR: /state
+      KKULPICK_MARKETPLACE_CONFIG: /run/collection.json
+    volumes:
+      - ${MARKETPLACE_STATE_DIR:?set shared state root}/ebay_browse:/state/ebay_browse
+      - ${COLLECTION_CONFIG:?approved collection profile}:/run/collection.json:ro
+    command: [python, -m, services.collector.marketplace_live, --source, ebay_browse, --watch]

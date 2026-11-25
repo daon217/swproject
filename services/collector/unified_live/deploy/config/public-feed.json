@@ -1,0 +1,48 @@
+{
+  "source": "yappy_kids",
+  "base_url": "https://www.yappykids.com/",
+  "search_url_template": "https://www.yappykids.com/?q={query}",
+  "queries": [
+    "feed"
+  ],
+  "mode": "general",
+  "region": "overseas",
+  "enabled": false,
+  "backend_enabled": false,
+  "backend_owner_approved": false,
+  "price_semantics_confirmed": false,
+  "render_javascript": false,
+  "evidence_storage": false,
+  "provider_min_interval_seconds": 7200,
+  "requests_per_hour": 100,
+  "requests_per_24h": 1000,
+  "request_interval_seconds": 1,
+  "max_pages_per_cycle": 2,
+  "max_products_per_cycle": 3,
+  "refresh_items_per_cycle": 1,
+  "max_tracked_items": 100,
+  "max_attempts": 3,
+  "allowed_product_hosts": [
+    "www.yappykids.com"
+  ],
+  "currencies": [
+    "EUR"
+  ],
+  "selectors": {},
+  "rights": {
+    "reference": "",
+    "terms_reference": "",
+    "expires_at": "2000-01-01T00:00:00+00:00",
+    "allowed_uses": []
+  },
+  "backend_delivery": {
+    "base_url": "https://team.example.invalid",
+    "max_pending": 100,
+    "max_attempts": 3,
+    "retry_base_seconds": 5
+  },
+  "country": "LV",
+  "merchant_name": null,
+  "merchant_reference": null,
+  "food_policy": "hold_until_contract"
+}

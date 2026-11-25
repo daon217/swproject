@@ -20,8 +20,9 @@ from .domeggook_backend_contract import Observation
 from .runtime import FileState
 from .stable_identity import resolve
 
-# Team API address comes from the environment; server addresses are not stored in this public repository.
-BASE = os.environ.get('KKULPICK_API_BASE', '').strip().rstrip('/')
+# Collector delivery address comes from the environment (same variable as collector_ops/unified_live);
+# server addresses are not stored in this public repository. KKULPICK_API_BASE is the reader address.
+BASE = os.environ.get('COLLECTOR_BACKEND_BASE_URL', '').strip().rstrip('/')
 
 
 class ForwardStore:
@@ -155,7 +156,7 @@ def main():
     if not 1 <= args.max_products <= 10:
         parser.error('--max-products must be 1..10')
     if urlsplit(BASE).scheme not in ('http', 'https') or not urlsplit(BASE).netloc:
-        parser.error('Set KKULPICK_API_BASE to the team API address, e.g. http://<server>:8000')
+        parser.error('Set COLLECTOR_BACKEND_BASE_URL to the team API address, e.g. http://<server>:8000')
     if not args.confirm_provider_rights or not args.confirm_price_semantics:
         parser.error('Both --confirm-provider-rights and --confirm-price-semantics are required; do not use until verified')
     cfg = validate_discovery(configuration())

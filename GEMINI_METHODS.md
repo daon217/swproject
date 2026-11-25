@@ -224,3 +224,11 @@ gh run watch <run_id> -R daon217/swproject --exit-status
    - 비밀번호·API 키·토큰 값·개인정보·실제 수집 원본 300건 본문은 문서에 적지 않으며 환경변수 이름(`WORKSPACE_TOKEN`, `ANALYSIS_WORKER_TOKEN`, `COLLECTOR_TOKEN`, `CATALOG_APP_PASSWORD`)만 기록한다.
 3. **게시 후 재검증 절차 (`PROMPTS.md` 8번 7~8단계)**:
    - 문서를 `origin/devlog`에 push한 뒤에는 로컬 작업 폴더만 보지 않고, ① 원격 `origin/devlog` HEAD와 게시된 파일들의 GitHub 원격 blob/본문을 다시 읽어 로컬 원문과 바이트/줄 단위로 일치하는지 확인하고, ② 문서 내 모든 상대 링크와 고정 커밋 코드 경로/행(`git show <SHA>:<경로>`)의 실존 여부를 스크립트로 재검증하며, ③ 발췌한 명령과 CI Job 로그(`137464692324`, `137492787339`, `137492787444` 등)의 수치 일치 및 `main`/`maintest`/기존 타 AI 일지 보존 여부를 확인한 뒤 별도 게시 후 재검증 일지에 기록한다.
+
+---
+
+## 9. 게시 후 재검증 결과 (2026-11-25)
+
+게시 커밋 `419aad6`(`419aad62eed2cf06592a93c23555f2bec8c45a14`)의 원격 blob 본문 6개를 다시 읽어 로컬 원문과 100% 일치함을 확인했다. 문서 내 마크다운 링크 179개(상대 링크 실존 확인)와 고정 커밋 코드/워크플로 참조 15개(`git show <SHA>:<경로>` 줄 범위 검증), 신규 일지 필수 7개 섹션 검사를 모두 통과했으며(실패 0건), 원격 CI Job 로그 3개(`137464692324`, `137492787339`, `137492787444`)의 통과/스킵 수치 및 오프라인 모델 출력값 일치와 기존 Claude/GPT 일지·정오표 보존을 확인했다.
+
+상세 검사 대상·방법·결과표는 [게시 후 재검증 일지](journal/2026-11-25-gemini-test-methods-postpublish-verification-gemini-4-argon.md)에 기록했다.

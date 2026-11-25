@@ -50,7 +50,8 @@ def test_recommendation_http_auth_domain_and_allergens():
     result=c.post('/internal/process',json=body,headers={'Authorization':'Bearer '+TOKEN})
     assert result.status_code==200,result.text
     assert result.json()['offer_ids']==[] # Missing catalog ingredients cannot be called safe.
-    assert {w['allergen'] for w in result.json()['warnings']}=={'soy','milk'}
+    # Clients send and label 'soybean'; the internal 'soy' code must not leak back.
+    assert {w['allergen'] for w in result.json()['warnings']}=={'soybean','milk'}
 
 
 

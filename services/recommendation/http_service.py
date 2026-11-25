@@ -173,6 +173,9 @@ def process(body:Input,authorization:str=Header(default='')):
             'message':'이 알레르기 항목의 자동 검증은 지원하지 않습니다. 상품 표시를 직접 확인해 주세요.'} for a in unchecked]
         if body.selected_domain=='food' and raw['allergens'] and not body.ingredients:
             warnings += [{'type':'allergy','allergen':a,'evidence':'unknown','message':'페이지 성분을 확인하지 못했습니다.'} for a in raw['allergens']]
+        # Internal code 'soy' is the clients' 'soybean'; answer in the code the client sent so its label lookup works.
+        for w in warnings:
+            if w['allergen']=='soy':w['allergen']='soybean'
     except (ValueError,TypeError,KeyError,ContractError) as error:
         raise HTTPException(422,'INVALID_RECOMMENDATION_INPUT') from error
     try:

@@ -64,3 +64,18 @@ celery -A app.celery_app.celery_app worker --loglevel=info --pool=solo
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+---
+
+## 4. 메모리·속도 설정 (2026-11-25, devlog #66)
+
+Paddle 추론 엔진은 **새 입력 크기마다 메모리를 잡고 돌려주지 않습니다.** 페이지·줄마다 크기가 다르면 분석할수록 워커 메모리가 계단식으로 오르고, 줄이 많은 페이지 한 장으로 OOM이 납니다(측정: 1280×2600 한 장에 350MiB → 6.7GiB → 강제 종료).
+그래서 입력 크기를 고정합니다.
+
+| 설정 (환경변수) | 기본값 | 의미 |
+| --- | --- | --- |
+| `OCR_CANVAS_WIDTH` × `OCR_CANVAS_HEIGHT` | 1920 × 1600 | 글자 검출 입력을 항상 이 캔버스로(크면 축소, 남는 곳은 흰색). 좌표는 원래 이미지 기준으로 되돌려 반환 |
+| `REC_WIDTH_RATIOS` | `8,20` | 글자 인식 입력 폭은 48px×8=384px 또는 48px×20=960px 두 가지뿐. 크기가 늘수록 메모리도 커짐 |
+| `REC_BATCH_NUM` | 1 | 배치 크기도 입력 크기의 일부라 1로 고정(측정상 속도 차이 없음) |
+| `WORKER_MAX_MEMORY_PER_CHILD_KB` | 1500000 | Celery 자식 프로세스가 이 메모리를 넘으면 작업 후 교체(안전장치) |
+
+측정(89줄 페이지): 가변 폭 28.6초·6.9GiB → `8,20` 13.2초·0.70GiB, 결과 일치율 94~97%. compose의 워커에는 `mem_limit`(기본 3g, `VISION_WORKER_MEM_LIMIT`)를 둡니다.

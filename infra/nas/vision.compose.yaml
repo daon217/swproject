@@ -37,6 +37,8 @@ services:
     <<: *vision
     # PaddleOCR 모델은 프로세스마다 메모리에 올라가므로 동시 처리 1개로 제한합니다.
     command: [celery, -A, app.celery_app.celery_app, worker, --loglevel=INFO, --concurrency=1]
+    # OCR 입력 모양 고정 후 평소 1GiB 안팎. 넘치면 이 컨테이너만 정리되고 NAS 전체 메모리는 보호된다(#66).
+    mem_limit: ${VISION_WORKER_MEM_LIMIT:-3g}
     volumes:
       - vision_models:/home/app/.paddleocr
 

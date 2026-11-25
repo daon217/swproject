@@ -33,6 +33,10 @@ celery_app.conf.update(
     task_acks_late=True,
     # 일정 횟수 이상 태스크 처리 후 워커 프로세스 재시작 (메모리 누수 방지)
     worker_max_tasks_per_child=200,
+    # 작업 수가 아니라 실제 메모리 기준 안전장치(#66): 자식 프로세스 RSS가 기준(KiB)을 넘으면 작업을 마친 뒤 교체
+    worker_max_memory_per_child=settings.WORKER_MAX_MEMORY_PER_CHILD_KB,
+    # 자식이 강제 종료(OOM)돼도 같은 작업을 다시 넣지 않는다. 다시 넣으면 같은 이미지가 새 자식도 죽이는 연쇄 종료가 난다.
+    task_reject_on_worker_lost=False,
     # 로컬/경량 Redis 브로커 호환성 및 불필요한 pidbox 브로드캐스트 오버헤드 제거
     worker_enable_remote_control=False,
     worker_send_task_events=False,

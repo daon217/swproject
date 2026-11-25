@@ -84,10 +84,11 @@ class OCRSingletonEngine:
                 use_angle_cls=False,
                 use_gpu=False,
                 cpu_threads=cpu_threads,
-                det_limit_side_len=736,
-                rec_batch_num=16,
+                det_limit_side_len=settings.OCR_DET_LIMIT_SIDE,
+                rec_batch_num=settings.REC_BATCH_NUM,
                 show_log=False,
             )
+            self._fix_recognition_width(self._ocr_model)
             logger.info("[OCRSingletonEngine] PaddleOCR 싱글톤 로드 완료.")
         except Exception as exc:
             logger.warning(
@@ -96,6 +97,49 @@ class OCRSingletonEngine:
             )
             self._ocr_model = None
             self._use_windows_native_ocr = True
+
+    @staticmethod
+    def _fix_recognition_width(ocr_model) -> None:
+        """
+        [메모리 증가 방지 #66] PaddleOCR 인식기는 배치마다 가장 긴 줄의 비율(max_wh_ratio)로 입력 폭을 정한다.
+        줄 폭이 매번 달라 새 입력 모양이 계속 생기고, Paddle은 모양마다 잡은 메모리를 반환하지 않는다.
+        입력 폭을 REC_WIDTH_RATIOS 중 하나(기본 2가지)로만 정해 입력 모양 수를 고정한다.
+        측정: 폭이 다른 120줄 7.0GiB → 0.70GiB, 페이지 처리도 가변 폭보다 빠르다(28.6s → 13.2s).
+        REC_BATCH_NUM=1이므로 줄마다 자기 길이에 맞는 크기를 고른다.
+        """
+        recognizer = getattr(ocr_model, "text_recognizer", None)
+        if recognizer is None or not hasattr(recognizer, "resize_norm_img"):
+            logger.warning("[OCRSingletonEngine] 인식기 구조가 예상과 달라 입력 폭을 고정하지 못했습니다.")
+            return
+        original = recognizer.resize_norm_img
+        ratios = sorted(float(x) for x in settings.REC_WIDTH_RATIOS.split(",") if x.strip())
+
+        def fixed_width(img, max_wh_ratio):
+            h, w = img.shape[:2]
+            own = w / max(h, 1)
+            return original(img, next((r for r in ratios if own <= r), ratios[-1]))
+
+        recognizer.resize_norm_img = fixed_width
+
+    @staticmethod
+    def _to_fixed_canvas(image: np.ndarray) -> Tuple[np.ndarray, float]:
+        """
+        [메모리 증가 방지 #66] 검출 입력을 항상 OCR_CANVAS_WIDTH × OCR_CANVAS_HEIGHT로 맞춘다.
+        더 크면 비율을 유지해 축소하고(확대는 하지 않음), 남는 오른쪽·아래는 흰색으로 채운다.
+        채움은 오른쪽·아래에만 하므로 좌표는 scale로 나누기만 하면 원래 이미지 좌표가 된다.
+        """
+        import cv2
+
+        if image.ndim == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        canvas_w, canvas_h = settings.OCR_CANVAS_WIDTH, settings.OCR_CANVAS_HEIGHT
+        h, w = image.shape[:2]
+        scale = min(canvas_w / w, canvas_h / h, 1.0)
+        if scale < 1.0:
+            image = cv2.resize(image, (max(1, int(w * scale)), max(1, int(h * scale))), interpolation=cv2.INTER_AREA)
+        canvas = np.full((canvas_h, canvas_w, 3), 255, dtype=np.uint8)
+        canvas[: image.shape[0], : image.shape[1]] = image
+        return canvas, scale
 
     def _ensure_win_ocr_daemon(self):
         """
@@ -243,7 +287,9 @@ while ($null -ne ($imgPath = [Console]::In.ReadLine())) {
             if self._ocr_model is None:
                 return []
 
-        raw_result: Any = self._ocr_model.ocr(image, cls=False)
+        canvas, scale = self._to_fixed_canvas(image)
+        raw_result: Any = self._ocr_model.ocr(canvas, cls=False)
+        del canvas
         parsed_items: List[Tuple[List[List[float]], str, float]] = []
 
         if not raw_result:
@@ -257,7 +303,7 @@ while ($null -ne ($imgPath = [Console]::In.ReadLine())) {
         for line in lines:
             if not line or len(line) < 2:
                 continue
-            box = line[0]
+            box = [[float(x) / scale, float(y) / scale] for x, y in line[0]]
             text_info = line[1]
             if isinstance(text_info, (list, tuple)) and len(text_info) >= 2:
                 text = str(text_info[0]).strip()

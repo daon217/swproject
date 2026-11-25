@@ -33,6 +33,7 @@ services:
       dockerfile: ../infra/nas/vision/Dockerfile
     environment: {REDIS_HOST: vision-redis, VISION_SERVICE_TOKEN: "${WORKSPACE_TOKEN:?run workspace init}"}
     command: [celery, -A, app.celery_app.celery_app, worker, --loglevel=WARNING, --concurrency=1]
+    mem_limit: ${VISION_WORKER_MEM_LIMIT:-3g}  # OCR 입력 모양 고정 후 평소 1GiB 안팎(#66)
     volumes: [vision_models:/home/app/.paddleocr]
     depends_on:
       vision-redis: {condition: service_healthy}

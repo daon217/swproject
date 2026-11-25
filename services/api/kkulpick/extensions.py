@@ -35,7 +35,7 @@ FOOD_ALLERGENS = {
     "sesame": "참깨", "kiwi": "키위", "banana": "바나나", "apple": "사과", "mango": "망고", "salmon": "연어",
     "tuna": "참치", "octopus": "문어·낙지", "lamb": "양고기", "celery": "셀러리", "mustard": "겨자", "corn": "옥수수",
 }
-_ALLERGEN_ALIASES = {"soy": "soybean", "pinenut": "pine_nut"} | {label: code for code, label in FOOD_ALLERGENS.items()}
+_ALLERGEN_ALIASES = {"soy": "soybean", "pinenut": "pine_nut", "sulfites": "sulfite", "sulphite": "sulfite", "sulphites": "sulfite"} | {label: code for code, label in FOOD_ALLERGENS.items()}
 
 
 def canonical_allergen(value: str) -> str | None:

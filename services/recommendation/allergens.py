@@ -53,7 +53,8 @@ ALLERGENS: dict[str, tuple[str, list[str]]] = {
 }
 
 # 클라이언트(확장·모바일·회원 프로필)와 백엔드 allergens_declared 는 'soybean' 을 쓴다. 내부 코드는 'soy'.
-CODE_ALIASES: dict[str, str] = {"soybean": "soy", "pinenut": "pine_nut"}
+# 수집기는 아황산류를 예전 계약대로 'sulfites'로 보낼 수 있다.
+CODE_ALIASES: dict[str, str] = {"soybean": "soy", "pinenut": "pine_nut", "sulfites": "sulfite", "sulphite": "sulfite", "sulphites": "sulfite"}
 _CODE_KEY = re.compile(r"[\s\-]+")
 
 

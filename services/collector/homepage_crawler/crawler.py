@@ -104,7 +104,7 @@ def to_krw(p):
     """가격을 원화로 고정. 원래 통화와 환율은 남기고, 환율을 모르면 가격을 비우고 보류."""
     cur = (p.get("currency") or "KRW").upper()
     rate = FX.get(cur)
-    out = dict(orig_currency=cur, fx_rate=rate, currency="KRW")
+    out = dict(orig_currency=cur, orig_price=p.get("price"), fx_rate=rate, currency="KRW")
     for k in ("price", "price_low", "price_high"):
         v = p.get(k)
         out[k] = round(v * rate) if v is not None and rate else None
@@ -215,6 +215,8 @@ def main():
     ap.add_argument("--max-pages", type=int, default=12)
     ap.add_argument("--delay", type=float, default=0.5, help="페이지 요청 사이 쉬는 초")
     ap.add_argument("--watch", action="store_true", help="끝나지 않고 계속 반복 (Ctrl+C로 종료)")
+    ap.add_argument("--backend", action="store_true",
+                    help="꿀픽 백엔드 수집 API로 전송 (COLLECTOR_BACKEND_BASE_URL, KKULPICK_BACKEND_TOKEN_FILE). DATABASE_URL이 있으면 Supabase에도 저장")
     ap.add_argument("--interval", type=int, default=0, help="--watch에서 한 바퀴 끝난 뒤 추가로 쉬는 초 (기본 0, 쉬는 건 100개마다 10분)")
     a = ap.parse_args()
     sites = load_sites()
@@ -222,10 +224,17 @@ def main():
         want = set(a.only.split(","))
         sites = [s for s in sites if s[0] in want]
     conn = None
-    if not a.dry_run:
+    a.sender = None
+    if not a.dry_run and a.backend:
+        from .backend import Backend
+        try:
+            a.sender = Backend()
+        except (ValueError, OSError) as e:
+            sys.exit(f"백엔드 전송 설정 오류: {e}")
+    if not a.dry_run and (os.environ.get("DATABASE_URL") or not a.backend):
         import psycopg
         if not os.environ.get("DATABASE_URL"):
-            sys.exit("DATABASE_URL 환경변수가 필요합니다 (또는 --dry-run)")
+            sys.exit("DATABASE_URL 환경변수가 필요합니다 (또는 --dry-run, --backend)")
         conn = psycopg.connect(os.environ["DATABASE_URL"])
     cycle, saved = 0, 0
     try:
@@ -275,6 +284,23 @@ def run_cycle(sites, a, conn, saved=0):
         if a.dry_run:
             for p in products[:3]:
                 print("   ", p["name"], p["price"] or (p["price_low"], p["price_high"]), p["currency"])
+            continue
+        sender = getattr(a, "sender", None)
+        if sender is not None:
+            try:
+                print(f"{name:12} backend {sender.deliver(products)}", flush=True)
+            except PermissionError as e:
+                sys.exit(f"백엔드 인증 실패로 멈춥니다: {e}")
+            except Exception as e:  # 네트워크 등: 이 사이트만 건너뛴다(--watch가 아니면 중단)
+                if not a.watch:
+                    raise
+                print(f"{name:12} backend_error:{type(e).__name__}", flush=True)
+        if conn is None:  # 백엔드만 전송: 저장 수와 쉬는 규칙은 같게
+            saved += len(products)
+            if saved >= BATCH:
+                print(f"백엔드에 {saved}개 전송, {REST // 60}분 쉽니다 ({time.strftime('%H:%M:%S')})", flush=True)
+                time.sleep(REST)
+                saved = 0
             continue
         import psycopg
         try:

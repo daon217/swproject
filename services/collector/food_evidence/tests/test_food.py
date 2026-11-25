@@ -39,6 +39,11 @@ class FoodTests(unittest.TestCase):
         r=self.extract('알레르기: 달걀, Sesame, 花生, 탈지분유 함유')
         self.assertEqual(r['allergens_declared'],['egg','sesame','peanut','milk'])
         self.assertEqual(r['unmapped_allergen_terms'],[])
+    def test_group_words_stay_as_text_for_specific_backend_codes(self):
+        # 백엔드는 아몬드·연어처럼 개별 코드로 판정한다. 'tree_nut'/'fish'로 뭉개면 아몬드 알레르기 경고가 빠진다.
+        r=self.extract('알레르기: 우유, 아몬드, 연어 함유')
+        self.assertEqual(r['allergens_declared'],['milk'])
+        self.assertEqual(r['unmapped_allergen_terms'],['아몬드','연어 함유'])
     def test_cosmetic_ingredients_not_misclassified_as_food(self):
         r=self.extract('전성분: 정제수, 글리세린',category='cosmetics')
         self.assertEqual(r['status'],'not_food');self.assertIsNone(r['raw'])

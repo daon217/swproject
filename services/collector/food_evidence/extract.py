@@ -37,14 +37,20 @@ def terms(text):
     return [token.strip() for token in re.split(r'[,;、\n]',text) if token.strip()]
 
 
+# 묶음 이름(견과류·생선)은 코드로 바꾸지 않는다. 백엔드·추천은 아몬드·캐슈넛·연어·참치처럼 개별 코드로 판정하므로
+# 'tree_nut'·'fish'로 보내면 아몬드 알레르기 회원이 경고를 못 받는다. 원문 토큰을 그대로 보내면 백엔드가 글자로 대조한다.
+GROUPS={'견과류*','생선*'}
+
+
 def allergen_codes(text):
     """-> (codes, unmapped) 토큰 순서 유지. 한·영·중·일 동의어 사전(allergens.py)으로 대조, 못 찾은 토큰은 버리지 않고 unmapped."""
     codes=[];unmapped=[]
     for token in terms(text or ''):
         contains,trace=find_allergens(token)
-        hit=[CODES[c] for c in CODES if c in contains|trace]
-        if hit:codes+=hit
-        else:unmapped.append(token)
+        found=contains|trace
+        hit=[CODES[c] for c in CODES if c in found and c not in GROUPS]
+        codes+=hit
+        if not hit or found&GROUPS:unmapped.append(token)
     return list(dict.fromkeys(codes)),list(dict.fromkeys(unmapped))
 
 

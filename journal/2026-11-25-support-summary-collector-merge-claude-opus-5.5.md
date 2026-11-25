@@ -40,3 +40,9 @@
 
 ## 다음
 - NAS에서 수집기 실데이터 적재 확인(`COLLECTOR_BACKEND_TRANSPORT=internal_http`, `COLLECTOR_BACKEND_BASE_URL`, `KKULPICK_BACKEND_TOKEN`, `COLLECTOR_DELIVERY_APPROVED=yes`).
+
+## 추가: condition 기준 통일 (사용자 결정, 9b4d366 — 로컬 커밋, 푸시 대기)
+- 결정: 전체 = new+used+unknown, 새 상품만 = new, 중고만 = used, 기본 추천·유사 상품 = new+used+unknown. unknown은 new로 취급하지 않고 '미확인'으로 표시.
+- 변경: `GET /v2/offers` 기본 `condition=all`(이전 new) / 기본 추천이 used를 빼던 조건 제거 / 유사 상품은 이미 `include_used` 기본 true / 모든 상품 카드에 `condition` 포함(`CARD_FRESHNESS`) / 확장·모바일 카드 보조 문구에 "중고"·"상태 미확인" / 관리자 수집 목록에 '상품 상태' 열(새 상품·중고·미확인) / 계약 문서.
+- 유지: 개인 맞춤 AI 추천은 회원의 '중고 포함' 설정을 따름(사용자가 직접 끈 경우는 제외가 맞음).
+- 검증: 확장·모바일 TypeScript 검사 통과, 웹 JS 문법, 격리 DB API 92·추천 85·변조 33(두 순서). 기본 목록·new 필터·기본 추천 used 포함·카드 condition 테스트 갱신.

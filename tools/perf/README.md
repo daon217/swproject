@@ -9,3 +9,6 @@
 | `bench_embed.py` + `run.sh` | 임베딩 DB 쓰기 처리량(hash), `BATCH_TX=1`이면 배치 커밋 |
 | `st_bench2.py` | MiniLM CPU 스레드 수별 처리량 |
 Vision 실험은 `docker run --rm --memory 7g -v <models 볼륨>:/home/app/.paddleocr ... kkulpick-vision-check:local python /d/ocr_mem6.py 40 6` 형태로 실행.
+| `recall.py <original\|fixed> <pages>` | 실제 엔진으로 성분 재현율(정답=make_images 난수 재생). `-w /srv -e PYTHONPATH=/srv`로 실행 |
+| `det_canvas.py`, `rec_two.py` | 검출 캔버스 설정별 박스 수, 인식 폭 크기 조합별 속도·메모리 |
+| `bench_once.py` | 실제 `once()` 루프로 임베딩 DB 처리량(수정 전/후 비교) |

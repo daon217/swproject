@@ -130,3 +130,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | Claude Opus 5.5 | [#72 상담 고객정보·수집기 병합 실연결 검증](journal/2026-11-25-support-summary-collector-merge-claude-opus-5.5.md) — maintest 23f13f9 |
 | 2026-11-26 | Claude Opus 5.5 | [미사용 DB·테이블·컬럼 점검(다른 AI 결과 검증)](journal/2026-11-26-db-unused-review-claude-opus-5.5.md) |
 | 2026-11-26 | Claude Opus 5.5 | [DB 정규화·비정규화 점검과 최적화](journal/2026-11-26-db-normalization-review-claude-opus-5.5.md) — 0014/member_0005, 한국어 ERD |
+| 2026-11-26 | Claude Opus 5.5 | [새 브랜치 3개 병합·백엔드 연결](journal/2026-11-26-branch-merge-extension-web-crawler-claude-opus-5.5.md) — 서지웅·김호진·박정우, 홈페이지 크롤러 백엔드 전송, 알레르기 묶음 코드 |

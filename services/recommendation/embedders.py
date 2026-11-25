@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import os
 from typing import Sequence
 
 from .contracts import CollectedProduct
@@ -42,10 +43,28 @@ class HashEmbedder:
         return self._vec(text)
 
 
+def torch_threads(cpu_count: int | None = None, env: str | None = None) -> int:
+    """PyTorch CPU 스레드 수. 기본값(코어 전부)은 스레드끼리 경쟁해 오히려 느리다(#67).
+
+    측정(14코어): 14스레드 34 texts/s, 4스레드 268 texts/s, 8스레드 285 texts/s.
+    RECO_TORCH_THREADS 로 바꿀 수 있고, 기본은 min(4, 코어 절반) — Vision OCR 과 CPU 를 나눠 쓰는 NAS 기준.
+    """
+    value = os.getenv("RECO_TORCH_THREADS", "") if env is None else env
+    if value.strip():
+        n = int(value)
+        if n < 1:
+            raise ValueError("RECO_TORCH_THREADS must be >= 1")
+        return n
+    cores = cpu_count or os.cpu_count() or 1
+    return max(1, min(4, cores // 2))
+
+
 class SentenceTransformerEmbedder:
     def __init__(self, model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2", revision: str | None = None):
+        import torch
         from sentence_transformers import SentenceTransformer  # 무거운 import 는 필요할 때만
 
+        torch.set_num_threads(torch_threads())
         self._model = SentenceTransformer(model_name, device="cpu", revision=revision, trust_remote_code=False)
         self.name = model_name
         self.dimensions = int(self._model.get_sentence_embedding_dimension())

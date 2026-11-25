@@ -354,6 +354,25 @@ def test_one_bad_item_does_not_block_the_batch(db):
     assert conn.execute('SELECT attempts,last_error FROM app.embedding_jobs WHERE item_id=%s', (bad,)).fetchone() == (1, 'ValueError')
 
 
+def test_batch_commit_isolates_a_failing_write(db, monkeypatch):
+    """#67: the batch commits once; a DB-side failure for one item rolls back only its savepoint."""
+    _, conn, source = db
+    drain(conn)
+    good, _, _ = seed(conn, source, name='배치 정상 상품')
+    bad, _, _ = seed(conn, source, name='배치 실패 상품')
+    real_put = worker._vectors().put
+    def put(c, model, parent, version, values):
+        if str(parent) == str(bad):
+            c.execute('SELECT 1/0')   # real SQL error inside the item's savepoint
+        return real_put(c, model, parent, version, values)
+    monkeypatch.setattr(worker._vectors(), 'put', put)
+    assert worker.once(conn, HashEmbedder())
+    assert conn.info.transaction_status.name == 'IDLE'   # batch transaction committed, not left open
+    assert not conn.execute('SELECT 1 FROM app.embedding_jobs WHERE item_id=%s', (good,)).fetchone()
+    assert conn.execute('SELECT count(*) FROM app.product_embeddings WHERE product_id=%s', (good,)).fetchone()[0] == 1
+    assert conn.execute('SELECT attempts,last_error FROM app.embedding_jobs WHERE item_id=%s', (bad,)).fetchone() == (1, 'DivisionByZero')
+
+
 def test_brand_and_category_changes_reembed_and_enter_text(db):
     _, conn, source = db
     item, offer, _ = seed(conn, source)

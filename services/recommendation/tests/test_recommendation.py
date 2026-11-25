@@ -7,7 +7,7 @@ from services.recommendation import cli
 from services.recommendation.adapters.local import InMemoryVectorIndex, JsonCatalog, JsonProfiles
 from services.recommendation.allergens import ALLERGENS, assess, detect, normalize_code, split_ingredients
 from services.recommendation.contracts import CollectedProduct, ContractError, UserProfile
-from services.recommendation.embedders import HashEmbedder
+from services.recommendation.embedders import HashEmbedder, torch_threads
 from services.recommendation.pipeline import Recommender
 from services.recommendation.rankers import RuleRanker
 from services.recommendation.tests.contract_suite import check_catalog, check_profiles, check_vector_index
@@ -220,3 +220,13 @@ def test_compact_keeps_cheapest_duplicate():
                                     "price": "3900", "currency": "KRW"})
     c = compact_candidates(UserProfile.from_dict({"user_id": "u"}), "오트밀크", [(a, 0.9), (b, 0.8)])
     assert list(c.id_map.values()) == [b.product_id] and c.dropped_duplicates == 1
+
+
+def test_torch_threads_default_avoids_oversubscription():
+    """#67: all cores made MiniLM 8x slower (14 threads 34/s vs 4 threads 268/s)."""
+    assert torch_threads(cpu_count=14, env="") == 4
+    assert torch_threads(cpu_count=4, env="") == 2
+    assert torch_threads(cpu_count=1, env="") == 1
+    assert torch_threads(cpu_count=14, env="8") == 8
+    with pytest.raises(ValueError):
+        torch_threads(cpu_count=14, env="0")

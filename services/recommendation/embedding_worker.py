@@ -113,17 +113,21 @@ def once(conn, encoder=None, *, limit=BATCH_SIZE, models=None):
     if not jobs:
         return False
     encoder = encoder or config.embedder()
-    for job, vector, error in _embed(encoder, jobs):
-        if error is None:
-            try:
-                finish(conn, job, vector)
-                continue
-            except CONNECTION_LOST:
-                raise  # connection lost: leases expire and the outer loop reconnects
-            except Exception as finish_error:
-                error = finish_error
-        retry(conn, job, error)
-        log.warning('Embedding job deferred (%s)', type(error).__name__)
+    results = _embed(encoder, jobs)  # inference stays outside the transaction
+    # One commit per batch instead of per item (#67: 5.3 -> 2.8 ms/item). finish() opens a nested
+    # transaction, i.e. a savepoint, so one failing item rolls back alone and is retried below.
+    with conn.transaction():
+        for job, vector, error in results:
+            if error is None:
+                try:
+                    finish(conn, job, vector)
+                    continue
+                except CONNECTION_LOST:
+                    raise  # connection lost: leases expire and the outer loop reconnects
+                except Exception as finish_error:
+                    error = finish_error
+            retry(conn, job, error)
+            log.warning('Embedding job deferred (%s)', type(error).__name__)
     return True
 
 

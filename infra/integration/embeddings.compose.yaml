@@ -14,6 +14,8 @@ x-embedding-env: &embedding-env
   RECO_MODEL_NAME: ${RECO_MODEL_NAME:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
   RECO_MODEL_REVISION: ${RECO_MODEL_REVISION:-e8f8c211226b894fcb81acc59f3b34ba3efd5f42}
   RECO_MODEL_DIMENSIONS: ${RECO_MODEL_DIMENSIONS:-384}
+  # PyTorch CPU threads; empty = min(4, cores/2). All cores was 8x slower from thread contention (#67).
+  RECO_TORCH_THREADS: ${RECO_TORCH_THREADS:-}
 
 services:
   embedding-init:

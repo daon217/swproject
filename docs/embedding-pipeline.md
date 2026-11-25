@@ -21,6 +21,7 @@
 확인 출처: https://huggingface.co/api/models/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 
 모델명·revision·차원·입력 템플릿·정규화·prefix·대상 영역으로 계약 ID를 계산합니다.
+입력 템플릿은 `catalog-v2: name | brand | category | kind | description`(빈 필드 생략)입니다. v1(name·kind·description)에서 브랜드·카테고리를 추가했으며(마이그레이션 0011), 템플릿이 바뀌면 계약 ID가 새로 생겨 전체 상품을 다시 임베딩합니다.
 상품과 식품은 서로 다른 계약/테이블을 사용하며 HTTP 검색 전 계약 일치를 검사합니다.
 계약 미등록·비활성화·DB 장애는 503으로 표시하고 메모리/해시 방식으로 자동 대체하지 않습니다.
 
@@ -57,8 +58,10 @@ docker compose --env-file infra/db/.env --env-file services/api/.env --env-file 
 docker compose --env-file infra/db/.env --env-file services/api/.env --env-file infra/workspace/.env -f infra/db/compose.yaml -f infra/db/api.compose.yaml -f infra/integration/embeddings.compose.yaml start embedding-worker
 ```
 
-`--drain`은 지연 재시도·임대 중인 작업이 남으면 성공으로 보고하지 않습니다. 종료된 worker의 임대는 최대 5분 뒤 회수합니다.
-모델을 바꾸면 RECO_MODEL_NAME / RECO_MODEL_REVISION / RECO_MODEL_DIMENSIONS를 함께 설정하고 이미지를 다시 빌드해야 합니다. 새 계약의 작업이 완료된 뒤 이전 계약의 `is_serving=false` 전환은 owner가 수행합니다. 기존 계약 내용은 수정하지 않습니다.
+`--drain`은 지연 재시도·임대 중인 작업이나 보류(parked)된 작업이 남으면 성공으로 보고하지 않습니다. 종료된 worker의 임대는 최대 5분 뒤 회수합니다.
+`--requeue-failed`는 보류된 작업의 재시도 횟수를 초기화해 다시 처리하게 합니다(원인을 고친 뒤 실행).
+모델을 바꾸면 RECO_MODEL_NAME / RECO_MODEL_REVISION / RECO_MODEL_DIMENSIONS를 함께 설정하고 이미지를 다시 빌드해야 합니다. 기존 계약 내용은 수정하지 않습니다.
+`--bootstrap`은 같은 영역의 이전 serving 계약을 `is_serving=false`로 내리고 그 대기 작업을 지웁니다. **새 계약의 벡터가 다 만들어질 때까지 추천 후보가 비어 보입니다**(OPEN_ISSUES #24). 운영 중 계약을 바꿀 때는 재임베딩이 끝난 뒤 트래픽을 여는 절차가 필요합니다.
 
 ## 실패·동시성 처리
 
@@ -66,7 +69,8 @@ docker compose --env-file infra/db/.env --env-file services/api/.env --env-file 
 - 변경 트랜잭션이 롤백되면 작업도 남지 않습니다.
 - 여러 worker가 `FOR UPDATE SKIP LOCKED`로 서로 다른 작업을 가져갑니다.
 - 계산 중 상품이 변경되거나 임대가 만료되면 오래된 결과를 저장하거나 새 작업을 삭제하지 않습니다.
-- 실패는 원문 없이 오류 클래스만 기록하고 최대 300초 간격으로 재시도합니다.
+- 실패는 원문 없이 오류 클래스만 기록하고 최대 300초 간격으로 재시도합니다. `EMBEDDING_MAX_ATTEMPTS`(기본 8)회 실패하면 `available_at=infinity`, `last_error='exhausted:<오류>'`로 보류하고 다시 가져가지 않습니다.
+- worker는 `EMBEDDING_BATCH_SIZE`(기본 32)개씩 임대해 한 번에 추론합니다. 묶음 추론이 실패하면 건별로 다시 시도해 문제 있는 상품만 실패 처리합니다.
 - 판매 종료/품절/의심 상품은 후보 검색과 최종 offer 매핑에서 제외합니다.
 - 공개 상품 텍스트만 벡터로 저장합니다. 개인 OCR·검색어·프로필은 임베딩 작업 테이블에 저장하지 않습니다.
 - 식품의 원재료 데이터가 DB에 없으면 기존의 보수적 알레르기/회피 필터를 유지합니다. OCR로 본 한 상품의 성분을 다른 추천 상품의 성분으로 간주하지 않습니다.

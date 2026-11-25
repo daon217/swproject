@@ -11,7 +11,6 @@ import json
 import math
 import os
 from pathlib import Path
-import statistics
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, urlencode

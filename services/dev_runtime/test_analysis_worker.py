@@ -4,7 +4,7 @@ from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 import httpx
 import pytest
-from services.dev_runtime.analysis_worker import Worker,context_url
+from services.dev_runtime.analysis_worker import Worker
 from services.recommendation.http_service import app
 from fastapi.testclient import TestClient
 
@@ -52,8 +52,6 @@ def test_recommendation_http_auth_domain_and_allergens():
     assert result.json()['offer_ids']==[] # Missing catalog ingredients cannot be called safe.
     assert {w['allergen'] for w in result.json()['warnings']}=={'soy','milk'}
 
-def test_product_query_ids_are_not_collapsed():
-    assert context_url('https://shop.test/p?id=1')!=context_url('https://shop.test/p?id=2')
 
 
 def test_normalized_url_candidates_and_process_422_vs_503(monkeypatch):

@@ -10,14 +10,9 @@ import logging
 import os
 import re
 import time
-from urllib.parse import urlsplit
 import httpx
 
 log=logging.getLogger('analysis-worker')
-
-def context_url(value):
-    u=urlsplit(value)
-    return (u.hostname or '').lower(),u.path,u.query
 
 # 식품 판별 신호. Vision이 원재료명·영양정보 아래에서 성분을 읽었거나, 상품명이 식품일 때 food로 본다.
 # 카탈로그에 식품이 없어도 판별되도록 카탈로그 겹침보다 먼저 확인한다.

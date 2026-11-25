@@ -33,10 +33,13 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 57 | UI 테스트 기대 문구를 웹팀 화면에 맞춤 | tests/ui | e37338e | Claude Opus 5.5 | [웹 정리](journal/2026-11-25-web-fix-cleanup-claude-opus-5.5.md) |
 | 20 | 김호진 웹의 관리자 토큰 위임 우회 제거(보안) | apps/web | d0a46f8 | Claude Opus 5.5 | [웹 병합](journal/2026-11-25-web-branch-merge-claude-opus-5.5.md) |
 | 58 | 대시보드·통계 매출 표시(추정값·기간 불일치) 정정, 오늘 모의 결제 합계 API | apps/web·api | d0a46f8 | Claude Opus 5.5 | [웹 병합](journal/2026-11-25-web-branch-merge-claude-opus-5.5.md) |
+| 59 | 식품 알레르기 신고 코드(`shellfish`·`pine_nut`) 누락·원문 있으면 무시 → 코드 직접 판정, 저장 코드 통일 | recommendation·api·dev_runtime | b51ffdc | Claude Opus 5.5 | [#59](journal/2026-11-25-allergen-declared-codes-claude-opus-5.5.md) |
+| 66 | Vision 워커 메모리 계단식 증가·OOM → OCR 입력 크기 고정(캔버스·폭 2가지), 메모리 기준 교체, mem_limit | kkulpick_vision·infra | 9247330 | Claude Opus 5.5 | [수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) |
+| 67 | 임베딩 느림 → torch 스레드 제한(34→268/s), 배치 커밋(4.08→2.61ms/건) | recommendation | 426a5da | Claude Opus 5.5 | [수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) |
 
 ## 미해결 (상세는 OPEN_ISSUES.md)
 
-04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60~67
+04(부분 해결), 16~30, 31(부분 해결: 수집기 쪽 남음), 32, 33, 60~65
 
 ## GPT 작업 회고 — 당시 완료 범위
 
@@ -114,3 +117,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-25 | Gemini 4 Argon | [Gemini 점검·테스트 방법 기록 게시 후 재검증](journal/2026-11-25-gemini-test-methods-postpublish-verification-gemini-4-argon.md) — 원격 blob 본문·고정 코드 참조 15개·링크 179개·CI Job 로그 수치 재확인 |
 | 2026-11-25 | Claude Opus 5.5 | [Vision OCR 정제·파이프라인 검토](journal/2026-11-25-vision-pipeline-review-claude-opus-5.5.md) — #62~#65 발견, #21 상향 |
 | 2026-11-25 | Claude Opus 5.5 | [Vision 메모리·임베딩 속도 측정](journal/2026-11-25-vision-memory-embedding-speed-claude-opus-5.5.md) — #66·#67 원인 확정 |
+| 2026-11-25 | Claude Opus 5.5 | [#66 Vision 메모리·#67 임베딩 속도 수정](journal/2026-11-25-vision-memory-embedding-fix-claude-opus-5.5.md) — maintest 반영 |

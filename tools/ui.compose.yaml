@@ -1,0 +1,14 @@
+services:
+  api:
+    ports: !override ["127.0.0.1:58000:8000"]
+    environment:
+      CATALOG_URL_HOSTS: store.example.test,littlebirdelectronics.com.au,www.perfumeregistry.com,www.yappykids.com,adafruit.com,smartify.in,spnid.com,shop.pimoroni.com,pludor.com
+      DEV_ORIGINS: http://127.0.0.1:53000,http://localhost:53000
+  web:
+    build: ../../apps/web
+    environment:
+      INTERNAL_API_URL: http://api:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports: ["127.0.0.1:53000:3000"]
+    depends_on:
+      api: {condition: service_healthy}

@@ -81,3 +81,70 @@
 > (2026-11-24) 로그 제목은 지금 사용하는 AI 이름으로 해줘.
 > (2026-11-24) 개발로그는 사실상 개발일지이고, 아직 미해결된 문제들도 따로 남겨줘. 크롤링 데이터는 서버에 미리 넣어놓을 거야.
 > (2026-11-24) 미리 넣는다기보다는 주기적으로 DB에 들어갈 거야. 크롤링하는 부분은 준서 파트에 있고 로직을 다시 한번 살펴봐.
+> (2026-11-25) 개발일지 브랜치에 어떻게 점검하고 테스트하고 어떤 걸 사용하여 어떤 방식으로 어떻게 했는지에 대한 것도 그동안 했던 거 포함해서 따로 남겨줘. 다른 AI가 사용할 수 있게 프롬프트도 남겨줘. → METHODS.md, tools/, 이 파일 5~7번
+
+---
+
+## 5. 전체 점검·테스트 (METHODS.md 방식 그대로)
+
+```text
+너는 이 저장소의 점검 담당이다. 저장소 daon217/swproject(꿀픽), 작업 브랜치 part/소병선-backend-test.
+devlog 브랜치의 METHODS.md(점검·테스트 방법론)를 먼저 끝까지 읽고 그 순서와 원칙을 그대로 따른다.
+같이 읽을 것: README.md, OPEN_ISSUES.md, INDEX.md, VERIFY.md, 최근 journal/*.md 3개.
+
+순서:
+1. 최신화: git fetch → origin/maintest에 새 커밋이 있으면 내용을 먼저 검토하고, 조상 관계면
+   git merge --ff-only origin/maintest. 앞으로 당길 수 없으면 멈추고 나에게 알려라. (푸시는 내가 허락할 때만)
+2. 기존 미해결(OPEN_ISSUES.md) 각 항목이 지금 코드에서도 그대로인지 파일:줄로 재확인.
+3. 새 문제 찾기: METHODS.md 3.2 grep으로 지도 만들기 → 3.3 체크리스트 9개 항목(예외 분류, 재시도/영구 정지,
+   멱등성·동시성, 도착 순서, 권한, 보안, 팀 파트 사이 계약, 기능 미연결, 운영 전제 대입)을 차례로 적용.
+   특히 팀 파트 사이 계약: 앱이 부르는 API 경로 ↔ 백엔드 라우트, enum 값, 알레르기 같은 코드 집합의 철자.
+4. 의심되는 것은 짧은 스크립트로 재현해서 확정한다. 재현 못한 것은 '미확인:'.
+5. 테스트: VERIFY.md / METHODS.md 4.1 격리 통합 테스트(tools/gen_env.py, tools/run-all.sh), 두 실행 순서,
+   그리고 gh pr checks 15 로 CI 확인. 기존 개발 DB 볼륨(kkulpick-db-dev_postgres_data)은 절대 건드리지 마라. 끝나면 down -v.
+6. 결과를 devlog에 기록: journal/YYYY-MM-DD-<주제>-<너의 모델명>.md (제목 "# [모델명] 개발일지 · ..."),
+   새 문제는 OPEN_ISSUES.md에 다음 번호로, INDEX.md 일지 목록 갱신. 비밀값은 쓰지 마라.
+
+출력(한국어):
+- 새로 들어온 커밋 검토 결과
+- 새로 찾은 문제: 번호, 심각도(치명/중요/경미/운영), 파일:줄, 재현 방법, 영향(주기 적재 전제), 해결 방안 선택지
+- 기존 문제 재확인 표
+- 문제없던 것(무엇을 확인했는지)
+- 테스트 결과(통과/실패 수, 실행 못한 것)
+코드는 내가 고치라고 할 때까지 수정하지 마라.
+```
+
+---
+
+## 6. 문제 하나 고치기 (재현 → 수정 → 테스트 → 기록)
+
+```text
+저장소 daon217/swproject, 브랜치 part/소병선-backend-test 에서 devlog OPEN_ISSUES.md 의 #<번호>를 고쳐라.
+devlog의 METHODS.md를 먼저 읽고 원칙을 따른다.
+
+1. 원인 확인: 문제를 스크립트나 테스트로 먼저 재현하고, 원인을 파일:줄로 적는다.
+2. 해결 선택지 2~3개를 장단점과 함께 비교하고 하나를 고른다. 안전 정보·데이터를 버리는 선택지는 피한다.
+   팀 파트 경계(백엔드/추천/워커/수집기/앱)를 넘는 값은 양쪽 철자와 기존 클라이언트 호환을 확인한다.
+3. 수정 + 테스트 추가: 단위 테스트, 필요하면 DB 통합 테스트(tests/test_embedding_pipeline.py, services/api/tests/*).
+   새 테스트는 수정 전 코드에서 실패해야 한다.
+4. 검증: Windows 단위 → 격리 DB 통합(tools/run-all.sh, 두 순서) 전부 통과.
+   Windows에서 Python으로 파일을 쓸 때는 newline='' (CRLF로 바뀌지 않게).
+5. 커밋: 의미 단위, 메시지에 원인·해결 요약, 끝에 Co-Authored-By 줄. 로컬 apps/mobile 변경 파일은 커밋하지 마라.
+   테스트 브랜치 푸시·maintest 반영은 내가 허락할 때만.
+6. devlog: journal에 문제/원인/선택지/해결/이유/검증/남은 과제, OPEN_ISSUES.md에서 지우고 INDEX.md '해결됨'에 추가.
+```
+
+---
+
+## 7. ERD·프로젝트 정리 문서 다시 뽑기
+
+```text
+devlog의 METHODS.md 4.4 절차로 현재 maintest DB의 ERD와 프로젝트 정리 PDF를 다시 만들어라.
+- 스키마는 코드 추정이 아니라, 격리 DB(compose 프로젝트 kkulpick-erd)에 마이그레이션을 적용한 뒤
+  tools/extract_schema.sh 로 pg_catalog에서 뽑는다.
+- tools/erd/Dockerfile 로 docgen 이미지(graphviz + 나눔 글꼴 + reportlab)를 만들고 make_erd.py → erd_*.png/svg.
+- make_pdf.py의 본문은 과거 스냅샷이므로, 라우트·오류 코드·테스트 수·남은 과제를 METHODS.md 3.2 grep과
+  OPEN_ISSUES.md로 새로 뽑아 고친 뒤 생성한다.
+- 결과물은 저장소 루트 _exports/<날짜>/ (git 제외)에 두고, 임시 DB는 down -v.
+- 페이지를 이미지로 렌더링(pdftoppm)해서 넘침·빈 페이지·글꼴 깨짐을 눈으로 확인하라.
+```

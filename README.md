@@ -15,7 +15,9 @@
 | [INDEX.md](INDEX.md) | 해결된 이슈 표 + 개발일지 목록 | 색인 |
 | [LOG_TEMPLATE.md](LOG_TEMPLATE.md) | 개발일지·미해결 항목 양식 | |
 | [PROMPTS.md](PROMPTS.md) | 다른 AI에게 그대로 붙여 넣는 프롬프트 | |
-| [VERIFY.md](VERIFY.md) | 테스트·검증 방법 (격리 DB, Windows 주의점) | |
+| [METHODS.md](METHODS.md) | **점검·테스트 방법론**: 원칙, 브랜치 흐름, 리뷰 체크리스트, 테스트 단계, 함정, 지금까지의 이력 | 살아 있는 문서 |
+| [VERIFY.md](VERIFY.md) | 테스트·검증 명령 (격리 DB, Windows 주의점) | |
+| `tools/` | 검증 스크립트: env 생성, 통합 테스트 실행, UI·워커 compose 덮어쓰기, 스키마 추출, ERD·PDF 생성 | |
 | `sim/` | 실제 구동 시뮬레이션 스크립트 | |
 
 ## 흐름

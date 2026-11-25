@@ -40,14 +40,18 @@ compose 프로젝트 이름(`kkulpick-verify`), 데이터 볼륨, 포트(55433),
    저장소 전체(`node_modules` 포함)를 복사하면 매우 느리니 필요한 폴더만 복사한다.
 4. 정리: `$C down -v`
 
-## 3. 2026-11-24 기준 결과 (part/소병선-backend-test, b5c8caa)
+## 3. 최신 결과 (2026-11-25, part/소병선-backend-test b51ffdc)
 
 | 묶음 | 결과 |
 | --- | --- |
-| API 단위(DB 없음) | 35 passed |
-| 추천 + 분석 워커 (통합) | 79 passed, 1 skipped |
-| API (통합) | 87 passed, 1 skipped |
+| API 단위(DB 없음, Windows) | 36 passed |
+| 추천 + 분석 워커 단위(Windows) | 44 passed |
+| 추천 + 분석 워커 (통합) | 81 passed, 1 skipped |
+| API (통합) | 90 passed, 1 skipped |
 | 샘플 변조 | 32 passed |
-| 실행 순서 반대 / 같은 DB 재실행 | 모두 통과 |
-| Playwright UI (`tests/ui`) | **미실행** — CI에서 확인 필요 |
-| tools 단위 | 1 실패 (로컬 `apps/mobile/.env.example` 변경 때문, 코드 무관) |
+| 실행 순서 반대 | 모두 통과 |
+| Playwright UI (`tests/ui`) | PR #15 CI에서 통과(82a81db 기준 24개 검사 전부 통과) |
+
+이전 기록: 2026-11-24 b5c8caa — API 단위 35, 추천+워커 79, API 87, 샘플 변조 32.
+
+`tools/run-all.sh`가 위 통합 묶음(두 순서 + 샘플 변조)을 한 번에 돌린다. env 파일은 `tools/gen_env.py`로 만든다. 방법론 전체는 [METHODS.md](METHODS.md).

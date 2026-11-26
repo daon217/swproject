@@ -3,6 +3,7 @@ import argparse
 import gc
 import logging
 import os
+import sys
 import time
 
 try:
@@ -225,9 +226,12 @@ def main():
                 raise
             log.warning('Embedding worker unavailable (%s); retrying', type(error).__name__)
         if encoder is not None and IDLE_UNLOAD_SECONDS and time.monotonic() - last_work > IDLE_UNLOAD_SECONDS:
-            log.info('No embedding jobs for %ds; unloading the model', int(IDLE_UNLOAD_SECONDS))
+            # 모델 객체만 버리면 PyTorch 라이브러리·할당자가 메모리를 돌려주지 않아 약 600MB가 그대로 남는다(실측).
+            # 같은 프로세스 자리에서 작업자를 새로 시작해(execv) 모델 없는 상태(약 24MB)로 돌아간다. 컨테이너 재시작 아님.
+            log.info('No embedding jobs for %ds; restarting without the model to free memory', int(IDLE_UNLOAD_SECONDS))
             encoder = None
             release_memory()
+            os.execv(sys.executable, [sys.executable, '-m', 'services.recommendation.embedding_worker', *sys.argv[1:]])
         time.sleep(2)
 
 

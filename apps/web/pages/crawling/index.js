@@ -228,18 +228,22 @@ const crawlingPage = {
     const rawDays = this.isLocalAuthDemo()
       ? this.state.crawlingData
       : (this.liveOverview?.crawlDays || []);
+    // 등록 상품 수 = 그날이 확인 일자인 현재 카탈로그 상품 수. 수집 실행이 보낸 건수(같은 상품 재수집 포함)는
+    // '수집 반영' 열에 따로 보여 준다. 예전에는 상품이 없는 날의 등록 수에 수집 건수를 넣어 합계가 실제보다 컸다(#95).
+    const demo = this.isLocalAuthDemo();
     for (const row of rawDays) {
       const dateKey = String(row.date || '').replaceAll('-', '.');
       if (!dateKey) continue;
+      const applied = Number(row.applied ?? row.count ?? 0);
       if (!map.has(dateKey)) {
         map.set(dateKey, {
           date: dateKey,
-          productCount: Number(row.applied ?? row.count ?? 0),
+          productCount: demo ? applied : 0,
           availableCount: 0,
-          receivedCount: Number(row.count || 0),
+          receivedCount: applied,
         });
       } else {
-        map.get(dateKey).receivedCount = Number(row.count || 0);
+        map.get(dateKey).receivedCount = applied;
       }
     }
 
@@ -276,8 +280,8 @@ const crawlingPage = {
     const allCatalogItems = view?.items || [];
     const rows = this.getAllDateRows(allCatalogItems);
     const totalDays = rows.length;
-    // 전체 상품 수는 실제 카탈로그 건수. 날짜별 합계는 과거 수집 실행의 적재 건수까지 더해져(같은 상품 재수집) 더 커질 수 있다.
-    const totalProductCount = (this.isLocalAuthDemo() ? rows.reduce((acc, r) => acc + r.productCount, 0) : allCatalogItems.length).toLocaleString();
+    // 날짜별 등록 상품 수의 합 = 확인 일자가 있는 카탈로그 상품 수(수집 반영 건수는 더하지 않는다, #95).
+    const totalProductCount = rows.reduce((acc, r) => acc + r.productCount, 0).toLocaleString();
 
     const sourceSet = new Set(['domeggook', '11st']);
     for (const offer of allCatalogItems) {
@@ -516,9 +520,10 @@ const crawlingPage = {
         </div>
 
         <div class="w-full">
-          <div class="grid grid-cols-2 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
+          <div class="grid grid-cols-3 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
             <div>확인 일자</div>
             <div>등록 상품 수</div>
+            <div title="그날 수집 실행이 보낸 상품 건수(이미 있던 상품의 재확인 포함)">수집 반영 건수</div>
           </div>
 
           <div class="space-y-2 mt-2">
@@ -531,11 +536,12 @@ const crawlingPage = {
           return `
               <div
                 ${demo ? '' : `onclick="app.changeLiveCatalogDate('${this.escapeHtml(row.date)}')"`}
-                class="grid grid-cols-2 items-center border ${rowStyle} rounded-lg px-6 py-3.5 text-sm text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.02)] ${demo ? '' : 'cursor-pointer transition-colors'}"
+                class="grid grid-cols-3 items-center border ${rowStyle} rounded-lg px-6 py-3.5 text-sm text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.02)] ${demo ? '' : 'cursor-pointer transition-colors'}"
                 title="${demo ? '' : '클릭하면 아래 카탈로그 목록을 이 날짜로 필터링합니다'}"
               >
                 <div class="font-medium text-slate-900">${this.escapeHtml(row.date)}</div>
                 <div class="font-semibold text-slate-800">${row.productCount.toLocaleString()}건</div>
+                <div class="text-slate-500">${row.receivedCount ? row.receivedCount.toLocaleString() + '건' : '—'}</div>
               </div>
             `;
         })

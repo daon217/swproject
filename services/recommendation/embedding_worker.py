@@ -1,5 +1,6 @@
 """Durable catalog embedding worker; inference runs outside database transactions."""
 import argparse
+import gc
 import logging
 import os
 import time
@@ -24,6 +25,8 @@ log = logging.getLogger(__name__)
 MAX_ATTEMPTS = max(1, int(os.getenv('EMBEDDING_MAX_ATTEMPTS', '8')))
 BATCH_SIZE = max(1, min(256, int(os.getenv('EMBEDDING_BATCH_SIZE', '32'))))
 EXHAUSTED_PREFIX = 'exhausted:'
+# 할 일이 없을 때 모델(약 450MB)을 내려놓기까지 기다리는 시간. 0이면 계속 들고 있는다(#93).
+IDLE_UNLOAD_SECONDS = max(0.0, float(os.getenv('EMBEDDING_IDLE_UNLOAD_SECONDS', '300')))
 
 
 def serving_models(conn):
@@ -57,6 +60,23 @@ def claim_many(conn, limit=BATCH_SIZE, models=None):
           FROM ready r WHERE j.item_id=r.item_id AND j.model_id=r.model_id RETURNING j.*''',
             (models, MAX_ATTEMPTS, limit))
         return cursor.fetchall()
+
+
+def has_ready(conn, models):
+    """처리할 작업이 있는지만 가볍게 본다(모델을 올릴지 정할 때). claim_many와 같은 조건."""
+    return conn.execute('''SELECT EXISTS(SELECT 1 FROM app.embedding_jobs WHERE model_id=ANY(%s)
+        AND available_at<=now() AND attempts<%s AND (lease_until IS NULL OR lease_until<now()))''',
+        (models, MAX_ATTEMPTS)).fetchone()[0]
+
+
+def release_memory():
+    """모델을 버린 뒤 파이썬·C 할당자가 잡고 있던 메모리를 운영체제에 돌려준다(리눅스 glibc)."""
+    gc.collect()
+    try:
+        import ctypes
+        ctypes.CDLL('libc.so.6').malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
 
 
 def claim(conn):
@@ -177,13 +197,22 @@ def main():
         with config.connect() as conn:
             print(f'Requeued {requeue_failed(conn)} parked embedding jobs')
         return
-    encoder = config.embedder()
+    # 모델은 처리할 작업이 있을 때만 올리고, IDLE_UNLOAD_SECONDS 동안 일이 없으면 내려놓는다(#93).
+    # 예전에는 시작하자마자 올려 두어 작업이 없어도 상시 약 600MB를 썼다. 크롤러가 10분마다 보내는 소량 작업은
+    # 다시 올리는 몇 초면 충분하다.
+    encoder = config.embedder() if args.drain else None
+    last_work = time.monotonic()
     while True:
         try:
             with config.connect() as conn:
                 models = serving_models(conn)
-                while once(conn, encoder, models=models):
-                    pass
+                if encoder is None and has_ready(conn, models):
+                    log.info('Embedding jobs ready; loading the model')
+                    encoder = config.embedder()
+                    last_work = time.monotonic()
+                if encoder is not None:
+                    while once(conn, encoder, models=models):
+                        last_work = time.monotonic()
                 if args.drain:
                     pending, parked = pending_counts(conn)
                     if pending or parked:
@@ -195,6 +224,10 @@ def main():
             if args.drain:
                 raise
             log.warning('Embedding worker unavailable (%s); retrying', type(error).__name__)
+        if encoder is not None and IDLE_UNLOAD_SECONDS and time.monotonic() - last_work > IDLE_UNLOAD_SECONDS:
+            log.info('No embedding jobs for %ds; unloading the model', int(IDLE_UNLOAD_SECONDS))
+            encoder = None
+            release_memory()
         time.sleep(2)
 
 

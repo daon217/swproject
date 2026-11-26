@@ -24,7 +24,9 @@ export default function LoginScreen() {
     setError(null);
     try {
       await login(id, pw);
-      router.back();
+      // 주소로 바로 열었거나 새로고침해 돌아갈 화면이 없으면 홈으로 간다(로그인 화면에 그대로 남던 문제).
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
     } catch (e) {
       // 로그인 실패 안내 팝업
       if (e instanceof ApiError && e.status === 401) setAlert({ title: '로그인 실패', body: '아이디 또는 비밀번호가 일치하지 않아요. 다시 확인해 주세요.' });
@@ -46,7 +48,7 @@ export default function LoginScreen() {
         <Button label="로그인" onPress={() => void submit()} loading={busy} style={{ marginTop: 8 }} />
         <Button variant="outline" label="회원가입" onPress={() => router.replace('/signup')} style={{ marginTop: 16 }} />
         <Note>로그인하면 알레르기 설정과 나만의 추천 기록을 관리할 수 있어요.</Note>
-        <Pressable onPress={() => router.back()} accessibilityRole="button">
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} accessibilityRole="button">
           <Text style={{ color: C.primary, fontWeight: '600' }}>로그인 없이 둘러보기</Text>
         </Pressable>
       </Page>

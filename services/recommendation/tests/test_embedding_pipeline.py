@@ -446,3 +446,16 @@ def test_optional_staleness_window_drops_unconfirmed_offers(db, monkeypatch):
     assert pid not in [c.product_id for c in PgVectorIndex(conn, model).search(query, 100)]
     conn.execute('UPDATE app.offers SET last_seen_at=now() WHERE offer_id=%s', (offer,))
     assert pid in [c.product_id for c in PgVectorIndex(conn, model).search(query, 100)]
+
+
+def test_worker_loads_model_only_when_jobs_are_ready(db):
+    # #93: 작업이 없으면 모델을 올리지 않고(상시 약 600MB 절약), 새 상품이 들어오면 다시 처리한다.
+    _, conn, source = db
+    models = worker.serving_models(conn)
+    drain(conn)
+    assert not worker.has_ready(conn, models)
+    item, _, _ = seed(conn, source)
+    assert worker.has_ready(conn, models)
+    drain(conn)
+    assert not worker.has_ready(conn, models)
+    worker.release_memory()  # 리눅스가 아니어도 오류 없이 지나간다

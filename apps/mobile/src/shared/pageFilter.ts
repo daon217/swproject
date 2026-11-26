@@ -15,7 +15,9 @@ export const SHOP_HOSTS =
   /(^|\.)((smartstore|brand|shopping)\.naver\.com|coupang\.com|11st\.co\.kr|gmarket\.co\.kr|auction\.co\.kr|ssg\.com|kurly\.com|musinsa\.com|oliveyoung\.co\.kr|lotteon\.com|lotteimall\.com|wemakeprice\.com|tmon\.co\.kr|interpark\.com|29cm\.co\.kr|wconcept\.co\.kr|a-bly\.com|zigzag\.kr|kream\.co\.kr|hmall\.com|gsshop\.com|cjonmall\.com|danawa\.com|bunjang\.co\.kr|daangn\.com|joongna\.com|amazon\.(com|co\.jp|co\.uk|de|fr|it|es|ca|com\.au|in)|ebay\.(com|co\.uk|de|fr|it|es|ca|com\.au)|aliexpress\.(com|us)|temu\.com|rakuten\.co\.jp|iherb\.com)$/i;
 
 // 쇼핑몰 안에서 상품 상세로 보는 주소 단어. 국내 몰(product·goods·vp/ 등) + 아마존 /dp/·/gp/product/·/gp/aw/d/, 이베이 /itm/
-export const PRODUCT_PATH = /(product|products|goods|item|vp\/|catalog|detail|\/dp\/|\/gp\/(product|aw\/d)\/|\/itm\/)/i;
+// + 다나와 /info/, GS샵 /prd/, 티몬 /deal/, 당근 /buy-sell/·/articles/, 아이허브 /pr/, 테무 …-g-숫자.html
+export const PRODUCT_PATH =
+  /(product|products|goods|item|vp\/|catalog|detail|\/dp\/|\/gp\/(product|aw\/d)\/|\/itm\/|\/info\/|\/prd\/|\/deal\/|\/buy-sell\/|\/articles\/|\/pr\/|-g-\d+\.html)/i;
 
 export type CaptureRule = 'shop' | 'needs-signal';
 
@@ -35,7 +37,9 @@ export function captureRule(url: string | undefined): CaptureRule | null {
   if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
   if (SENSITIVE_HOSTS.test(u.hostname)) return null;
   if (SENSITIVE.test(u.pathname)) return null;
-  if (isShopHost(u.hostname)) return PRODUCT_PATH.test(u.pathname) ? 'shop' : null;
+  // 알려진 쇼핑몰이라도 주소 형태가 낯설면(라쿠텐 /가게/상품코드/ 등) 버리지 않고 페이지의 상품 표시로 판단한다.
+  // 검색·목록 화면에는 상품 표시(JSON-LD Product 등)가 없어 여기서 걸러진다.
+  if (isShopHost(u.hostname)) return PRODUCT_PATH.test(u.pathname) ? 'shop' : 'needs-signal';
   // 주소 형태와 상관없이 페이지 안 상품 표시로 판단한다(브랜드몰 상품 주소는 제각각이다).
   return 'needs-signal';
 }

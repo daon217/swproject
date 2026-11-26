@@ -239,6 +239,12 @@ def test_domains_availability_and_missing_food_ingredients(db):
         context = client.post('/internal/catalog-context',headers={'Authorization':'Bearer '+TOKEN},
             json={'page_url':'https://store.example.test/'+listing,'selected_domain':'food'}).json()['match']
         assert context['allergens_declared'] == ['shellfish'] and context['ingredients'] == ['현미','천일염']
+        # 성분표 없이 판매처 알레르기 표시만 있는 식품: 표시에 없는 알레르기는 '인식 못함'으로 경고하지 않고,
+        # 표시에 있는 알레르기는 경고한다. 둘 다 없을 때만 '인식 못함'.
+        w = lambda **kw: request(client,query='쿠키',selected_domain='food',profile={'user_id':'t','allergens':['milk','shellfish']},**kw).json()['warnings']
+        assert [(x['allergen'],x['evidence']) for x in w(allergens_declared=['soybean','wheat'])] == []
+        assert [(x['allergen'],x['evidence']) for x in w(allergens_declared=['shellfish'])] == [('shellfish','contains')]
+        assert {(x['allergen'],x['evidence']) for x in w()} == {('milk','unknown'),('shellfish','unknown')}
 
 
 def test_missing_contract_returns_503_not_memory_fallback(db):

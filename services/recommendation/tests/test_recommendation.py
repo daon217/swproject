@@ -168,6 +168,19 @@ def test_empty_query_returns_nothing_and_min_score_drops_weak_matches(tmp_path):
     assert 1 <= len(tight.picks) <= 2 and any("관련도" in n for n in tight.notes)
 
 
+def test_name_match_supplement_and_keywords(tmp_path):
+    from services.recommendation.pipeline import name_keywords
+    assert name_keywords("갈비탕") == ["갈비탕"]
+    assert name_keywords("오늘 배송 무료 이벤트 진행중 쿠폰 받기") == []          # 광고 문구로 상품을 찾지 않는다
+    assert name_keywords("★★★★★ 리뷰 1,234개 재구매율 높아요") == ["234개"] or "리뷰" not in name_keywords("리뷰 높아요")
+    assert "22cm" not in name_keywords("스테인리스 냄비 22cm")
+    rec = make_rec(tmp_path, RuleRanker())
+    target = sorted(rec.catalog.all_ids())[-1]
+    rec.catalog.name_matches = lambda words, limit: [target]                    # 이름이 일치하는 상품(벡터 점수는 낮음)
+    r = rec.recommend(UserProfile("u"), "주스", top_k=10, min_score=0.999)
+    assert target in {p.product_id for p in r.picks} and any("이름 일치" in n for n in r.notes)
+
+
 # --- CLI 전체 흐름 ----------------------------------------------------------
 def test_cli_end_to_end(tmp_path, capsys):
     d = str(tmp_path / "data")

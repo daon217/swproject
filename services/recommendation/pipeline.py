@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from .allergens import assess
+from .contracts import Candidate
 from .contracts import Pick, RecommendationResult, SafetyVerdict, UserProfile
 from .embedders import document_text
 from .ports import CatalogRepository, Embedder, Ranker, VectorIndex
@@ -11,6 +13,23 @@ from .rankers import RuleRanker
 from .used_check import AVAILABLE, ListingChecker, verify_used
 
 log = logging.getLogger(__name__)
+
+# 이름 일치 보완에 쓰지 않는 말(광고·리뷰·수량 표현). 이 말로 상품 이름을 찾으면 엉뚱한 상품이 섞인다.
+_STOPWORDS = {
+    "추천", "상품", "제품", "판매", "구매", "무료", "배송", "이벤트", "진행중", "쿠폰", "받기", "할인", "특가", "오늘",
+    "리뷰", "후기", "재구매", "재구매율", "높아요", "좋아요", "인기", "정품", "새상품", "최저가", "세트", "용량",
+}
+_WORD = re.compile(r"[0-9A-Za-z가-힣]{2,}")
+
+
+def name_keywords(query: str) -> list[str]:
+    """상품 이름에서 찾을 말: 2글자 이상, 숫자·단위만인 말과 광고·리뷰 말 제외, 최대 5개."""
+    out = []
+    for w in _WORD.findall(query or ""):
+        if w in _STOPWORDS or re.fullmatch(r"\d+(?:cm|mm|ml|kg|g|l|개|입|팩)?", w, re.I) or w in out:
+            continue
+        out.append(w)
+    return out[:5]
 
 
 class Recommender:
@@ -47,6 +66,16 @@ class Recommender:
             if weak:
                 notes.append(f"관련도 {round(cutoff, 3)} 미만 후보 {len(weak)}건 제외")
             cands = [c for c in cands if c.score >= cutoff]
+            # 이름 일치 보완: 벡터 점수가 낮아도 상품 이름에 검색어가 그대로 들어 있으면 후보에 넣는다.
+            # (식품은 긴 상세 설명까지 벡터에 들어가 '갈비탕'과 '[소반옥] 왕갈비탕'이 0.23점에 그치던 문제)
+            # 최종 선택은 랭커(LLM)가 다시 판단한다.
+            find = getattr(self.catalog, "name_matches", None)
+            if find is not None:
+                have = {c.product_id for c in cands}
+                extra = [pid for pid in find(name_keywords(query), 20) if pid not in have]
+                if extra:
+                    notes.append(f"이름 일치 후보 {len(extra)}건 추가")
+                    cands = cands + [Candidate(pid, cutoff) for pid in extra]
         products = self.catalog.get_many([c.product_id for c in cands])
 
         safe, excluded = [], []

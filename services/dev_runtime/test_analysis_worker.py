@@ -180,6 +180,10 @@ def test_food_avoid_filter_does_not_assume_missing_ingredients_safe():
     ('오뚜기 진라면 매운맛 5개입',[],'title_keyword'),
     ('[더블적립] 삼양식품 프리미엄 짜장라면 짜르르 12입',[],'title_keyword'),
     ('정화 오징어는땅콩을좋아해 40g',[],'title_keyword'),
+    ('[소반옥] 왕갈비탕 600g',[],'title_keyword'),
+    ('[차려낸] 햄 가득 송탄식 부대찌개',[],'title_keyword'),
+    ('[KF365] 에어프라이어용 생선까스',[],'title_keyword'),
+    ('필립스 에어프라이어 4.1L',[],None),
     ('브랜드명 없는 상품',['밀가루(밀:미국산)','설탕','대두유','정제소금'],'vision_ingredients'),
     # 일반 상품
     ('베이직스 노트북 16인치 사무용 8GB 256GB',[],None),

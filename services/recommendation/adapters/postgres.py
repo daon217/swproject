@@ -124,6 +124,18 @@ class PgCatalog:
     def upsert(self, products: Iterable[CollectedProduct]) -> int:
         raise NotImplementedError("DB 상품 쓰기는 수집기 -> /internal/v2/crawl-runs/{run}/observations 로만")
 
+    def name_matches(self, keywords: Sequence[str], limit: int = 20) -> list[str]:
+        """이름에 검색어가 그대로 들어 있는 판매 중 상품(벡터 점수 보완용). 검색어가 없으면 빈 목록."""
+        words = [w for w in keywords if w][:5]
+        if not words:
+            return []
+        patterns = ['%' + ''.join('\\' + ch if ch in '\\%_' else ch for ch in w) + '%' for w in words]
+        rows = self.conn.execute(
+            """SELECT o.source, o.source_listing_id, o.variant_key FROM app.offers o JOIN app.catalog_items i USING(item_id)
+               WHERE o.kind=%s AND o.availability='available' AND i.name ILIKE ANY(%s)
+               ORDER BY o.price, o.offer_id LIMIT %s""", (self.kind, patterns, limit)).fetchall()
+        return [join_product_id(*r) for r in rows]
+
     def all_ids(self) -> list[str]:
         rows = self.conn.execute("SELECT source, source_listing_id, variant_key FROM app.offers WHERE kind=%s "
                                  "ORDER BY offer_id", (self.kind,)).fetchall()

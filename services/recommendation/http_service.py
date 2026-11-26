@@ -182,7 +182,10 @@ def process(body:Input,authorization:str=Header(default='')):
         unchecked=unsupported if body.selected_domain=='food' else []
         warnings += [{'type':'allergy','allergen':a,'evidence':'unknown',
             'message':'이 알레르기 항목의 자동 검증은 지원하지 않습니다. 상품 표시를 직접 확인해 주세요.'} for a in unchecked]
-        if body.selected_domain=='food' and raw['allergens'] and not body.ingredients:
+        # 성분표도, 판매처의 구조화된 알레르기 표시도 없을 때만 '인식하지 못함'으로 알린다.
+        # 판매처 표시가 있으면 추천 필터(allergens.assess)와 같은 기준으로 그 표시를 믿는다 —
+        # 표시에 없는 알레르기까지 '성분표를 인식하지 못했어요' 큰 경고를 띄우던 문제(컬리 생선까스 + 우유).
+        if body.selected_domain=='food' and raw['allergens'] and not body.ingredients and not body.allergens_declared:
             warnings += [{'type':'allergy','allergen':a,'evidence':'unknown','message':'알레르기 성분표를 인식하지 못했습니다. 구매 전 판매처의 원재료 표시를 직접 확인해 주세요.'}
                          for a in raw['allergens'] if a not in declared and a not in detected]
         # Internal code 'soy' is the clients' 'soybean'; answer in the code the client sent so its label lookup works.

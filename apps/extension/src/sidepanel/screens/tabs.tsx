@@ -25,24 +25,20 @@ export function RecommendTab() {
   const nav = useNav();
   const { me } = useSession();
   const [enabled, setEnabled] = useRecommendEnabled();
-  // 비회원도 상품 페이지 분석 결과를 본다. 분석할 페이지가 없거나 추천이 꺼져 있으면 기본 추천 목록을 보여준다.
-  if (!me && (!enabled || !state || state.status === 'none')) return <GuestRecent onLogin={() => nav.push('login')} />;
   if (enabled === null) return null;
-  if (!enabled) {
-    return (
-      <div className="kp-empty">
-        <div className="kp-empty-icon">
-          <IconSparkle size={26} />
-        </div>
-        <div className="kp-empty-title">상품 추천이 꺼져 있어요</div>
-        <p className="kp-empty-body">켜면 지금 보고 있는 상품 페이지를 AI가 분석해 비슷한 상품과 더 좋은 가격을 보여드려요.</p>
-        <button className="kp-btn kp-btn-primary kp-btn-sm" onClick={() => setEnabled(true)}>
-          상품 추천 켜기
-        </button>
+  // 비회원도 회원과 같은 화면(꺼짐 안내·분석 결과·빈 화면)을 본다. 위에 로그인 홍보만 더한다.
+  const body = !enabled ? (
+    <div className="kp-empty">
+      <div className="kp-empty-icon">
+        <IconSparkle size={26} />
       </div>
-    );
-  }
-  const result = (
+      <div className="kp-empty-title">상품 추천이 꺼져 있어요</div>
+      <p className="kp-empty-body">켜면 지금 보고 있는 상품 페이지를 AI가 분석해 비슷한 상품과 더 좋은 가격을 보여드려요.</p>
+      <button className="kp-btn kp-btn-primary kp-btn-sm" onClick={() => setEnabled(true)}>
+        상품 추천 켜기
+      </button>
+    </div>
+  ) : (
     <ResultView
       state={state}
       onOpenUrl={openUrl}
@@ -51,13 +47,13 @@ export function RecommendTab() {
       onFilter={() => nav.push('filter')}
     />
   );
-  if (me) return result;
+  if (me) return body;
   return (
     <div className="sp-guest-result">
       <div className="sp-pad sp-guest-banner">
         <LoginBanner onLogin={() => nav.push('login')} />
       </div>
-      {result}
+      {body}
     </div>
   );
 }

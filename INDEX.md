@@ -136,3 +136,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-26 | Gemini 4 Argon | [#63·#80 로컬 통합 부트런 점검·확장 스크롤 재캡처 및 페이지 상품명 연동](journal/2026-11-26-gemini-bootrun-scroll-capture-page-title-gemini-4-argon.md) — `2a2e521`, 스크롤 성분표 재탐색·`page_title` 보존·LLM 추천 및 타임존 점검 |
 | 2026-11-26 | Claude Opus 5.5 | [maintest 전체 재점검](journal/2026-11-26-maintest-review-claude-opus-5.5.md) — 2a2e521, **#88 분석 접수 409(치명)**, #81~#87 신규, #78 해결 |
 | 2026-11-26 | Claude Opus 5.5 | [브랜치 병합 + 미해결 문제 일괄 수정](journal/2026-11-26-open-issues-fix-claude-opus-5.5.md) — c16723e(테스트 브랜치), **#88·#62 치명 해결** 외 21건, API 102·추천 87·수집기 625·Vision 5 |
+| 2026-11-27 | Claude Opus 5.5 | [엉뚱한 기본 추천·상품 페이지 알레르기 경고 수정 + 직접 테스트](journal/2026-11-27-reco-relevance-allergy-ui-claude-opus-5.5.md) — a75b685, 관련도 기준점 실측, 브라우저 화면 확인, #89~#91 |

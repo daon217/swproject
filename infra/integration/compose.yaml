@@ -57,6 +57,24 @@ services:
     logging:
       driver: json-file
       options: {max-size: 5m, max-file: "2"}
+  homepage-crawler:
+    # 박정우 홈페이지 크롤러: integrated로 켜면 같이 돌며 쇼핑몰 상품을 백엔드 수집 API로 계속 보낸다.
+    # 수집 도메인 허용 목록은 services/api/.env 의 CATALOG_URL_HOSTS. 특정 사이트만: HOMEPAGE_CRAWLER_ONLY=올리브영,마켓컬리
+    # 잠시 멈추기: docker compose ... stop homepage-crawler (README 참고)
+    image: kkulpick-homepage-crawler:local
+    build:
+      context: ../..
+      dockerfile: services/collector/homepage_crawler/Dockerfile
+    environment:
+      COLLECTOR_BACKEND_BASE_URL: http://api:8000
+      KKULPICK_BACKEND_TOKEN: ${COLLECTOR_TOKEN:?run workspace init}
+      HOMEPAGE_CRAWLER_ONLY: ${HOMEPAGE_CRAWLER_ONLY:-}
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: 5m, max-file: "2"}
 volumes:
   vision_queue:
   vision_models:

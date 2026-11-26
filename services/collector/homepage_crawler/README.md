@@ -16,6 +16,13 @@ python -m services.collector.homepage_crawler.crawler --watch                   
 python -m pytest services/collector/homepage_crawler
 ```
 
+## 서버와 함께 자동 실행 (Docker)
+
+`py tools/workspace.py up --scope integrated`로 서버를 켜면 `homepage-crawler` 서비스가 같이 떠서 `--backend --watch`로 계속 수집한다(멈추면 Docker가 다시 띄움).
+- 백엔드 주소·토큰은 compose가 넣는다(`http://api:8000`, `COLLECTOR_TOKEN`). 수집 도메인은 `services/api/.env`의 `CATALOG_URL_HOSTS`.
+- 특정 사이트만: `infra/workspace/.env`에 `HOMEPAGE_CRAWLER_ONLY=올리브영,마켓컬리` 후 `up` 다시 실행.
+- 로그: `docker logs -f <homepage-crawler 컨테이너>` · 잠시 멈춤: `docker stop <컨테이너>` (다음 `up` 때 다시 시작)
+
 ## 꿀픽 백엔드로 보내기 (`--backend`)
 
 ```powershell

@@ -225,6 +225,7 @@ def main():
     ap.add_argument("--interval", type=int, default=0, help="--watch에서 한 바퀴 끝난 뒤 추가로 쉬는 초 (기본 0, 쉬는 건 100개마다 10분)")
     a = ap.parse_args()
     sites = load_sites()
+    a.only = a.only or os.environ.get("HOMEPAGE_CRAWLER_ONLY", "").strip() or None  # Docker 서비스용
     if a.only:
         want = set(a.only.split(","))
         sites = [s for s in sites if s[0] in want]

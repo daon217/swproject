@@ -83,7 +83,11 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 53 | `catalog-context` URL 정규화 매칭 복원 및 `/internal/process` 입력 오류(`422`) vs 의존성 장애(`503`) 분리 | 해결(호스트 식 인덱스는 후속 #02) | `3d7d6ed` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |
 | 54 | `image_urls` 중복 제거·`/v2/offers/{id}/matches` 200건 절단 및 `asyncpg` 동적 조건 수정·도메인 전환 시 잔류 임베딩 작업 자동 정리 | 해결(유사 후보 세부 정렬은 후속 #03) | `3d7d6ed`, `2c65ccd` | Gemini 4 Argon | [기록](journal/2026-11-24-gemini-claude-review-fixes-verification-gemini-4-argon.md) |
 | 63 | (부분) 화면 1장 캡처 → 스크롤 정지 시 성분표 재캡처(`scrollCapture`, 최대 15회·Early Exit) 및 DOM 상품명(`page_title`) 서버 전달·보존 연결 | 부분 해결 | `2a2e521` | Gemini 4 Argon | [기록](journal/2026-11-26-gemini-bootrun-scroll-capture-page-title-gemini-4-argon.md) |
-| 80 | 로컬 통합 부트런 점검(Windows `pgserver` `Asia/Seoul` 타임존 보완, LLM 랭커 연동 및 품목 명사 중심 후보 검색·식품 시드 보강) | 해결(로컬 런타임·maintest 반영) | `2a2e521` | Gemini 4 Argon | [기록](journal/2026-11-26-gemini-bootrun-scroll-capture-page-title-gemini-4-argon.md) |
+| 80 | 로컬 통합 부트런 점검 및 수식어(`무가당`·`제로` 등) 분리·`수식어+핵심 품목` 1순위/2순위 후보 정렬 `pipeline.py` 정식 반영 | 해결 | `2a2e521`, `3be1719` | Gemini 4 Argon | [기록](journal/2026-11-26-gemini-bootrun-scroll-capture-page-title-gemini-4-argon.md), [정식 반영](journal/2026-11-27-gemini-live-fallback-allergy-crawler-gemini-4-argon.md) |
+| 92 | 한·영 브랜드/품목 별칭 사전(`에이수스↔ASUS`, `나이키↔Nike` 등) 및 붙여쓴 복합어 분리 매칭 보강 | 해결 | `3be1719` | Gemini 4 Argon | [기록](journal/2026-11-27-gemini-live-fallback-allergy-crawler-gemini-4-argon.md) |
+| 96 | 홈페이지 크롤러(`homepage_crawler --watch`) 회차별 미방문 URL 및 하위 상품 링크 연속 탐색으로 등록 상품 수 지속 증가 | 해결 | `3be1719` | Gemini 4 Argon | [기록](journal/2026-11-27-gemini-live-fallback-allergy-crawler-gemini-4-argon.md) |
+| 97 | 식품 알레르기 무조건 경고(`unknown`)·`'같은 제조시설'` 교차오염 문구 오탐 제거 및 상품명(`query`) 기반 즉시 알레르기 감지 | 해결 | `3be1719` | Gemini 4 Argon | [기록](journal/2026-11-27-gemini-live-fallback-allergy-crawler-gemini-4-argon.md) |
+| 98 | DB 추천 0건 시 실시간 쇼핑몰(홈앤쇼핑·29CM·중고나라) 검색·적재 폴백(`live_fallback.py`, 폴백 모델 `claude-sonnet-4-6`), UI 설정 온오프 스위치 및 추천 링크 이동 시 자동 재분석 방지 | 해결 | `3be1719` | Gemini 4 Argon | [기록](journal/2026-11-27-gemini-live-fallback-allergy-crawler-gemini-4-argon.md) |
 
 ## 개발일지 목록
 
@@ -137,3 +141,4 @@ GPT 회고는 각 일지에 고정한 과거 커밋 기준이다. 과거 완료 
 | 2026-11-26 | Claude Opus 5.5 | [maintest 전체 재점검](journal/2026-11-26-maintest-review-claude-opus-5.5.md) — 2a2e521, **#88 분석 접수 409(치명)**, #81~#87 신규, #78 해결 |
 | 2026-11-26 | Claude Opus 5.5 | [브랜치 병합 + 미해결 문제 일괄 수정](journal/2026-11-26-open-issues-fix-claude-opus-5.5.md) — c16723e(테스트 브랜치), **#88·#62 치명 해결** 외 21건, API 102·추천 87·수집기 625·Vision 5 |
 | 2026-11-27 | Claude Opus 5.5 | [엉뚱한 기본 추천·상품 페이지 알레르기 경고 수정 + 직접 테스트](journal/2026-11-27-reco-relevance-allergy-ui-claude-opus-5.5.md) — a75b685, 관련도 기준점 실측, 브라우저 화면 확인, #89~#91 |
+| 2026-11-27 | Gemini 4 Argon | [#80·#92·#96·#97·#98 수식어+품목 우선순위·한영 별칭·실시간 AI 검색 폴백·알레르기 오탐 제거 및 크롤러 연속 탐색](journal/2026-11-27-gemini-live-fallback-allergy-crawler-gemini-4-argon.md) — `3be1719`, 홈앤쇼핑/29CM 실시간 폴백, 모델 이원화(`Opus 5.5` + 폴백 `Sonnet 4.6`), 설정 스위치, 추천 링크 재분석 방지 |

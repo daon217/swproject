@@ -42,8 +42,27 @@ def compose_command(scope='full', shared=False):
     return command
 
 
+def workspace_setting(name, default=''):
+    if name in os.environ:
+        return os.environ[name]
+    if ENV.is_file():
+        for line in ENV.read_text(encoding='utf-8').splitlines():
+            if line.startswith(name + '='):
+                return line.split('=', 1)[1].strip()
+    return default
+
+
+def dev_adapters_enabled():
+    """integrated: 연결 확인용 어댑터 8개를 켤지(기본 켜짐, WORKSPACE_DEV_ADAPTERS=off면 끔)."""
+    return workspace_setting('WORKSPACE_DEV_ADAPTERS', 'on').lower() not in ('off', '0', 'false', 'no')
+
+
 def compose(*args, scope='full', shared=False):
-    run(compose_command(scope, shared) + list(args))
+    env = None
+    if scope == 'integrated' and dev_adapters_enabled():
+        profiles = [p for p in os.environ.get('COMPOSE_PROFILES', '').split(',') if p]
+        env = os.environ | {'COMPOSE_PROFILES': ','.join(profiles + ['dev-adapters'])}
+    subprocess.run(compose_command(scope, shared) + list(args), cwd=ROOT, check=True, env=env)
 
 
 def doctor():
@@ -144,7 +163,8 @@ def main():
                         assert response.status == 200
                     print('OK UI and API proxy', port)
         else:
-            compose('run', '--rm', '--no-deps', 'smoke', **options)
+            smoke_env = [] if args.scope != 'integrated' or dev_adapters_enabled() else ['-e', 'SMOKE_DEV_ADAPTERS=off']
+            compose('run', '--rm', '--no-deps', *smoke_env, 'smoke', **options)
     elif args.action == 'seed':
         run([sys.executable, 'services/api/dev.py', 'seed'])
     elif args.action == 'backup':

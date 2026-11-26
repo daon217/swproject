@@ -8,6 +8,8 @@ from .tasks import probe, storage_probe
 
 
 def main():
+    if os.environ.get('SMOKE_DEV_ADAPTERS') == 'off':
+        return main_without_adapters()
     with httpx.Client(timeout=15, trust_env=False) as client:
         for name in ('api', 'vision', 'recommendation', 'collector'):
             response = client.get(f'http://{name}:8000/health')
@@ -50,6 +52,19 @@ def main():
         assert broker.info('server')['run_id'] != cache.info('server')['run_id']
     print('OK separate broker/cache, shared private storage, web -> API; no business inference performed')
 
+
+
+def main_without_adapters():
+    """integrated에서 연결 확인용 어댑터를 끈 경우(WORKSPACE_DEV_ADAPTERS=off): 실제 서비스만 확인한다."""
+    with httpx.Client(timeout=15, trust_env=False) as client:
+        for url in ('http://api:8000/health', 'http://recommendation:8000/health'):
+            response = client.get(url)
+            response.raise_for_status()
+        for name in ('web', 'admin'):
+            response = client.get(f'http://{name}:3000/api/dev/status')
+            response.raise_for_status()
+            assert response.json()['api']['status'] == 'ok', name
+    print('OK api, recommendation, web, admin (dev adapters off)')
 
 if __name__ == '__main__':
     main()

@@ -57,6 +57,17 @@ services:
     logging:
       driver: json-file
       options: {max-size: 5m, max-file: "2"}
+  # 실제 Vision·추천·분석 작업자가 있으므로 workspace의 연결 확인용 어댑터는 integrated에서 꺼도 된다.
+  # 기본은 켜짐(CI의 check --scope integrated가 사용). infra/workspace/.env에 WORKSPACE_DEV_ADAPTERS=off면
+  # tools/workspace.py가 dev-adapters 프로필을 켜지 않아 아래 8개가 뜨지 않는다(메모리 절약).
+  vision: {profiles: [dev-adapters]}
+  collector: {profiles: [dev-adapters]}
+  worker: {profiles: [dev-adapters]}
+  vision-worker: {profiles: [dev-adapters]}
+  recommendation-worker: {profiles: [dev-adapters]}
+  collector-worker: {profiles: [dev-adapters]}
+  broker: {profiles: [dev-adapters]}
+  cache: {profiles: [dev-adapters]}
   homepage-crawler:
     # 박정우 홈페이지 크롤러: integrated로 켜면 같이 돌며 쇼핑몰 상품을 백엔드 수집 API로 계속 보낸다.
     # 수집 도메인 허용 목록은 services/api/.env 의 CATALOG_URL_HOSTS. 특정 사이트만: HOMEPAGE_CRAWLER_ONLY=올리브영,마켓컬리

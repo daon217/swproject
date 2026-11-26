@@ -11,6 +11,14 @@ py tools/workspace.py seed
 py tools/workspace.py check --scope integrated
 ```
 
+### Claude 키로 AI 추천 쓰기 (선택)
+
+`init`이 만든 `infra/workspace/.env`의 `ANTHROPIC_API_KEY=` 뒤에 키를 넣고 `py tools/workspace.py up --scope integrated`를 다시 실행하면 됩니다.
+`RECO_RANKER`를 비워 두면 키가 있을 때 Claude가 추천 순서를 정하고, 키가 없으면 유사도 순서로 동작합니다. 키를 넣어도 LLM을 쓰지 않으려면 `RECO_RANKER=rule`.
+관련 후보가 하나도 없으면 호출하지 않으며, 분석 1회당 많아야 1번(약 1.2~1.6천 토큰) 호출합니다. 키는 GitHub·채팅에 올리지 마세요.
+
+수집·제휴 주소 허용 목록은 `infra/workspace/shop_hosts.txt`의 쇼핑몰이 자동으로 더해집니다(따로 설정하지 않아도 크롤러 상품 적재·관리자 제휴상품 등록이 됩니다).
+
 처음에는 Vision CPU 이미지 빌드와 한국어 OCR 모델 다운로드 때문에 시간이 필요합니다. 모델은 Docker 볼륨에 보관됩니다. OCR 워커는 CPU 2스레드·동시 작업 1개로 시작합니다. GPU, 유료 AI 키는 필요하지 않습니다.
 
 | 역할 | 주소 / 동작 |
@@ -29,7 +37,7 @@ py tools/workspace.py check --scope integrated
 
 사이트 URL을 무작정 서버에서 열지 않습니다. DB에 URL이 정확하게 일치하는 상품은 수집된 상품명으로 추천할 수 있습니다. URL 쿼리가 다른 상품을 같은 상품으로 취급하지 않습니다. 매칭도 이미지도 없으면 분석 실패로 안내합니다.
 
-추천 기본값은 무료 `HashEmbedder` + `RuleRanker`입니다. 이는 연결 검증용 기준이며 의미 검색 정확도를 보장하는 학습 모델이 아닙니다. 팀원의 Claude/로컬 모델 코드는 유지되지만 키·모델 설치 없이 자동 유료 호출을 하지 않습니다. 도메인당 최초 1,000개 판매 중 상품을 후보 풀로 사용합니다. 더 큰 카탈로그는 PostgreSQL 벡터 어댑터로 전환한 뒤 검색 품질·응답 시간을 따로 검증해야 합니다.
+추천은 문장 임베딩(paraphrase-multilingual-MiniLM, CPU)으로 후보를 찾고, `ANTHROPIC_API_KEY`가 있으면 Claude가, 없으면 유사도 규칙이 순서를 정합니다. 키가 없으면 유료 호출은 일어나지 않습니다. 도메인당 최초 1,000개 판매 중 상품을 후보 풀로 사용합니다. 더 큰 카탈로그는 PostgreSQL 벡터 어댑터로 전환한 뒤 검색 품질·응답 시간을 따로 검증해야 합니다.
 
 식품 성분이 없는 후보는 알레르기 사용자의 안전 후보로 취급하지 않습니다. OCR 성분과 경고는 참고 자료이며 상품 표시 확인이 필요합니다. 현재 지원 밖의 비식품 알레르기는 자동 검증 미지원으로 알립니다. 수집 상품의 상세 성분은 별도 수집·저장 계약이 추가되어야 합니다.
 
@@ -49,7 +57,7 @@ py tools/workspace.py admin --login-id 가입한아이디 --role admin --scope i
 # 상담 담당자만 부여하려면 --role support
 ```
 
-관리자 승격 API를 일반 회원에게 공개하지 않습니다. API 인증키는 로컬 `.env`에 자동 생성하며 GitHub에 올리지 않습니다. 제휴 URL은 `services/api/.env`의 `AFFILIATE_URL_HOSTS`에 명시된 HTTPS 호스트만 허용합니다.
+관리자 승격 API를 일반 회원에게 공개하지 않습니다. API 인증키는 로컬 `.env`에 자동 생성하며 GitHub에 올리지 않습니다. 제휴 URL은 `services/api/.env`의 `AFFILIATE_URL_HOSTS`와 `infra/workspace/shop_hosts.txt`에 있는 HTTPS 호스트만 허용합니다.
 
 ## 최준서 수집 코드
 

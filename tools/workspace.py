@@ -15,7 +15,45 @@ def run(args):
     subprocess.run(args, cwd=ROOT, check=True)
 
 
+def env_file_value(relative, name):
+    path = ROOT / relative
+    if path.is_file():
+        for line in path.read_text(encoding='utf-8').splitlines():
+            if line.startswith(name + '='):
+                return line.split('=', 1)[1].strip()
+    return ''
+
+
+def apply_dev_url_hosts():
+    """services/api/.env의 수집·제휴 허용 호스트에 저장소의 개발용 쇼핑몰 목록을 더한다.
+    예전에는 기본값이 store.example.test뿐이라 새로 init한 팀원 환경에서 크롤러 상품이 모두 거절되고
+    관리자 제휴상품 등록도 422로 실패했다. 셸 환경변수는 --env-file보다 우선한다."""
+    listing = ROOT / 'infra/workspace/shop_hosts.txt'
+    if not listing.is_file():
+        return
+    base = [h.strip() for h in listing.read_text(encoding='utf-8').splitlines() if h.strip() and not h.startswith('#')]
+    extra = base + ['www.' + h for h in base if h != 'store.example.test' and not h.startswith('www.')]
+    for key in ('CATALOG_URL_HOSTS', 'AFFILIATE_URL_HOSTS'):
+        current = os.environ.get(key) or env_file_value('services/api/.env', key) or 'store.example.test'
+        hosts = [h.strip() for h in current.split(',') if h.strip()]
+        os.environ[key] = ','.join(dict.fromkeys(hosts + extra))
+
+
+def apply_dev_billing(scope):
+    """integrated(팀 통합 실행)에서는 결제를 개발용 모의 결제로 켠다(실제 돈이 오가지 않음).
+    services/api/.env.example의 BILLING_MODE=disabled 때문에 문서와 달리 프리미엄 화면이
+    '결제 서비스가 연결되지 않았습니다'로 막혔다. 끄려면 infra/workspace/.env에 WORKSPACE_MOCK_BILLING=off."""
+    if scope != 'integrated' or workspace_setting('WORKSPACE_MOCK_BILLING', 'on').lower() in ('off', '0', 'false', 'no'):
+        return
+    mode = os.environ.get('BILLING_MODE') or env_file_value('services/api/.env', 'BILLING_MODE') or 'disabled'
+    app_env = os.environ.get('APP_ENV') or env_file_value('services/api/.env', 'APP_ENV') or 'development'
+    if mode == 'disabled' and app_env == 'development':
+        os.environ['BILLING_MODE'] = 'mock'
+
+
 def compose_command(scope='full', shared=False):
+    apply_dev_url_hosts()
+    apply_dev_billing(scope)
     command = ['docker', 'compose']
     for relative in ['infra/db/.env', 'services/api/.env', 'infra/workspace/.env']:
         path = ROOT / relative

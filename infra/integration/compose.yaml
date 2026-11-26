@@ -2,13 +2,17 @@
 services:
   vision-redis:
     image: redis:7.4.7-alpine
-    command: [redis-server, --appendonly, "yes", --maxmemory, 256mb, --maxmemory-policy, noeviction]
+    # 대기열은 잠깐 쓰는 작업 목록이라 디스크에 남기지 않는다. AOF를 켜 두면 사용자 화면 캡처(base64)가
+    # 분석이 끝난 뒤에도 appendonly 파일에 계속 남았다(개인정보·디스크 쓰기). 재시작 시 진행 중 작업만 다시 요청된다.
+    command: [redis-server, --appendonly, "no", --save, "", --maxmemory, 256mb, --maxmemory-policy, noeviction]
     volumes: [vision_queue:/data]
     healthcheck:
       test: [CMD, redis-cli, ping]
-      interval: 5s
+      interval: 30s
+      start_period: 60s
+      start_interval: 2s
       timeout: 3s
-      retries: 20
+      retries: 5
     restart: unless-stopped
   vision-api:
     image: kkulpick-vision-integrated:local
@@ -22,9 +26,12 @@ services:
       vision-redis: {condition: service_healthy}
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/openapi.json',timeout=3).read()"]
-      interval: 5s
+      # 시작할 때만 2초마다, 그 뒤에는 30초마다 확인(5초마다 파이썬을 새로 띄워 CPU를 15%씩 쓰던 것을 줄임)
+      interval: 30s
+      start_period: 150s
+      start_interval: 2s
       timeout: 4s
-      retries: 30
+      retries: 5
     restart: unless-stopped
   vision-ocr-worker:
     image: kkulpick-vision-integrated:local

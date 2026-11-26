@@ -63,6 +63,28 @@ class LocalWorkspaceTests(unittest.TestCase):
                 self.assertIn(str(self.root / 'infra/workspace/local.compose.yaml'), command)
             self.assertIn(str(self.root / 'infra/team/team.compose.yaml'), workspace.compose_command(shared=True))
 
+    def test_fresh_init_allows_dev_shop_hosts_and_keeps_custom_ones(self):
+        # 새로 init한 PC에서도 크롤러 상품 적재·관리자 제휴상품 등록이 되도록 개발용 쇼핑몰 목록을 더한다.
+        self.initialize()
+        shutil.copyfile(Path(workspace.__file__).resolve().parents[1] / 'infra/workspace/shop_hosts.txt',
+                        self.root / 'infra/workspace/shop_hosts.txt')
+        api_env = self.root / 'services/api/.env'
+        api_env.write_text(api_env.read_text(encoding='utf-8') + 'CATALOG_URL_HOSTS=my.shop.test\n', encoding='utf-8')
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('CATALOG_URL_HOSTS', None)
+            os.environ.pop('AFFILIATE_URL_HOSTS', None)
+            os.environ.pop('BILLING_MODE', None)
+            workspace.compose_command('core')
+            self.assertNotIn('BILLING_MODE', os.environ)  # 모의 결제는 integrated에서만
+            workspace.compose_command('integrated')
+            catalog = os.environ['CATALOG_URL_HOSTS'].split(',')
+            affiliate = os.environ['AFFILIATE_URL_HOSTS'].split(',')
+            self.assertEqual(os.environ['BILLING_MODE'], 'mock')
+        self.assertEqual(catalog[0], 'my.shop.test')
+        for host in ('www.daisomall.co.kr', 'kurly.com', 'store.example.test'):
+            self.assertIn(host, catalog)
+            self.assertIn(host, affiliate)
+
     def test_core_omits_large_stack_and_full_retains_it(self):
         self.initialize()
         file = str(self.root / 'infra/workspace/compose.yaml')

@@ -276,7 +276,8 @@ const crawlingPage = {
     const allCatalogItems = view?.items || [];
     const rows = this.getAllDateRows(allCatalogItems);
     const totalDays = rows.length;
-    const totalProductCount = rows.reduce((acc, r) => acc + r.productCount, 0).toLocaleString();
+    // 전체 상품 수는 실제 카탈로그 건수. 날짜별 합계는 과거 수집 실행의 적재 건수까지 더해져(같은 상품 재수집) 더 커질 수 있다.
+    const totalProductCount = (this.isLocalAuthDemo() ? rows.reduce((acc, r) => acc + r.productCount, 0) : allCatalogItems.length).toLocaleString();
 
     const sourceSet = new Set(['domeggook', '11st']);
     for (const offer of allCatalogItems) {

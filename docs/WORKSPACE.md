@@ -104,7 +104,7 @@ CPU 이미지의 최상위 의존성은 고정하며 전체 설치 결과는 이
 ## Claude와 외부 수집
 
 Claude SDK를 준비했지만 `LLM_MODE=disabled`로 기본 실행합니다. 환경 smoke/CI는 Claude 호출·지원 크레딧 소비·실제 사이트 크롤링·모델 가중치 다운로드를 하지 않습니다.
-실제 연동 시 ANTHROPIC_API_KEY와 ANTHROPIC_MODEL은 서버 전용 비공개 환경에 설정하고 호출 횟수·토큰 상한·오류 대체를 구현합니다. 키가 존재한다는 이유만으로 자동 호출하지 않습니다.
+실제 연동 시 ANTHROPIC_API_KEY와 ANTHROPIC_MODEL은 서버 전용 비공개 환경에 설정하고 호출 횟수·토큰 상한·오류 대체를 구현합니다. 추천 순서(RECO_RANKER)는 비워 두면 키가 있을 때만 Claude를 호출합니다(분석 1회당 최대 1번, 후보가 없으면 0번). `RECO_RANKER=rule`이면 키가 있어도 호출하지 않습니다.
 수집기는 기존 `/internal/v2/crawl-runs/{run_id}/observations` 계약에 맞추고 COLLECTOR_TOKEN을 서버에서만 사용합니다. DB 직접 쓰기 계정을 공유하지 않습니다.
 
 ## 모바일 담당

@@ -22,15 +22,21 @@ def main():
     uid='it'+secrets.token_hex(5);password=secrets.token_urlsafe(24)
     call('/v2/auth/signup',{'login_id':uid,'password':password,'password_confirmation':password,'consent_version':'v1','consent_accepted':True})
     token=call('/v2/auth/login',{'login_id':uid,'password':password})['data']['token']
-    offer=call('/v2/offers?selected_domain=product')['items'][0]
-    job=call('/analyses',{'page_url':offer['current_url'],'page_session_id':'integration','page_revision':1,
-        'request_key':secrets.token_hex(16),'selected_domain':'product'},token)['data']['analysis_id']
+    # 중고 상품은 기본 설정(중고 포함 꺼짐)에서 비슷한 상품도 중고뿐이면 추천이 비는 게 정상이고,
+    # 관련도 기준·보고 있는 판매처 제외 때문에 비슷한 상품이 없는 상품도 빈 결과가 정상이다.
+    # 그래서 새 상품 몇 개를 차례로 분석해 추천이 나오는 경우가 하나라도 있는지 확인한다.
+    offers=[o for o in call('/v2/offers?selected_domain=product')['items'] if o.get('condition')!='used'][:5]
     try:
-        for _ in range(90):
-            result=call('/analyses/'+job,token=token)['data']
-            if result['state'] in ('completed','failed'):break
-            time.sleep(1)
-        assert result['state']=='completed',result
+        assert offers,'no new product offers in catalog; run py tools/workspace.py seed'
+        for offer in offers:
+            job=call('/analyses',{'page_url':offer['current_url'],'page_session_id':'integration','page_revision':1,
+                'request_key':secrets.token_hex(16),'selected_domain':'product'},token)['data']['analysis_id']
+            for _ in range(90):
+                result=call('/analyses/'+job,token=token)['data']
+                if result['state'] in ('completed','failed'):break
+                time.sleep(1)
+            assert result['state']=='completed',result
+            if result['sections'][0]['items']:break
         assert result['sections'][0]['items'],result
         assert result['sections'][0]['items'][0]['reason']!='분석 작업자가 선택한 상품'
         print('PASS actual API claim -> catalog -> recommendation -> durable result')

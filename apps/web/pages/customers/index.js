@@ -23,7 +23,7 @@ const customersPage = {
       userId: member.user_id,
       subscribed: subscribed ? 'O' : '',
       gender: genderMap[member.gender] || '미등록',
-      ageGroup: member.age_decade == null ? '미등록' : `${member.age_decade}대`,
+      ageGroup: member.age_decade == null ? '미등록' : member.age_decade < 10 ? '10세 미만' : `${member.age_decade}대`,
       status: '정상',
       subStartDate: member.subscription_started_at
         ? this.formatKstDateTime(member.subscription_started_at).slice(0, 10)

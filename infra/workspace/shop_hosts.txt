@@ -1,0 +1,41 @@
+# 개발 환경에서 수집(CATALOG_URL_HOSTS)·제휴(AFFILIATE_URL_HOSTS) 주소로 허용하는 쇼핑몰 호스트.
+# tools/workspace.py가 services/api/.env 값에 이 목록(과 www. 붙은 주소)을 더해 API에 넘긴다.
+# 새 팀원이 init만 하고 서버를 켜도 크롤러 상품이 적재되고 관리자 제휴상품을 등록할 수 있도록.
+store.example.test
+11st.co.kr
+29cm.co.kr
+a-bly.com
+aladin.co.kr
+aliexpress.com
+amazon.com
+auction.co.kr
+bunjang.co.kr
+cjonstyle.com
+coupang.com
+daangn.com
+daisomall.co.kr
+emart.ssg.com
+gmarket.co.kr
+gsshop.com
+hmall.com
+hnsmall.com
+homeplus.co.kr
+kream.co.kr
+kurly.com
+kyobobook.co.kr
+lotteimall.com
+lottemart.com
+lotteon.com
+musinsa.com
+nsmall.com
+ohou.se
+oliveyoung.co.kr
+onch3.co.kr
+ownerclan.com
+shopping.naver.com
+smartstore.naver.com
+ssg.com
+temu.com
+web.joongna.com
+yes24.com
+zigzag.kr

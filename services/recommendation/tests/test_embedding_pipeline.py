@@ -96,7 +96,10 @@ def test_bootstrap_idempotent_and_backfills_existing_demo(db):
 
 def test_http_reads_persistent_vectors_and_embeds_only_query(db, monkeypatch):
     owner, conn, source = db
-    item, offer, _ = seed(conn, source)
+    # 고유한 이름: 앞선 테스트들이 같은 이름('전기 주전자')의 상품을 남기면 점수가 같은 후보가 8개를 넘어
+    # 이 상품이 상위 8개 밖으로 밀릴 수 있다(실행 순서에 따라 실패하던 원인).
+    unique = '전기 주전자 ' + source[-6:]
+    item, offer, _ = seed(conn, source, name=unique)
     drain(conn)
     before = conn.execute('SELECT created_at FROM app.product_embeddings WHERE product_id=%s', (item,)).fetchone()
     class QueryOnly(HashEmbedder):
@@ -110,7 +113,7 @@ def test_http_reads_persistent_vectors_and_embeds_only_query(db, monkeypatch):
     monkeypatch.setattr(config, 'embedder', lambda: encoder)
     with TestClient(app) as client:
         for _ in range(2):
-            response = request(client)
+            response = request(client, query=unique)
             assert response.status_code == 200, response.text
             assert offer in response.json()['offer_ids']
         assert request(client, offers=[]).status_code == 422

@@ -46,6 +46,14 @@ services:
       <<: *embedding-env
       WORKSPACE_TOKEN: ${WORKSPACE_TOKEN:?missing service credential}
       RECO_RANKER: ${RECO_RANKER:-rule}
+      # LLM 순위(RECO_RANKER=claude 또는 local). 값은 infra/workspace/.env에만 두고 Git에 올리지 않는다.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RECO_LLM_MODEL: ${RECO_LLM_MODEL:-}
+      LOCAL_LLM_BASE_URL: ${LOCAL_LLM_BASE_URL:-}
+      LOCAL_LLM_MODEL: ${LOCAL_LLM_MODEL:-}
+      LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
+      RECO_MIN_SCORE: ${RECO_MIN_SCORE:-}
+      RECO_SCORE_MARGIN: ${RECO_SCORE_MARGIN:-}
     command: [uvicorn, services.recommendation.http_service:app, --host, 0.0.0.0, --port, "8000"]
     depends_on:
       embedding-init: {condition: service_completed_successfully}

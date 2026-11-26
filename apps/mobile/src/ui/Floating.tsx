@@ -148,9 +148,12 @@ export function Floating({
   // 추천이 비어도(empty) 알레르기 경고는 카드로 보여준다.
   const rec = a?.result_kind === 'recommendation' || a?.result_kind === 'empty' ? a : null;
   // 식품 페이지에서만 알레르기 경고를 보여준다(상품 페이지는 띄우지 않음). 여러 항목이면 카드 하나에 모은다.
-  const notice = rec ? allergyNotice(warningsForDomain(rec.warnings, rec.selected_domain)) : null;
-  const warning = !!notice;
+  const shown = rec ? warningsForDomain(rec.warnings, rec.selected_domain) : [];
+  const allergy = allergyNotice(shown);
   const hasItems = !!rec?.sections.some((x) => x.kind !== 'used' && x.items.length > 0);
+  // 큰 경고 카드는 알레르기를 확인했을 때나 추천이 없을 때만 먼저 보여준다. '성분표 인식 못 함'뿐이면 추천 카드 + 작은 안내.
+  const notice = allergy && (shown.some((w) => w.evidence !== 'unknown') || !hasItems) ? allergy : null;
+  const warning = !!notice;
   // [임시] 페이지에서 읽은 실제 상품명·가격이 있으면 그것을 보여준다(서버 OCR 연동 전).
   const first = rec && hasItems ? (rec.page_product ?? rec.sections.find((x) => x.kind !== 'used' && x.items.length > 0)?.items[0]) : undefined;
   const kind: 'launcher' | 'analyzing' | 'error' | 'empty' | 'result' =
@@ -237,7 +240,7 @@ export function Floating({
                   {first.name}
                 </Text>
                 {!!first.price && <Text style={st.price}>{formatPrice(first.price, first.currency)}</Text>}
-                <Text style={st.hint}>눌러서 추천 더 보기</Text>
+                <Text style={st.hint}>{allergy ? '알레르기 성분 확인 필요 · 눌러서 보기' : '눌러서 추천 더 보기'}</Text>
               </>
             )
           )}

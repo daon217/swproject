@@ -119,7 +119,7 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
     candidates, host, suffix = _normalized_url_candidates(body.page_url)
     try:
         with config.connect() as conn:
-            row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw,f.allergens_declared
+            row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw,f.allergens_declared,o.offer_id::text
                 FROM app.offers o
                 JOIN app.catalog_items i USING(item_id)
                 LEFT JOIN app.foods f USING(item_id)
@@ -130,7 +130,7 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
                 # Host-case fallback. The host expression matches the offers_url_host index (0010)
                 # and the exact path/query comparison runs in SQL, so a busy host cannot push the
                 # matching offer past an arbitrary row limit.
-                row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw,f.allergens_declared
+                row=conn.execute('''SELECT i.name,o.kind,f.ingredients,f.ingredients_raw,f.allergens_declared,o.offer_id::text
                     FROM app.offers o
                     JOIN app.catalog_items i USING(item_id)
                     LEFT JOIN app.foods f USING(item_id)
@@ -143,7 +143,7 @@ def catalog_context(body:CatalogContext,authorization:str=Header(default='')):
             return {'match':None}
         from .allergens import split_ingredients
         ing=[str(x) for x in (row[2] or []) if str(x).strip()] or split_ingredients(row[3])
-        match={'name':row[0],'kind':row[1]}
+        match={'name':row[0],'kind':row[1],'offer_id':row[5]}
         if ing:
             match['ingredients']=ing
         declared=[str(x) for x in (row[4] or []) if str(x).strip()]
@@ -197,9 +197,17 @@ def process(body:Input,authorization:str=Header(default='')):
             except ValueError as error:
                 raise HTTPException(503,'EMBEDDING_CONTRACT_UNAVAILABLE') from error
             catalog=PgCatalog(conn,body.selected_domain)
+            # 관련도 기준점: 엉뚱한 상품명(리뷰 문구 등)에도 가장 가까운 상품을 무조건 보여주지 않도록.
+            # 문장 임베딩 모델 기준 0.5(RECO_MIN_SCORE로 조절). 실측(2026-11-27, MiniLM): 관련 상품 0.5~0.86,
+            # 리뷰 문구·무관 상품 0.38~0.47. 테스트용 해시 임베딩은 점수 척도가 달라 기본 끔.
+            embedder=config.embedder()
+            default_min='0' if embedder.name=='hash-ngram-384' else '0.5'
+            min_score=float(os.getenv('RECO_MIN_SCORE') or default_min)
+            # 가장 비슷한 후보보다 0.25 이상 낮은 후보도 뺀다(RECO_SCORE_MARGIN, 해시 임베딩은 끔)
+            margin=float(os.getenv('RECO_SCORE_MARGIN') or ('0' if embedder.name=='hash-ngram-384' else '0.25'))
             engine=Recommender(catalog,PgVectorIndex(conn,model_id),
-                              config.embedder(),make_ranker(os.getenv('RECO_RANKER','rule')))
-            result=engine.recommend(profile,body.query,top_k=8)  # 프리미엄 5개 + 중고·품절로 빠지는 여유
+                              embedder,make_ranker(os.getenv('RECO_RANKER','rule')))
+            result=engine.recommend(profile,body.query,top_k=8,min_score=min_score,score_margin=margin)  # 프리미엄 5개 + 중고·품절로 빠지는 여유
             ids=catalog.offer_ids([p.product_id for p in result.picks])
         return {'offer_ids':[ids[p.product_id] for p in result.picks if p.product_id in ids],
                 'reasons':{ids[p.product_id]:p.reason for p in result.picks if p.product_id in ids},

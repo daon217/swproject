@@ -155,6 +155,19 @@ def test_ranker_failure_falls_back(tmp_path):
     assert r.ranker == "rule-fallback" and len(r.picks) == 3
 
 
+def test_empty_query_returns_nothing_and_min_score_drops_weak_matches(tmp_path):
+    # 검색어가 없으면 아무 상품이나 기본처럼 보여주지 않는다(예전에는 '추천'으로 검색)
+    rec = make_rec(tmp_path, RuleRanker())
+    r = rec.recommend(UserProfile("u"), "   ", top_k=5)
+    assert r.picks == [] and any("검색어" in n for n in r.notes)
+    # 관련도 기준점: 아주 높게 잡으면 후보가 모두 빠진다(엉뚱한 상품을 억지로 채우지 않음)
+    assert rec.recommend(UserProfile("u"), "주스", top_k=3, min_score=0.999).picks == []
+    assert len(rec.recommend(UserProfile("u"), "주스", top_k=3, min_score=0.0).picks) == 3
+    # 상대 기준: 가장 비슷한 후보와 점수 차이가 크면 뺀다(여백이 아주 작으면 최고 점수 후보만 남음)
+    tight = rec.recommend(UserProfile("u"), "주스", top_k=10, score_margin=1e-9)
+    assert 1 <= len(tight.picks) <= 2 and any("관련도" in n for n in tight.notes)
+
+
 # --- CLI 전체 흐름 ----------------------------------------------------------
 def test_cli_end_to_end(tmp_path, capsys):
     d = str(tmp_path / "data")

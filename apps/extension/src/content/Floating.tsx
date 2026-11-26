@@ -59,9 +59,13 @@ export function Floating({ state, onOpenPanel, onRetry, panelOpen = false }: Flo
   // 국내 추천이 없으면 해외 추천이라도 보여준다(중고는 제외).
   const items = a.sections.filter((s) => s.kind !== 'used').flatMap((s) => s.items);
   // 알레르기 경고는 추천 상품이 없어도 보여준다(안전 안내). 경고도 추천도 없으면 띄우지 않는다.
-  const notice = allergyNotice(warningsForDomain(a.warnings, a.selected_domain));
+  const shown = warningsForDomain(a.warnings, a.selected_domain);
+  const notice = allergyNotice(shown);
   if (items.length === 0 && !notice) return null;
-  if (notice) {
+  // 큰 경고 카드는 성분 표시에서 알레르기를 확인했을 때(contains·may_contain)나 추천이 없을 때만 먼저 보여준다.
+  // '성분표를 인식하지 못했어요'(unknown)뿐이면 추천 카드를 보여주고 작은 안내만 붙인다.
+  const confirmed = shown.some((w) => w.evidence !== 'unknown');
+  if (notice && (confirmed || items.length === 0)) {
     return (
       <div className="fl-wrap">
         <button className="fl-compact fl-compact-alert" onClick={open} aria-label={`${notice.title} - 눌러서 사이드 패널에서 ${items.length ? '대체 상품' : '자세히'} 보기`}>
@@ -93,7 +97,7 @@ export function Floating({ state, onOpenPanel, onRetry, panelOpen = false }: Flo
         <span className="fl-compact-label">꿀픽 추천</span>
         <span className="fl-compact-name">{first.name}</span>
         {first.price && <span className="fl-compact-price">{formatPrice(first.price, first.currency)}</span>}
-        <span className="fl-compact-hint">눌러서 사이드 패널에서 보기</span>
+        <span className="fl-compact-hint">{notice ? '알레르기 성분 확인 필요 · 눌러서 보기' : '눌러서 사이드 패널에서 보기'}</span>
       </button>
       <CloseButton onClick={() => setClosed(true)} />
     </div>

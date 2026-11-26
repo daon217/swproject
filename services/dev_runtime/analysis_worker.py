@@ -11,6 +11,7 @@ import os
 import re
 import time
 import httpx
+from services.recommendation.allergens import normalize_code
 
 log=logging.getLogger('analysis-worker')
 
@@ -45,6 +46,11 @@ def food_evidence(title,ingredients):
     if ingredients and FOOD_INGREDIENT.search(' '.join(str(i) for i in ingredients)):return 'vision_ingredients'
     if FOOD_TITLE.search(title or ''):return 'title_keyword'
     return None
+
+def maybe_food(title,ingredients):
+    """식품이라고 확정하지는 못했지만 식품일 수 있는가: 식품이 아닌 신호가 없고, 화면에서 성분 같은 글자를 읽었을 때."""
+    text=' '.join([title or '',*[str(i) for i in (ingredients or [])]])
+    return bool(ingredients) and not NON_FOOD.search(text)
 
 class Worker:
     def __init__(self,client=None,*,worker_id='team-integration',max_concurrency=None,poll_interval=0.5):
@@ -131,13 +137,18 @@ class Worker:
             r.raise_for_status();result=r.json()
             warnings=list(result.get('warnings',[]))
             allergens=(job.get('profile') or {}).get('allergens') or []
-            if inferred and kind=='product' and allergens:
-                # 식품 근거를 찾지 못해 상품으로 처리했다. 실제 식품이면 알레르기 검사가 빠졌으므로 숨기지 않고 알린다.
+            if inferred and kind=='product' and allergens and maybe_food(title,ingredients):
+                # 식품인지 확인하지 못해 상품으로 처리했지만 성분 같은 글자가 보였다. 실제 식품이면 알레르기 검사가
+                # 빠졌으므로 숨기지 않고 알린다. 노트북처럼 식품 신호가 전혀 없는 상품에는 붙이지 않는다(모든 상품
+                # 페이지에 '알레르기 주의'가 뜨던 문제). 식품 알레르기 항목만(피부 항목은 성분표 검사 대상이 아님).
                 warnings+=[{'type':'allergy','allergen':str(a)[:100],'evidence':'unknown',
                     'message':'알레르기 성분표를 인식하지 못했습니다. 구매 전 판매처의 성분 표시를 직접 확인해 주세요.'}
-                    for a in allergens[:50]]
+                    for a in allergens[:50] if normalize_code(a) is not None]
+            # 지금 보고 있는 그 판매처 상품은 추천하지 않는다(같은 상품의 다른 판매처는 가격 비교로 남긴다).
+            own=match.get('offer_id') if match else None
+            offer_ids=[o for o in result['offer_ids'] if o!=own]
             self.request('POST',path+'/complete',json=lease|{
-                'selected_domain':kind,'offer_ids':result['offer_ids'],
+                'selected_domain':kind,'offer_ids':offer_ids,
                 'metadata':{'ingredients':[str(i)[:500] for i in ingredients[:100]] if kind=='food' else [],
                     'reasons':result.get('reasons',{}),'ranker':result.get('ranker',''),'warnings':warnings}})
             return True

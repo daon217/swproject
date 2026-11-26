@@ -4,15 +4,40 @@
     {
       "name": "extension-preview",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/extension", "run", "preview:sidepanel"],
+      "runtimeArgs": [
+        "--prefix",
+        "apps/extension",
+        "run",
+        "preview:sidepanel"
+      ],
       "port": 5174
     },
     {
       "name": "mobile-preview",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/mobile", "run", "preview:web"],
+      "runtimeArgs": [
+        "--prefix",
+        "apps/mobile",
+        "run",
+        "preview:web"
+      ],
       "port": 8081
+    },
+    {
+      "name": "extension-preview-mock",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "apps/extension",
+        "run",
+        "preview:sidepanel",
+        "--",
+        "--port",
+        "5175",
+        "--mode",
+        "mock"
+      ],
+      "port": 5175
     }
   ]
 }
-

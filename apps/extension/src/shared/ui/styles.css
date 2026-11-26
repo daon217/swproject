@@ -226,6 +226,10 @@
   font-size: 10px;
   font-weight: 700;
 }
+.kp-lowest-badge {
+  border-color: var(--kp-primary);
+  color: var(--kp-primary);
+}
 .kp-locked {
   display: flex;
   align-items: center;

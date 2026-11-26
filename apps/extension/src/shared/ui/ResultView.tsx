@@ -14,7 +14,7 @@ interface Handlers {
   onRetry: () => void;
 }
 
-export function OfferRow({ card, onOpenUrl, basic = false }: { card: OfferCard; onOpenUrl: (url: string) => void; basic?: boolean }) {
+export function OfferRow({ card, onOpenUrl, basic = false, lowest = false }: { card: OfferCard; onOpenUrl: (url: string) => void; basic?: boolean; lowest?: boolean }) {
   return (
     <div className="kp-offer">
       <div className="kp-offer-main">
@@ -24,6 +24,7 @@ export function OfferRow({ card, onOpenUrl, basic = false }: { card: OfferCard; 
         <div className="kp-offer-text">
           <div className="kp-offer-name">
             {card.affiliate && <span className="kp-ad-badge">제휴</span>}
+            {lowest && <span className="kp-ad-badge kp-lowest-badge">최저가</span>}
             {card.name}
           </div>
           <div className="kp-offer-sub">{offerSubtitle(card.subtitle, card.condition)}</div>
@@ -60,13 +61,13 @@ function sectionTitle(s: ResultSection, premium: boolean): string {
   return `AI 추천 상품 ${shown}개`;
 }
 
-function MainSection({ s, premium, onOpenUrl }: { s: ResultSection; premium: boolean; onOpenUrl: (u: string) => void }) {
+function MainSection({ s, premium, onOpenUrl, lowestId }: { s: ResultSection; premium: boolean; onOpenUrl: (u: string) => void; lowestId?: string }) {
   return (
     <section>
       <h3 className="kp-section-title">{sectionTitle(s, premium)}</h3>
       {s.items.length === 0 && <p className="kp-muted-center">조건에 맞는 추천 후보를 찾지 못했어요.</p>}
       {s.items.map((c) => (
-        <OfferRow key={c.offer_id} card={c} onOpenUrl={onOpenUrl} />
+        <OfferRow key={c.offer_id} card={c} onOpenUrl={onOpenUrl} lowest={c.offer_id === lowestId} />
       ))}
       {Array.from({ length: s.locked_count }, (_, i) => (
         <LockedRow key={i} count={s.locked_count} />
@@ -184,14 +185,52 @@ export function ResultView({ state, ...h }: { state: TabState | null } & Handler
   }
   const a = state.analysis!;
   if (a.result_kind === 'empty') {
-    // 분석은 됐지만(상품/식품 판별됨) 비슷한 상품이 없을 때도 알레르기 경고는 반드시 보여준다.
-    if (visibleWarnings(a).length) return <ResultBody key={a.analysis_id} analysis={a} {...h} />;
+    // 분석은 됐지만 비슷한 상품이 없을 때도 알레르기 경고는 반드시 보여준다. 빈 추천 구역은 늘어놓지 않는다.
+    if (visibleWarnings(a).length) return <EmptyWithWarning analysis={a} />;
     if (a.selected_domain) {
       return <EmptyState title="비슷한 상품을 찾지 못했어요" body="이 상품과 비슷한 추천 상품이 아직 꿀픽에 없어요. 다른 상품 페이지에서 다시 확인해 주세요." />;
     }
     return <EmptyState title="이 페이지에는 추천할 상품이 없어요" body="상품 정보를 찾지 못했어요. 상품 상세 페이지에서 다시 확인해 주세요." />;
   }
   return <ResultBody key={a.analysis_id} analysis={a} {...h} />;
+}
+
+function AllergyNoticeBox({ analysis: a }: { analysis: Analysis }) {
+  const notice = allergyNotice(visibleWarnings(a));
+  if (!notice) return null;
+  return (
+    <div className="kp-warning" role="alert">
+      <div className="kp-warning-title">{notice.title}</div>
+      <div className="kp-warning-body">
+        내 알레르기 · {notice.names.join(', ')}
+        {notice.lines.map((l) => (
+          <p key={l} className="kp-warning-line">{l}</p>
+        ))}
+      </div>
+      <div className="kp-warning-note">구매 전 판매처의 원재료·성분 표시를 직접 확인해 주세요.</div>
+    </div>
+  );
+}
+
+/** 추천은 없고 알레르기 경고만 있을 때: 경고 + '비슷한 상품 없음' 안내만 보여준다. */
+function EmptyWithWarning({ analysis: a }: { analysis: Analysis }) {
+  return (
+    <div className="kp-result">
+      <div className="kp-result-scroll">
+        <div className="kp-result-head">
+          <span className="kp-brand">{headerLabel(a).text}</span>
+        </div>
+        <AllergyNoticeBox analysis={a} />
+        <EmptyState title="비슷한 상품을 찾지 못했어요" body="이 상품과 비슷한 추천 상품이 아직 꿀픽에 없어요." />
+      </div>
+    </div>
+  );
+}
+
+/** AI 추천 안에서 가장 싼 상품(원화 기준, 가격을 아는 후보가 2개 이상일 때만). 같은 상품을 두 번 보여주지 않는다. */
+function cheapestOfferId(main: ResultSection[]): string | undefined {
+  const priced = lowestPriceItems(main).filter((c) => Number.isFinite(Number(c.price)) && c.price !== null && c.price !== '');
+  return priced.length >= 2 ? priced[0].offer_id : undefined;
 }
 
 function ResultBody({ analysis: a, onOpenUrl, onPremium, onFilter }: { analysis: Analysis } & Handlers) {
@@ -202,9 +241,8 @@ function ResultBody({ analysis: a, onOpenUrl, onPremium, onFilter }: { analysis:
   const locked = main.some((s) => s.locked_count > 0);
   const canFilter = a.premium && a.selected_domain === 'food';
   const f = a.applied_filter;
-  const notice = allergyNotice(visibleWarnings(a));
   const unread = visibleWarnings(a).some((w) => w.evidence === 'unknown');
-  const lowest = lowestPriceItems(main);
+  const lowestId = cheapestOfferId(main);
 
   return (
     <div className="kp-result">
@@ -224,36 +262,17 @@ function ResultBody({ analysis: a, onOpenUrl, onPremium, onFilter }: { analysis:
           </div>
         )}
 
-        {notice && (
-          <div className="kp-warning" role="alert">
-            <div className="kp-warning-title">{notice.title}</div>
-            <div className="kp-warning-body">
-              내 알레르기 · {notice.names.join(', ')}
-              {notice.lines.map((l) => (
-                <p key={l} className="kp-warning-line">{l}</p>
-              ))}
-            </div>
-            <div className="kp-warning-note">구매 전 판매처의 원재료·성분 표시를 직접 확인해 주세요.</div>
-          </div>
-        )}
+        <AllergyNoticeBox analysis={a} />
 
         {!unread && (a.ingredient_status === 'not_found' || a.result_kind === 'ingredient_unknown') ? (
           <div className="kp-info">성분 정보를 확인하지 못했어요. 안전하다는 뜻이 아니니 판매처의 원재료 표시를 확인해 주세요.</div>
         ) : null}
 
-        {/* 탭 없이 한 화면에서 스크롤: 최저가 추천 → AI 추천 → 중고 추천 */}
-        <section>
-          <h3 className="kp-section-title">{lowest.length ? `최저가 추천 상품 ${lowest.length}개` : '최저가 추천 상품'}</h3>
-          {lowest.length === 0 && <p className="kp-muted-center">가격을 비교할 추천 후보를 찾지 못했어요.</p>}
-          {lowest.map((c) => (
-            <OfferRow key={c.offer_id} card={c} onOpenUrl={onOpenUrl} />
-          ))}
-        </section>
-
-        {main.map((s) => (
+        {/* 탭 없이 한 화면에서 스크롤: AI 추천(가장 싼 상품에 '최저가' 표시) → 해외 → 중고 */}
+        {main.map((s, i) => (
           <div key={s.kind}>
-            <hr className="kp-divider" />
-            <MainSection s={s} premium={a.premium} onOpenUrl={onOpenUrl} />
+            {i > 0 && <hr className="kp-divider" />}
+            <MainSection s={s} premium={a.premium} onOpenUrl={onOpenUrl} lowestId={lowestId} />
           </div>
         ))}
 

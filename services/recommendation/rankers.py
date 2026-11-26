@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from .contracts import CollectedProduct, UserProfile
 
-DEFAULT_MODEL = os.getenv("RECO_LLM_MODEL", "claude-opus-5-5")
+DEFAULT_MODEL = os.getenv("RECO_LLM_MODEL") or "claude-opus-5-5"  # 빈 값(compose 기본)도 기본 모델로
 
 
 class RuleRanker:
@@ -110,8 +110,8 @@ class LocalLLMRanker:
 
     def __init__(self, base_url: str | None = None, model: str | None = None, fmt: str = "compact",
                  max_tokens: int = 600, timeout: float = 120.0, api_key: str | None = None, **render_opts):
-        self.base = (base_url or os.getenv("LOCAL_LLM_BASE_URL", "https://llm.deepaibit.com/v1")).rstrip("/")
-        self.model = model or os.getenv("LOCAL_LLM_MODEL", "gemma-4-26b")
+        self.base = (base_url or os.getenv("LOCAL_LLM_BASE_URL") or "https://llm.deepaibit.com/v1").rstrip("/")
+        self.model = model or os.getenv("LOCAL_LLM_MODEL") or "gemma-4-26b"
         self.api_key = api_key or os.getenv("LOCAL_LLM_API_KEY") or os.getenv("SUNMOON_API_KEY")
         self.fmt, self.max_tokens, self.timeout, self.render_opts = fmt, max_tokens, timeout, render_opts
         self.last_usage = None

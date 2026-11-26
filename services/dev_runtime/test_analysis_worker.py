@@ -299,7 +299,7 @@ def test_elevenst_offline_backend_adapter_observation_and_extension():
     assert res['applied'] is True and res['extension_applied'] is True
 
 
-def _worker_with(vision_status=None, process=None, page_url=None, domain=None, allergens=()):
+def _worker_with(vision_status=None, process=None, page_url=None, domain=None, allergens=(), ingredients=()):
     """Mock backend/vision/recommender; returns (worker, captured fail/complete bodies)."""
     sent={}
     def handle(req):
@@ -310,7 +310,7 @@ def _worker_with(vision_status=None, process=None, page_url=None, domain=None, a
         if path=='/internal/image':return httpx.Response(200,content=b'image')
         if path.startswith('/api/v1/vision/'):
             if vision_status and path.startswith('/api/v1/vision/status'):return vision_status(req)
-            return httpx.Response(200,json={'status':'success','product_name':'무지 상품','ingredients':[]})
+            return httpx.Response(200,json={'status':'success','product_name':'무지 상품','ingredients':list(ingredients)})
         if path=='/internal/process':
             return process(req) if process else httpx.Response(200,json={'offer_ids':[],'reasons':{},'ranker':'rule','warnings':[]})
         if path.endswith(('/fail','/complete')):
@@ -344,11 +344,45 @@ def test_malformed_dependency_payload_fails_job_immediately():
 
 
 def test_inferred_product_with_allergy_profile_warns_instead_of_hiding():
-    worker,sent=_worker_with(allergens=['milk','peanut'])
+    # 성분 같은 글자는 읽혔지만 식품인지 확정하지 못함 -> 식품 알레르기 '확인 필요' 경고(피부 항목 제외)
+    worker,sent=_worker_with(allergens=['milk','peanut','nickel'],ingredients=['귀리','꿀'])
     assert worker.once()
     warnings=sent['complete']['metadata']['warnings']
     assert sent['complete']['selected_domain']=='product'
     assert {w['allergen'] for w in warnings}=={'milk','peanut'} and all(w['evidence']=='unknown' for w in warnings)
+    # 성분 글자가 전혀 없는 일반 상품: 경고를 붙이지 않는다(모든 상품 페이지에 '알레르기 주의'가 뜨던 문제)
+    worker,sent=_worker_with(allergens=['milk','peanut'])
+    assert worker.once() and sent['complete']['metadata']['warnings']==[]
     # The client explicitly chose product: no extra warning.
     worker,sent=_worker_with(allergens=['milk'],domain='product')
     assert worker.once() and sent['complete']['metadata']['warnings']==[]
+
+
+def test_inferred_product_warns_only_when_food_is_possible():
+    # 식품 신호가 없는 상품(노트북 등)에 모든 알레르기 '주의'가 붙던 문제
+    from services.dev_runtime.analysis_worker import maybe_food
+    assert not maybe_food('삼성 노트북 15인치', [])
+    assert not maybe_food('노트북 파우치', ['폴리에스터', '나일론'])
+    assert not maybe_food('원목 의자', [])
+    assert maybe_food('수제 그래놀라 바', ['귀리', '꿀', '아몬드'])
+
+
+def test_page_own_offer_is_not_recommended():
+    # 사료 페이지에서 바로 그 사료를 추천하던 문제: 매칭된 판매처 상품 자신은 뺀다
+    own, other = 'own-offer', 'other-offer'
+    sent = {}
+    def handle(req):
+        path = req.url.path
+        if path.endswith('/claim'):
+            return httpx.Response(200, json={'data': {'analysis_id': 'a1', 'lease_token': 'l', 'page_url': 'https://shop.example.test/p/1',
+                'selected_domain': None, 'image_url': None, 'profile': {'user_id': 'u', 'allergens': []}}})
+        if path == '/internal/catalog-context':
+            return httpx.Response(200, json={'match': {'kind': 'product', 'name': '퓨리나 사료', 'offer_id': own}})
+        if path == '/internal/process':
+            return httpx.Response(200, json={'offer_ids': [own, other], 'reasons': {}, 'ranker': 'rule', 'warnings': []})
+        if path.endswith('/complete'):
+            sent['complete'] = json.loads(req.content)
+            return httpx.Response(200, json={'data': {'state': 'completed'}})
+        raise AssertionError(path)
+    assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
+    assert sent['complete']['offer_ids'] == [other]

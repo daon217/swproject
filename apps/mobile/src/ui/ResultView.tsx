@@ -43,7 +43,7 @@ export function headerLabel(a: Analysis | null): string {
   return '꿀픽 · AI 추천';
 }
 
-export function OfferRow({ card, onOpenUrl, basic = false }: { card: OfferCard; onOpenUrl: (u: string) => void; basic?: boolean }) {
+export function OfferRow({ card, onOpenUrl, basic = false, lowest = false }: { card: OfferCard; onOpenUrl: (u: string) => void; basic?: boolean; lowest?: boolean }) {
   return (
     <View style={st.offer}>
       <View style={st.offerMain}>
@@ -53,6 +53,11 @@ export function OfferRow({ card, onOpenUrl, basic = false }: { card: OfferCard; 
             {card.affiliate && (
               <View style={st.adBadge}>
                 <Text style={st.adBadgeText}>제휴</Text>
+              </View>
+            )}
+            {lowest && (
+              <View style={st.adBadge}>
+                <Text style={st.adBadgeText}>최저가</Text>
               </View>
             )}
             <Text style={[st.name, { flexShrink: 1 }]} numberOfLines={1}>
@@ -123,13 +128,47 @@ export function ResultView({ status, analysis, error, ...h }: { status: Analysis
         <Button variant="outline" label="다시 시도" onPress={h.onRetry} />
       </View>
     );
-  // 분석은 됐지만(상품/식품 판별됨) 비슷한 상품이 없을 때도 알레르기 경고는 반드시 보여준다.
-  if (analysis?.result_kind === 'empty' && visibleWarnings(analysis).length) return <ResultBody key={analysis.analysis_id} analysis={analysis} {...h} />;
+  // 분석은 됐지만 비슷한 상품이 없을 때도 알레르기 경고는 반드시 보여준다. 빈 추천 구역은 늘어놓지 않는다.
+  if (analysis?.result_kind === 'empty' && visibleWarnings(analysis).length) return <EmptyWithWarning analysis={analysis} />;
   if (analysis?.result_kind === 'empty' && analysis.selected_domain)
     return <EmptyState title="비슷한 상품을 찾지 못했어요" body="이 상품과 비슷한 추천 상품이 아직 꿀픽에 없어요. 다른 상품 페이지에서 다시 확인해 주세요." />;
   if (!analysis || analysis.result_kind === 'empty') return <EmptyState title="이 페이지에는 추천할 상품이 없어요" body="쇼핑몰 상품 페이지를 열면 꿀픽이 비슷한 상품과 더 좋은 가격을 보여드려요." />;
 
   return <ResultBody key={analysis.analysis_id} analysis={analysis} {...h} />;
+}
+
+function AllergyNoticeBox({ analysis: a }: { analysis: Analysis }) {
+  const notice = allergyNotice(visibleWarnings(a));
+  if (!notice) return null;
+  return (
+    <View style={st.warning} accessibilityRole="alert">
+      <Text style={st.warningTitle}>{notice.title}</Text>
+      <Text style={st.warningBody}>
+        내 알레르기 · {notice.names.join(', ')}
+        {notice.lines.map((l) => `\n${l}`).join('')}
+      </Text>
+      <Text style={st.warningNote}>구매 전 판매처의 원재료·성분 표시를 직접 확인해 주세요.</Text>
+    </View>
+  );
+}
+
+/** 추천은 없고 알레르기 경고만 있을 때: 경고 + '비슷한 상품 없음' 안내만 보여준다. */
+function EmptyWithWarning({ analysis: a }: { analysis: Analysis }) {
+  return (
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+      <View style={st.head}>
+        <Text style={st.brand}>{headerLabel(a)}</Text>
+      </View>
+      <AllergyNoticeBox analysis={a} />
+      <EmptyState title="비슷한 상품을 찾지 못했어요" body="이 상품과 비슷한 추천 상품이 아직 꿀픽에 없어요." />
+    </ScrollView>
+  );
+}
+
+/** AI 추천 안에서 가장 싼 상품(가격을 아는 후보가 2개 이상일 때만). 같은 상품을 두 번 보여주지 않는다. */
+function cheapestOfferId(main: ResultSection[]): string | undefined {
+  const priced = lowestPriceItems(main).filter((c) => Number.isFinite(Number(c.price)) && c.price !== null && c.price !== '');
+  return priced.length >= 2 ? priced[0].offer_id : undefined;
 }
 
 function ResultBody({ analysis: a, ...h }: { analysis: Analysis } & Handlers) {
@@ -139,9 +178,8 @@ function ResultBody({ analysis: a, ...h }: { analysis: Analysis } & Handlers) {
   const locked = main.some((x) => x.locked_count > 0);
   const f = a.applied_filter;
   const warnings = visibleWarnings(a);
-  const notice = allergyNotice(warnings);
   const unread = warnings.some((w) => w.evidence === 'unknown');
-  const lowest = lowestPriceItems(main);
+  const lowestId = cheapestOfferId(main);
 
   return (
     <View style={{ flex: 1 }}>
@@ -162,36 +200,20 @@ function ResultBody({ analysis: a, ...h }: { analysis: Analysis } & Handlers) {
             </Text>
           </View>
         )}
-        {notice && (
-          <View style={st.warning} accessibilityRole="alert">
-            <Text style={st.warningTitle}>{notice.title}</Text>
-            <Text style={st.warningBody}>
-              내 알레르기 · {notice.names.join(', ')}
-              {notice.lines.map((l) => `\n${l}`).join('')}
-            </Text>
-            <Text style={st.warningNote}>구매 전 판매처의 원재료·성분 표시를 직접 확인해 주세요.</Text>
-          </View>
-        )}
+        <AllergyNoticeBox analysis={a} />
         {!unread && (a.ingredient_status === 'not_found' || a.result_kind === 'ingredient_unknown') && (
           <View style={st.filterChip}>
             <Text style={{ color: C.sub, fontSize: 12 }}>성분 정보를 확인하지 못했어요. 안전하다는 뜻이 아니니 판매처의 원재료 표시를 확인해 주세요.</Text>
           </View>
         )}
-        {/* 탭 없이 한 화면에서 스크롤: 최저가 추천 → AI 추천 → 중고 추천 */}
-        <View>
-          <Text style={st.sectionTitle}>{lowest.length ? `최저가 추천 상품 ${lowest.length}개` : '최저가 추천 상품'}</Text>
-          {lowest.length === 0 && <Text style={st.mutedCenter}>가격을 비교할 추천 후보를 찾지 못했어요.</Text>}
-          {lowest.map((c) => (
-            <OfferRow key={c.offer_id} card={c} onOpenUrl={h.onOpenUrl} />
-          ))}
-        </View>
-        {main.map((sec) => (
+        {/* 탭 없이 한 화면에서 스크롤: AI 추천(가장 싼 상품에 '최저가' 표시) → 해외 → 중고 */}
+        {main.map((sec, i) => (
           <View key={sec.kind}>
-            <View style={st.divider} />
+            {i > 0 && <View style={st.divider} />}
             <Text style={st.sectionTitle}>{sectionTitle(sec, a.premium)}</Text>
             {sec.items.length === 0 && <Text style={st.mutedCenter}>조건에 맞는 추천 후보를 찾지 못했어요.</Text>}
             {sec.items.map((c) => (
-              <OfferRow key={c.offer_id} card={c} onOpenUrl={h.onOpenUrl} />
+              <OfferRow key={c.offer_id} card={c} onOpenUrl={h.onOpenUrl} lowest={c.offer_id === lowestId} />
             ))}
             {Array.from({ length: sec.locked_count }, (_, i) => (
               <LockedRow key={i} count={sec.locked_count} />

@@ -29,10 +29,24 @@ class Recommender:
         return len(products)
 
     def recommend(self, profile: UserProfile, query: str, top_k: int = 5,
-                  candidate_limit: int = 30) -> RecommendationResult:
+                  candidate_limit: int = 30, min_score: float = 0.0, score_margin: float = 0.0) -> RecommendationResult:
+        """min_score: 이보다 덜 비슷한 후보는 버린다(코사인 유사도). 0이면 끔.
+        score_margin: 가장 비슷한 후보보다 이만큼 이상 낮으면 버린다(0이면 끔). 진짜 비슷한 상품이 있는데(예: 0.86)
+        중고라 빠지면 남은 무관 상품(0.54)이 고정 기준점만 넘어 추천되던 문제를 막는다.
+        검색어가 비어 있으면 추천하지 않는다 — 예전에는 '추천'이라는 말로 검색해 아무 상품이나 기본처럼 보여줬다."""
         notes: list[str] = []
-        text = " ".join(x for x in (query, profile.preferences) if x) or "추천"
+        text = " ".join(x for x in (query.strip() if query else "", profile.preferences) if x)
+        if not text:
+            notes.append("검색어가 없어 추천하지 않음")
+            return RecommendationResult(profile.user_id, query, [], [], self.ranker.name, notes)
         cands = self.index.search(self.embedder.embed_query(text), candidate_limit)
+        if min_score > 0 or score_margin > 0:
+            best = max((c.score for c in cands), default=0.0)
+            cutoff = max(min_score, best - score_margin if score_margin > 0 else 0.0)
+            weak = [c for c in cands if c.score < cutoff]
+            if weak:
+                notes.append(f"관련도 {round(cutoff, 3)} 미만 후보 {len(weak)}건 제외")
+            cands = [c for c in cands if c.score >= cutoff]
         products = self.catalog.get_many([c.product_id for c in cands])
 
         safe, excluded = [], []

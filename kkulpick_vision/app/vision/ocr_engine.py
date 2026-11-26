@@ -17,6 +17,12 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
+# 한 글자로 표기되는 알레르기 원료(성분표의 '밀', '게' 등). 1글자 노이즈 제거에서 제외한다(#62).
+ALLERGEN_SINGLE_CHARS = frozenset({"밀", "게", "잣", "굴", "깨", "콩"})
+# '…산'으로 끝나지만 원산지가 아닌 성분(아황산류는 알레르기 표시 대상).
+ACID_INGREDIENTS = frozenset({"아황산", "구연산", "젖산", "초산", "사과산", "주석산", "인산", "호박산", "규산", "빙초산"})
+
+
 class OCRSingletonEngine:
     """
     [PaddleOCR 싱글톤 패턴]
@@ -451,18 +457,17 @@ while ($null -ne ($imgPath = [Console]::In.ReadLine())) {
         #    - 알레르기 핵심 원료(우유, 대두, 밀, 땅콩, 계란, 난류, 새우, 게, 메밀, 호두, 잣, 아몬드, 복숭아, 토마토, 돼지고기, 쇠고기, 닭고기, 오징어, 조개류)가
         #      괄호 안에 표기된 경우(예: 버터(우유), 레시틴(대두)) 추천/알레르기 엔진이 감지할 수 있도록 쉼표 토큰으로 보존합니다.
         #    - 원산지(미국산, 호주산, 국내산, 국산 등) 및 단순 부연설명 괄호는 제거합니다.
-        allergen_inner = r"(우유|대두|밀|땅콩|계란|난류|알류|새우|게|메밀|호두|잣|아몬드|복숭아|토마토|돼지고기|쇠고기|닭고기|오징어|조개류|굴|전복|홍합)"
-        text = re.sub(rf"\(\s*{allergen_inner}\s*\)", r", \1, ", text)
-        text = re.sub(rf"\[\s*{allergen_inner}\s*\]", r", \1, ", text)
-        for _ in range(2):
-            text = re.sub(r"\([^()]*\)", "", text)
-            text = re.sub(r"\[[^\[\]]*\]", "", text)
+        #    (#62) 괄호 안을 지우지 않고 쉼표로 풀어 펼친다. '(밀:미국산)'·'(대두유)'·'(우유, 대두)'처럼 가장 흔한 표기가
+        #    통째로 사라지던 문제. 원산지·함량 조각은 아래 불용어·원산지 규칙이 걸러낸다.
+        text = re.sub(r"[()\[\]{}]", ",", text)
 
         # 3. 함량 퍼센트 수치(예: 15.2%, 100%) 제거
         text = re.sub(r"\d+(?:\.\d+)?\s*%", "", text)
 
         # 4. 구분자 통일: 줄바꿈, 가운뎃점(·, •), 세미콜론(;), 콜론(:) 등을 쉼표(,)로 변환
         text = re.sub(r"[\n\r•·;:/|]+", ",", text)
+        # 문장 끝 마침표도 구분자('밀 함유. 같은 제조시설…'이 한 토큰으로 붙어 '밀'을 놓치던 문제, #62)
+        text = re.sub(r"\.(?=\s|$)", ",", text)
         # 쉼표가 블러로 유실되어 한글 성분명 뒤에 영문 접두 성분(예: L-글루탐산나트륨)이 공백으로 이어진 경우 분리
         text = re.sub(r"(?<=[가-힣])\s+(?=[A-Za-z]\s*-)", ",", text)
 
@@ -487,16 +492,20 @@ while ($null -ne ($imgPath = [Console]::In.ReadLine())) {
             if not item:
                 continue
 
-            # 숫자만으로 이루어진 토큰이나 1글자 노이즈 제외
-            if item.isdigit() or len(item) < 2:
+            # 숫자만으로 이루어진 토큰이나 1글자 노이즈 제외. 단 한 글자 알레르기 원료(밀·게·잣·굴·깨·콩)는 보존(#62)
+            if item.isdigit() or (len(item) < 2 and item not in ALLERGEN_SINGLE_CHARS):
                 continue
 
-            # 원산지 단독 토큰이나 불용어 제외
-            if item in stopwords or item.endswith("산") and len(item) <= 4:
+            # 원산지 단독 토큰이나 불용어 제외. '아황산'·'구연산' 같은 성분은 원산지가 아니다(#62)
+            if item in stopwords or (item.endswith("산") and len(item) <= 4 and item not in ACID_INGREDIENTS):
                 continue
 
-            # "알레르기 유발물질: 대두, 밀 함유" 같은 하단 고지 문구 필터링
-            if "알레르기" in item or "유발물질" in item or "제조시설" in item or "소비자" in item:
+            # 머리말('알레르기 유발물질 …')만 떼고 남은 원료는 보존한다. '같은 제조시설에서 땅콩 사용' 같은 혼입 표시는
+            # 그대로 남겨 추천 쪽이 알레르기로 판정하게 한다(지우면 경고가 사라진다, #62). 상담 안내 문구만 버린다.
+            if "소비자" in item:
+                continue
+            item = re.sub(r"알레르기\s*(?:유발\s*물질|정보|표시)?|유발\s*물질", "", item).strip(" -_.")
+            if not item or (len(item) < 2 and item not in ALLERGEN_SINGLE_CHARS):
                 continue
 
             if item not in seen:

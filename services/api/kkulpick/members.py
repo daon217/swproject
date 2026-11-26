@@ -43,10 +43,30 @@ class IngredientFilter(Strict):
     prefer: list[Preference] = Field(default_factory=list, max_length=50)
 
 
+# 앱 알레르기 선택 항목 중 피부 질환(apps/*/src/shared/allergens.ts와 같은 코드). 식품 코드는 extensions.FOOD_ALLERGENS.
+SKIN_ALLERGENS = frozenset({
+    'nickel', 'latex', 'fragrance', 'preservative', 'hair_dye_ppd', 'lanolin', 'alcohol', 'isothiazolinone',
+    'formaldehyde', 'sls', 'cocamidopropyl_betaine', 'propylene_glycol', 'oxybenzone', 'essential_oil', 'cobalt_chrome'})
+
+
 class Profile(Strict):
     gender: Literal['male', 'female', 'prefer_not_to_say'] | None = None
     birth_date: date | None = None
     allergies: list[Preference] = Field(default_factory=list, max_length=50)
+
+    @field_validator('allergies')
+    @classmethod
+    def known_allergies(cls, values):
+        """앱이 고르는 코드만 저장한다(#79). 식품은 이름('우유')·별칭('soy')도 코드로 바꾼다. 모르는 값은 422."""
+        from .extensions import canonical_allergen
+        out = []
+        for value in values:
+            code = canonical_allergen(value) or (value if value in SKIN_ALLERGENS else None)
+            if code is None:
+                raise ValueError('unknown allergy code')
+            if code not in out:
+                out.append(code)
+        return out
     # 선택 입력. 비우면 None. 범위는 app.members CHECK 제약과 같다(member_0005).
     height_cm: Annotated[float, Field(ge=50, le=250)] | None = None
     weight_kg: Annotated[float, Field(ge=10, le=300)] | None = None
@@ -129,7 +149,7 @@ async def execute(c, sql, **values):
     return await c.execute(text(sql), values)
 
 
-async def throttle(req, operation):
+async def throttle(req, operation, limit=None):
     # Database-backed fixed-window limits shared across API workers. No raw IP saved.
     bucket = hashlib.sha256((operation + ':' + (req.client.host if req.client else 'unknown')).encode()).hexdigest()
     async with req.app.state.member_engine.begin() as c:
@@ -138,7 +158,7 @@ async def throttle(req, operation):
             attempts=CASE WHEN app.auth_attempts.window_start<now()-interval '1 minute' THEN 1 ELSE app.auth_attempts.attempts+1 END,
             window_start=CASE WHEN app.auth_attempts.window_start<now()-interval '1 minute' THEN now() ELSE app.auth_attempts.window_start END
             RETURNING attempts""", b=bucket)
-    if r['attempts'] > int(os.getenv('AUTH_REQUESTS_PER_MINUTE', '30')):
+    if r['attempts'] > (limit if limit is not None else int(os.getenv('AUTH_REQUESTS_PER_MINUTE', '30'))):
         raise HTTPException(429, 'AUTH_RATE_LIMITED', headers={'Retry-After': '60'})
 
 

@@ -115,10 +115,13 @@ export function knownAllergens(codes: string[]): string[] {
  * 같은 항목이 여러 번 오면 하나만 남긴다.
  */
 export function warningsForDomain(warnings: AllergyWarning[], domain: Domain | null): AllergyWarning[] {
-  if (domain !== 'food') return [];
+  if (domain !== 'food' && domain !== 'product') return [];
   const seen = new Set<string>();
   return warnings.filter((w) => {
     if (KINDS.get(w.allergen) !== 'food' || seen.has(w.allergen)) return false;
+    // 일반 상품 결과: 식품인지 확인하지 못해 상품으로 처리한 경우의 '성분표 인식 못 함'(unknown)만 보여준다(#83).
+    // 숨기면 실제 식품인데 알레르기 안내가 사라진다. 확인된 함유 경고는 식품 결과에서만 보여준다.
+    if (domain === 'product' && w.evidence !== 'unknown') return false;
     seen.add(w.allergen);
     return true;
   });

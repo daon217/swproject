@@ -23,9 +23,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request as UpstreamRequest, urlopen
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import Field, field_validator
 from starlette.concurrency import run_in_threadpool
+
+from .access import admin_member
 
 from .extensions import _PRIVATE_HOST
 from .members import Strict, row, wrap
@@ -152,7 +154,8 @@ async def _take_slot(req, bucket, limit, code):
 
 
 @router.post('/v2/links/convert')
-async def convert(data: Conversion, req: Request):
+async def convert(data: Conversion, req: Request, staff=Depends(admin_member)):
+    # 관리자(운영자) 전용(#16): 앱은 이 API를 쓰지 않으며, 공개로 두면 누구나 애드픽 유료 호출 한도를 소진할 수 있다.
     key, endpoint = _settings()
     cached = _cache_get(data.url)
     if cached:

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { sendMessage, type Message, type TabState } from '../shared/messages';
 import baseCss from '../shared/ui/styles.css?inline';
@@ -54,24 +54,27 @@ function ContentApp() {
 
   // 식품 페이지이거나 아직 성분표를 찾지 못한 경우(ingredient_status === 'not_found')
   // 사용자가 상세페이지를 스크롤해 멈추면 현재 화면을 다시 캡처해 성분표를 탐색하도록 요청한다.
+  // 재캡처 횟수는 페이지 주소 기준으로 유지한다. 효과 안의 지역 변수로 두면 재분석으로 state가 바뀔 때마다
+  // 0으로 돌아가 '페이지당 15회' 제한이 지켜지지 않는다(#81).
+  const scrollCaptures = useRef({ url: location.href, count: 0, lastY: window.scrollY });
   useEffect(() => {
     let scrollTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastScrollY = window.scrollY;
-    let capturesSent = 0;
+    const captures = scrollCaptures.current;
+    if (captures.url !== location.href) Object.assign(captures, { url: location.href, count: 0, lastY: window.scrollY });
 
     const onScroll = () => {
-      if (capturesSent >= 15) return; // 최대 15프레임 제한(Hard Timeout)
+      if (captures.count >= 15) return; // 최대 15프레임 제한(Hard Timeout)
       if (!state || state.url !== location.href) return;
       if (state.status !== 'done' || !state.analysis) return;
       // 이미 성분을 찾았으면(partial/found) 더 이상 스크롤 캡처를 보내지 않음(Early Exit)
       if (state.analysis.ingredient_status && state.analysis.ingredient_status !== 'not_found') return;
-      if (Math.abs(window.scrollY - lastScrollY) < 250) return;
+      if (Math.abs(window.scrollY - captures.lastY) < 250) return;
 
       if (scrollTimer) clearTimeout(scrollTimer);
       scrollTimer = setTimeout(() => {
-        lastScrollY = window.scrollY;
-        capturesSent += 1;
-        dlog('content', `스크롤 멈춤 감지(${capturesSent}/15) → 성분표 탐색용 화면 재캡처 요청`);
+        captures.lastY = window.scrollY;
+        captures.count += 1;
+        dlog('content', `스크롤 멈춤 감지(${captures.count}/15) → 성분표 탐색용 화면 재캡처 요청`);
         void sendMessage({ type: 'scrollCapture' });
       }, 900);
     };

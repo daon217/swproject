@@ -121,6 +121,20 @@ const consoleLayout = {
     return new Date(utc + 9 * 60 * 60 * 1000).toISOString().slice(0, 16).replaceAll('-', '.').replace('T', ' ');
   },
 
+  /** 상품명으로 서버 검색(#77). 처음에 불러온 목록(도메인당 최대 500건) 밖의 상품도 찾는다. */
+  async searchCatalogOffers(query, limit = 50) {
+    const found = [];
+    await Promise.allSettled(['product', 'food'].map(async (domain) => {
+      const url = new URL(this.getApiBase() + '/v2/offers');
+      url.search = new URLSearchParams({ selected_domain: domain, condition: 'all', availability: 'all', limit: String(limit), q: query });
+      const response = await fetch(url, { signal: AbortSignal.timeout(12000) });
+      if (!response.ok) return;
+      const data = await response.json();
+      for (const item of data?.items || []) found.push({ ...item, selected_domain: item.selected_domain || domain });
+    }));
+    return found;
+  },
+
   async fetchAllCatalogOffers(maxPagesPerDomain = 5) {
     const offers = new Map();
     await Promise.allSettled(

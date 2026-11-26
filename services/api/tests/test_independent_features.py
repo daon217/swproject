@@ -49,6 +49,7 @@ def job(client,h,**patch):
 def worker_headers(monkeypatch,tmp_path):
     monkeypatch.setenv('ANALYSIS_WORKER_TOKEN','worker-secret-'+'x'*40)
     monkeypatch.setenv('ANALYSIS_IMAGE_DIR',str(tmp_path))
+    monkeypatch.setenv('ANALYSIS_RETRY_BASE_SECONDS','0')  # 재시도 대기는 test_guest_and_sections에서 따로 확인
     # Each worker test is isolated from intentionally queued cases in prior tests.
     with db('catalog') as c:
         c.execute("UPDATE app.analyses SET state='cancelled' WHERE state IN ('queued','running')")
@@ -486,6 +487,9 @@ def test_console_aggregates_settings_and_public_basic(client):
             ([older_payment.json()['data']['invoice_id'],payment.json()['data']['invoice_id']],)).fetchone()[0]
     from decimal import Decimal
     assert Decimal(r.json()['data']['today_mock_revenue_krw'])-Decimal(baseline['today_mock_revenue_krw'])==paid_today
+    # #74: 날짜별 합계에서 오늘 값은 오늘 합계와 같다
+    days={d['date']:Decimal(d['mock_revenue_krw']) for d in r.json()['data']['revenue_days']}
+    assert days[r.json()['data']['today_subscribers_date']]==Decimal(r.json()['data']['today_mock_revenue_krw'])
     path='/v2/admin/support/settings'
     r=client.get(path,headers=admin);assert r.status_code==200,r.text
     v=r.json()['data']['version']

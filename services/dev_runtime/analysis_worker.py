@@ -55,7 +55,9 @@ class Worker:
         self.auth={'Authorization':'Bearer '+os.environ['ANALYSIS_WORKER_TOKEN']}
         self.service_auth={'Authorization':'Bearer '+os.environ['WORKSPACE_TOKEN']}
         self.worker_id=worker_id
-        self.max_concurrency=max(1,int(max_concurrency or os.getenv('ANALYSIS_WORKER_CONCURRENCY','4')))
+        # OCR은 한 번에 하나씩 처리하므로 동시 작업을 너무 많이 잡으면 뒤쪽 작업이 Vision 대기 시간을 넘긴다(#18).
+        self.max_concurrency=max(1,int(max_concurrency or os.getenv('ANALYSIS_WORKER_CONCURRENCY','2')))
+        self.vision_wait=float(os.getenv('ANALYSIS_VISION_WAIT_SECONDS','150'))
         self.poll_interval=float(poll_interval)
 
     def request(self,method,path,**kwargs):
@@ -97,7 +99,7 @@ class Worker:
                         'session_id':sid,'frame_index':0,'is_last_frame':True,'image':frame})
                     r.raise_for_status()
                     start=time.monotonic();heartbeat=start
-                    while time.monotonic()-start<90:
+                    while time.monotonic()-start<self.vision_wait:
                         if time.monotonic()-heartbeat>15:
                             self.request('POST',path+'/heartbeat',json=lease);heartbeat=time.monotonic()
                         r=self.http.get(self.vision+'/api/v1/vision/status/'+sid,headers=self.service_auth);r.raise_for_status();v=r.json()
@@ -110,7 +112,9 @@ class Worker:
             if not ingredients and catalog_ingredients:
                 ingredients=catalog_ingredients
             if not title:
-                self.request('POST',path+'/fail',json=lease|{'code':'OCR_FAILED','retryable':False});return True
+                # 캡처가 없으면 OCR 실패가 아니라 카탈로그에 없는 상품이다(#26).
+                code='OCR_FAILED' if job.get('image_url') else 'CATALOG_NO_MATCH'
+                self.request('POST',path+'/fail',json=lease|{'code':code,'retryable':False});return True
             # A generic cosmetics ingredient list must not automatically classify a page as food.
             inferred=not kind
             if not kind:

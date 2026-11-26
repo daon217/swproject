@@ -90,7 +90,10 @@ async def offers(req: Request, selected_domain: Literal["product","food"],
                  condition: Literal["new", "used", "unknown", "all"] = "all",
                  availability: Literal["available", "out_of_stock", "ended", "suspect", "all"] = "available",
                  source: str | None = Query(None, max_length=64),
-                 currency: str | None = Query(None, pattern=r"^[A-Z]{3}$")):
+                 currency: str | None = Query(None, pattern=r"^[A-Z]{3}$"),
+                 q: str | None = Query(None, min_length=1, max_length=100)):
+    # q: 상품명 부분 일치(대소문자 무시). 관리자 제휴 등록이 전체 목록을 내려받지 않고 서버에서 찾게 한다(#77).
+    pattern = None if q is None else '%' + ''.join('\\' + ch if ch in '\\%_' else ch for ch in q.strip()) + '%'
     async with req.app.state.engine.connect() as c:
         rows = (await c.execute(text("""SELECT o.offer_id,i.name,i.description,o.source,o.variant_key,o.price::text AS price,
           o.currency,o.shipping_fee::text AS shipping_fee,o.current_url,o.price_observed_at,
@@ -105,7 +108,8 @@ async def offers(req: Request, selected_domain: Literal["product","food"],
           AND (:availability='all' OR o.availability=:availability)
           AND (CAST(:source AS text) IS NULL OR o.source=:source)
           AND (CAST(:currency AS text) IS NULL OR o.currency=:currency)
+          AND (CAST(:pattern AS text) IS NULL OR i.name ILIKE CAST(:pattern AS text))
           AND (CAST(:after AS uuid) IS NULL OR o.offer_id>CAST(:after AS uuid)) ORDER BY o.offer_id LIMIT :n"""),
           {"k":selected_domain,"after":after,"n":limit+1,"condition":condition,
-           "availability":availability,"source":source,"currency":currency})).mappings().all()
+           "availability":availability,"source":source,"currency":currency,"pattern":pattern})).mappings().all()
     return {"items":[dict(x) for x in rows[:limit]],"next_cursor":rows[limit-1]["offer_id"] if len(rows)>limit else None}

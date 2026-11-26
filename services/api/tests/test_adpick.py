@@ -22,7 +22,9 @@ def client(monkeypatch):
     app = FastAPI()
     install_errors(app)
     app.include_router(adpick.router)
+    app.dependency_overrides[adpick.admin_member] = lambda: 'staff'  # DB 없이: 관리자 로그인 통과로 간주
     c = TestClient(app)
+    c.app_ref = app
     c.slots = slots
     yield c
     adpick._cache.clear()
@@ -30,6 +32,12 @@ def client(monkeypatch):
 
 def post(client, url=URL):
     return client.post('/v2/links/convert', json={'url': url})
+
+
+def test_requires_staff_login(client):
+    # #16: 공개 API가 아니다
+    client.app_ref.dependency_overrides.clear()
+    assert post(client).status_code == 401
 
 
 def test_converts_and_caches(client, monkeypatch):

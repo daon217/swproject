@@ -653,6 +653,27 @@ const affiliatePage = {
     } else {
       status.textContent = terms.length ? '검색 결과가 없습니다.' : '선택할 수 있는 카탈로그 판매정보가 없습니다.';
     }
+    this.searchOfferCatalogOnServer(query);
+  },
+
+  // 처음 불러온 목록에 없는 상품도 서버에서 이름으로 찾아 목록에 더한다(#77). 입력이 멈춘 뒤 한 번만 요청한다.
+  searchOfferCatalogOnServer(query) {
+    const text = query.trim();
+    clearTimeout(this._offerSearchTimer);
+    if (text.length < 2) return;
+    this._offerSearchTimer = setTimeout(async () => {
+      try {
+        const found = await this.searchCatalogOffers(text);
+        const known = new Set(this.state.offerCatalog.map((offer) => offer.offer_id));
+        const added = found.filter((offer) => !known.has(offer.offer_id));
+        const search = document.getElementById('aff-offer-search');
+        if (!added.length || !search || search.value.trim() !== text) return;
+        this.state.offerCatalog = this.state.offerCatalog.concat(added);
+        this.filterOfferCatalog(search.value);
+      } catch {
+        // 서버 검색 실패 시 이미 불러온 목록 검색 결과만 보여준다.
+      }
+    }, 400);
   },
 
   handleOfferSelectChange(id) {

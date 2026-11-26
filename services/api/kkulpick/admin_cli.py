@@ -15,6 +15,7 @@ def change_access(conn, action, login_id, role):
     if identity is not None:
         uid = identity['user_id']
         assigned_role = role if action == 'grant' else identity['role']
+        audited_role = assigned_role
         conn.execute(text('''UPDATE app.admin_identities
             SET role=:r, enabled=:enabled, auth_version=auth_version+1 WHERE user_id=:u'''),
             {'u': uid, 'r': assigned_role, 'enabled': action == 'grant'})
@@ -28,10 +29,13 @@ def change_access(conn, action, login_id, role):
         if action == 'grant':
             conn.execute(text('''INSERT INTO app.admin_accounts(user_id,role) VALUES(:u,:r)
                 ON CONFLICT(user_id) DO UPDATE SET role=:r,enabled=true,updated_at=now()'''), {'u': uid, 'r': role})
+            audited_role = role
         else:
-            conn.execute(text('UPDATE app.admin_accounts SET enabled=false,updated_at=now() WHERE user_id=:u'), {'u': uid})
+            audited_role = conn.execute(text('''UPDATE app.admin_accounts SET enabled=false,updated_at=now()
+                WHERE user_id=:u RETURNING role'''), {'u': uid}).scalar_one_or_none() or 'none'
+    # 감사 기록에는 실제로 부여·회수된 역할을 남긴다(회수 때 --role 기본값 'support'가 찍히던 문제, #61).
     conn.execute(text('INSERT INTO app.admin_audit(target_id,action) VALUES(:u,:a)'),
-                 {'u': uid, 'a': action + ':' + role})
+                 {'u': uid, 'a': action + ':' + audited_role})
 
 
 def main():

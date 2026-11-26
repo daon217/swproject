@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from services.collector.homepage_crawler.backend import Backend, extension, observation, source_for
+from services.collector.homepage_crawler.backend import Backend, extension, extensions, observation, source_for
 
 AT = datetime(2026, 11, 26, 3, 0, tzinfo=UTC)
 ITEM = dict(site="올리브영", url="https://www.oliveyoung.co.kr/store/goods/1", name="수분 크림", price=12000,
@@ -66,11 +66,22 @@ class Session:
 def test_deliver_posts_observation_then_extension_with_one_run_per_source():
     session = Session()
     counts = Backend("http://api:8000", "t" * 32, session).deliver([ITEM, FOOD, dict(ITEM, price=None, orig_price=None)], AT)
-    assert counts == {"applied": 2, "extension:applied": 2, "skipped:no_single_price": 1}
+    assert counts == {"applied": 2, "extension_profile:applied": 2, "extension_food:applied": 1,
+                      "skipped:no_single_price": 1}
     paths = [c[0] for c in session.calls]
     assert paths[0].endswith("/observations") and paths[1].endswith("/extensions")
     assert paths[0].split("/")[-2] != paths[2].split("/")[-2]  # 수집처가 다르면 실행 ID도 다르다
     assert session.calls[0][2]["Authorization"] == "Bearer " + "t" * 32
+
+
+def test_food_evidence_is_sent_apart_from_profile():
+    # #76: 이미지가 거부돼도 알레르기 근거가 함께 버려지지 않도록 두 요청으로 나눈다(식품 근거 먼저)
+    obs, _ = observation(FOOD, AT)
+    food, profile = extensions(FOOD, obs)
+    assert "food_evidence" in food and "matching_profile" not in food
+    assert "matching_profile" in profile and "food_evidence" not in profile
+    assert food["observation_key"] != profile["observation_key"]
+    assert extensions(dict(ITEM, brand=None, image=None, category=None), observation(ITEM, AT)[0]) == []
 
 
 def test_rejected_token_stops_and_settings_are_validated(monkeypatch):

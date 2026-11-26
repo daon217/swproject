@@ -70,7 +70,7 @@ class Completion(Lease):
     metadata:ResultMetadata=Field(default_factory=ResultMetadata)
 
 class Failure(Lease):
-    code:Literal['OCR_FAILED','RECOMMENDATION_FAILED','INPUT_INVALID','DEPENDENCY_UNAVAILABLE']
+    code:Literal['OCR_FAILED','RECOMMENDATION_FAILED','INPUT_INVALID','DEPENDENCY_UNAVAILABLE','CATALOG_NO_MATCH']
     retryable:bool=False
 
 class HistoryDeletion(Strict):
@@ -151,6 +151,8 @@ async def input_data(req):
 async def create_analysis(req:Request,response:Response,owner=Depends(analysis_owner)):
     uid,guest=owner
     await throttle(req,'analysis')
+    # 비회원은 기기 키를 바꾸면 '진행 중 3건' 한도를 새로 받으므로 접속 주소당 분당 접수 수를 따로 제한한다(#84).
+    if guest:await throttle(req,'analysis-guest',int(os.getenv('GUEST_ANALYSES_PER_MINUTE','6')))
     data,image=await input_data(req)
     # 분석 근거가 하나도 없으면 접수하지 않는다(캡처 이미지 또는 페이지 URL 중 하나 필요).
     if image is None and data.page_url is None:fail(422,'INPUT_REQUIRED')
@@ -171,7 +173,8 @@ async def create_analysis(req:Request,response:Response,owner=Depends(analysis_o
                 pending=await row(c,"SELECT count(*) AS n FROM app.analyses WHERE owner_id=:u AND state IN ('queued','running')",u=uid)
                 if pending['n']>=3:fail(429,'ANALYSIS_LIMIT')
                 if image is not None:image_id=save_image(image)
-                init_meta=json.dumps({'page_title':data.page_title.strip()}) if data.page_title and data.page_title.strip() else None
+                # result_metadata는 NOT NULL(기본 {}): 상품명이 없을 때 NULL을 넣으면 접수 전체가 409로 실패한다(#88).
+                init_meta=json.dumps({'page_title':data.page_title.strip()} if data.page_title and data.page_title.strip() else {})
                 result=await row(c,'''INSERT INTO app.analyses(owner_id,guest,request_key,request_hash,page_url,page_session_id,page_revision,
                     selected_domain,image_id,image_hash,result_metadata)
                     VALUES(:u,:guest,:k,:h,:url,:session,:revision,:kind,:image,:ih,CAST(:meta AS jsonb))
@@ -209,12 +212,20 @@ def card_subtitle(card):
     return f"해외 판매처 · {card['currency']}" if card.get('currency') and card['currency']!='KRW' else ''
 
 
+# 캡처 없이 페이지 주소만 왔는데 카탈로그에 없는 상품(#26): 다시 시도해도 같으므로 재시도 불가로 안내한다.
+ERROR_MESSAGES={'CATALOG_NO_MATCH':'아직 수집되지 않은 상품이에요. 화면 캡처와 함께 다시 분석해 주세요.'}
+
+
 def warnings_for_domain(warnings,domain):
     """식품 결과에는 식품 알레르기만, 일반 상품 결과에는 식품이 아닌(피부 등) 알레르기만 남긴다.
-    분석 작업자는 상품으로 판단해도 '확인 필요' 경고를 모든 알레르기에 붙이므로 여기서 한 번 더 거른다.
+    예외(#83): 일반 상품 결과라도 식품 알레르기의 '확인 못 함'(evidence=unknown) 경고는 남긴다. 작업자는 식품인지
+    확인하지 못해 상품으로 처리했을 때만 이 경고를 붙이므로, 숨기면 실제 식품에서 알레르기 안내가 사라진다.
     종류를 모르면 경고를 내보내지 않는다. 클라이언트(allergens.ts warningsForDomain)도 같은 규칙으로 거른다."""
     if domain not in ('food','product'):return []
-    return [w for w in warnings if (canonical_allergen(str(w.get('allergen',''))) is not None)==(domain=='food')]
+    def keep(w):
+        food=canonical_allergen(str(w.get('allergen',''))) is not None
+        return food if domain=='food' else (not food or w.get('evidence')=='unknown')
+    return [w for w in warnings if keep(w)]
 
 
 def is_overseas(card):
@@ -249,7 +260,8 @@ async def public_result(c,r,premium,by_id=None,include_used=False,include_overse
         'sections':[{'kind':'ai','state':state,
                      'items':cards[:cap],'locked_count':max(0,len(cards)-cap),
                      'lock_reason':'premium_required' if len(cards)>cap else None,'footnote':('OCR 추출 성분은 상품 표시와 대조해 주세요. 안전을 보증하지 않습니다.' if ingredients else '성분을 확인하지 못했습니다. 상품 표시를 직접 확인해 주세요.') if r['selected_domain']=='food' else None}]+used_section,
-        'error':{'code':r['error_code'],'message':'분석을 완료하지 못했습니다.','retryable':r['error_code']!='INPUT_INVALID'} if r['error_code'] else None}
+        'error':{'code':r['error_code'],'message':ERROR_MESSAGES.get(r['error_code'],'분석을 완료하지 못했습니다.'),
+                 'retryable':r['error_code'] not in {'INPUT_INVALID','CATALOG_NO_MATCH'}} if r['error_code'] else None}
 
 
 @router.get('/analyses/{analysis_id}')
@@ -313,7 +325,10 @@ async def delete_history(data:HistoryDeletion,req:Request,uid=Depends(member)):
 async def claim(data:Claim,req:Request):
     async with req.app.state.engine.begin() as c:
         await expire(c)
-        r=await row(c,"SELECT * FROM app.analyses WHERE state='queued' AND deadline>now() AND attempt<3 ORDER BY created_at,analysis_id FOR UPDATE SKIP LOCKED LIMIT 1")
+        # 재시도는 바로 다시 가져가지 않는다(#25): 5초, 20초 … 지수 대기(마감 시각 안에서만). 첫 시도(attempt=0)는 즉시.
+        r=await row(c,"""SELECT * FROM app.analyses WHERE state='queued' AND deadline>now() AND attempt<3
+            AND (attempt=0 OR updated_at<=now()-make_interval(secs=>CAST(:base AS float)*power(4,attempt-1)))
+            ORDER BY created_at,analysis_id FOR UPDATE SKIP LOCKED LIMIT 1""",base=float(os.getenv('ANALYSIS_RETRY_BASE_SECONDS','5')))
         if not r:return wrap(None,req)
         lease=uuid4()
         result=await row(c,"""UPDATE app.analyses SET state='running',attempt=attempt+1,worker_id=:w,lease_token=:lease,

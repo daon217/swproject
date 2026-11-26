@@ -78,11 +78,17 @@ async def overview(req:Request,uid=Depends(admin_member)):
             FROM app.payments p JOIN app.invoices i USING(invoice_id)
             WHERE p.status='succeeded' AND p.provider='mock' AND i.currency='KRW'
             AND p.paid_at>=now()-interval '30 days' ''')
+        # 통계 매출 차트용 KST 날짜별 모의 결제 합계(최근 1년, #74). 화면이 일·월·연 단위로 묶는다.
+        revenue_days=(await execute(m,'''SELECT (p.paid_at AT TIME ZONE 'Asia/Seoul')::date::text AS date,
+            sum(i.amount)::text AS mock_revenue_krw
+            FROM app.payments p JOIN app.invoices i USING(invoice_id)
+            WHERE p.status='succeeded' AND p.provider='mock' AND i.currency='KRW' AND p.paid_at>=now()-interval '366 days'
+            GROUP BY 1 ORDER BY 1''')).mappings().all()
         async with req.app.state.engine.connect() as c:
             catalog=await row(c,"SELECT count(*) AS offers,count(*) FILTER(WHERE availability='available') AS available FROM app.offers")
             days=(await execute(c,'''SELECT (received_at AT TIME ZONE 'Asia/Seoul')::date::text AS date,
                 count(*) AS count,count(*) FILTER(WHERE state='applied') AS applied
                 FROM app.crawl_observations WHERE received_at>=now()-interval '30 days'
                 GROUP BY 1 ORDER BY 1 DESC''')).mappings().all()
-    return wrap(dict(members)|dict(daily)|dict(revenue)|dict(catalog)|{'crawl_days':[dict(d) for d in days],
+    return wrap(dict(members)|dict(daily)|dict(revenue)|dict(catalog)|{'crawl_days':[dict(d) for d in days],'revenue_days':[dict(d) for d in revenue_days],
         'billing_mode':os.getenv('BILLING_MODE','disabled'),'period':'최근 30일 · KST'},req)

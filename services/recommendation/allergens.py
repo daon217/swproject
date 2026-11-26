@@ -78,6 +78,14 @@ def normalize_code(value: object) -> str | None:
 
 # '콩'은 대두 외에 강낭콩·완두콩 등도 있지만, 표시상 혼동 위험이 커서 대두로 간주(안전 쪽).
 _SPLIT = re.compile(r"[,，、/·\n;]+")
+# 성분 조각 앞의 표 머리말과 뒤의 '함유' 같은 말(#65): '원재료명: 게'·'밀 함유'가 한 글자 알레르기 '게'·'밀'과 안 맞던 문제.
+_HEADER = re.compile(r"^\s*(?:원재료\s*명?(?:\s*및\s*함량)?|원료\s*명|성분|알레르기(?:\s*유발\s*물질)?(?:\s*정보|\s*표시)?|"
+                     r"ingredients?|allergens?|contains)\s*[:：]\s*", re.I)
+_SUFFIX = re.compile(r"\s*(?:함유|포함|들어\s*있음|사용)\s*$")
+
+
+def _clean_token(token: str) -> str:
+    return _SUFFIX.sub("", _HEADER.sub("", token)).strip(" .:-")
 _PAREN = re.compile(r"[()\[\]{}]")
 _CROSS_HINT = re.compile(r"(같은|동일한?)\s*(제조)?\s*(시설|공장|라인)|혼입|cross[- ]?contact|may contain", re.I)
 
@@ -89,7 +97,7 @@ def split_ingredients(raw: str | None) -> list[str]:
     text = _PAREN.sub(",", raw)
     items = []
     for part in _SPLIT.split(text):
-        part = re.sub(r"\d+(\.\d+)?\s*%", "", part).strip(" .:-")
+        part = _clean_token(re.sub(r"\d+(\.\d+)?\s*%", "", part))
         if part:
             items.append(part)
     return items
@@ -108,7 +116,7 @@ _FALSE_FRIENDS: dict[str, tuple[str, ...]] = {
 
 
 def _match(token: str, synonyms: list[str], code: str | None = None) -> str | None:
-    low = token.lower().replace(" ", "")
+    low = _clean_token(token).lower().replace(" ", "")
     for ff in _FALSE_FRIENDS.get(code or "", ()):
         low = low.replace(ff, "")
     for s in synonyms:

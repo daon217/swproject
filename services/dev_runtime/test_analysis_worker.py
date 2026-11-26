@@ -136,7 +136,7 @@ def test_worker_unknown_page_fails_without_arbitrary_fetch():
         paths.append(req.url.path)
         if req.url.path.endswith('/claim'):return httpx.Response(200,json={'data':{'analysis_id':'x','lease_token':'l','page_url':'http://169.254.169.254/latest/','selected_domain':'food'}})
         if req.url.path=='/internal/catalog-context':return httpx.Response(200,json={'match':None})
-        assert req.url.path.endswith('/fail') and json.loads(req.content)['code']=='OCR_FAILED'
+        assert req.url.path.endswith('/fail') and json.loads(req.content)['code']=='CATALOG_NO_MATCH'  # 캡처 없음 + 카탈로그 없음(#26)
         return httpx.Response(200,json={'data':{}})
     assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
     assert paths[-1].endswith('/fail')

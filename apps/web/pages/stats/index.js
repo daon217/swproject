@@ -194,9 +194,19 @@ const statsPage = {
     }
 
     const todayKey = this.getKstTodayDateStr().slice(0, keyLength);
-    // Only today's mock-payment total is known per day; the 30-day total must not be drawn as one day.
-    const todayMockKrw = Number(this.liveOverview?.overview?.today_mock_revenue_krw || 0);
-    const revenueManWon = todayMockKrw > 0 ? Number((todayMockKrw / 10000).toFixed(2)) : 0;
+    // 날짜별 모의 결제 합계(revenue_days, #74)를 일·월·연 단위로 합친다. 예전 서버는 오늘 합계만 준다.
+    const salesByKey = new Map(buckets.map((b) => [b.key, 0]));
+    const revenueDays = this.liveOverview?.overview?.revenue_days;
+    if (Array.isArray(revenueDays)) {
+      for (const d of revenueDays) {
+        const key = String(d.date || '').replaceAll('-', '.').slice(0, keyLength);
+        if (salesByKey.has(key)) salesByKey.set(key, salesByKey.get(key) + Number(d.mock_revenue_krw || 0));
+      }
+    } else {
+      const todayMockKrw = Number(this.liveOverview?.overview?.today_mock_revenue_krw || 0);
+      if (salesByKey.has(todayKey)) salesByKey.set(todayKey, todayMockKrw);
+    }
+    const toManWon = (krw) => (krw > 0 ? Number((krw / 10000).toFixed(2)) : 0);
 
     return {
       unitLabel,
@@ -204,7 +214,7 @@ const statsPage = {
       labels: buckets.map((b) => b.label),
       subJoin: buckets.map((b) => subJoinCounts.get(b.key) || 0),
       subLeave: buckets.map((b) => subLeaveCounts.get(b.key) || 0),
-      subSales: buckets.map((b) => (b.key === todayKey ? revenueManWon : 0)),
+      subSales: buckets.map((b) => toManWon(salesByKey.get(b.key) || 0)),
       royaltySales: buckets.map(() => 0),
     };
   },
@@ -315,7 +325,7 @@ const statsPage = {
 
       <!-- 하단 안내 캡션 -->
       <div class="mt-4 text-sm text-slate-500">
-        기간 집계 기준: KST &nbsp;·&nbsp; 구독 가입·해지는 팀 서버 DB 기준입니다. 매출은 개발용 모의 결제이며 오늘 합계만 표시합니다(실매출 아님).
+        기간 집계 기준: KST &nbsp;·&nbsp; 구독 가입·해지는 팀 서버 DB 기준입니다. 매출은 개발용 모의 결제 날짜별 합계입니다(최근 1년, 실매출 아님).
       </div>
     `;
   },

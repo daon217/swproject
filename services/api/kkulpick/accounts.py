@@ -25,7 +25,10 @@ MEMBER_SUMMARY = '''SELECT m.user_id,m.login_id,m.created_at,m.gender,
     (extract(year FROM age(current_date,m.birth_date))::int/10)*10 AS age_decade,
     coalesce(s.entitlement_end>now() AND s.billing_mode=:mode AND :enabled,false) AS subscribed,
     (SELECT min(i.period_start) FROM app.invoices i JOIN app.payments p USING(invoice_id)
-        WHERE i.user_id=m.user_id AND p.status='succeeded') AS subscription_started_at
+        WHERE i.user_id=m.user_id AND p.status='succeeded') AS subscription_started_at,
+    -- 통계 해지 추이(#73): 이용 기간이 끝났으면 종료 시각, 기간 끝 해지 예약이면 예약한 시각
+    CASE WHEN s.entitlement_end<=now() THEN s.entitlement_end END AS subscription_ended_at,
+    CASE WHEN s.cancel_at_period_end THEN s.updated_at END AS subscription_canceled_at
     FROM app.members m LEFT JOIN app.subscriptions s USING(user_id)
     WHERE m.deleted_at IS NULL'''
 

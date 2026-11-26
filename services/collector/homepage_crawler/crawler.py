@@ -147,11 +147,16 @@ def crawl_site(name, home, max_pages, delay):
     rp = RobotFileParser(urljoin(home, "/robots.txt"))
     sitemaps = []
     try:
-        txt = s.get(rp.url, timeout=10).text
-        rp.parse(txt.splitlines())
-        sitemaps = re.findall(r"(?im)^sitemap:\s*(\S+)", txt)[:2]
+        r = s.get(rp.url, timeout=10)
+        if r.status_code in (401, 403):
+            rp.disallow_all = True  # robots.txt 접근이 막혀 있으면 전체 거부로 본다(표준 해석, #86)
+        elif r.status_code >= 400:
+            rp.allow_all = True  # robots.txt가 없으면(404 등) 허용
+        else:
+            rp.parse(r.text.splitlines())
+            sitemaps = re.findall(r"(?im)^sitemap:\s*(\S+)", r.text)[:2]
     except requests.RequestException:
-        rp = None  # robots 못 읽으면 허용으로 간주
+        rp = None  # 네트워크 오류로 못 읽으면 허용으로 간주(사이트 접속 자체도 곧 실패한다)
 
     def get(u):
         if rp and not rp.can_fetch(UA, u):

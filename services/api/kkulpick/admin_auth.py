@@ -119,3 +119,19 @@ async def approve_signup(user_id: UUID, data: AdminApproval, req: Request, uid=D
         if status != 'approved':
             fail(422, 'INVALID_INPUT')
     return wrap({'user_id': user_id, 'role': data.role, 'status': 'approved'}, req)
+
+
+@router.post('/requests/{user_id}/reject')
+async def reject_signup(user_id: UUID, req: Request, uid=Depends(admin_member)):
+    """가입 신청 거절(#60): 대기 중인 신청만 지운다. 같은 아이디로 다시 신청할 수 있다."""
+    async with access(req, uid, {'admin'}) as conn:
+        result = await execute(conn, 'SELECT app.reject_admin_signup(:reviewer, :target)',
+                               reviewer=req.state.session_hash, target=user_id)
+        status = result.scalar_one()
+        if status == 'forbidden':
+            fail(403, 'ADMIN_REQUIRED')
+        if status == 'missing':
+            fail(404, 'ADMIN_SIGNUP_NOT_FOUND')
+        if status == 'not_pending':
+            fail(409, 'ADMIN_SIGNUP_ALREADY_PROCESSED')
+    return wrap({'user_id': user_id, 'status': 'rejected'}, req)

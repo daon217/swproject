@@ -119,6 +119,8 @@ async def perform(apply, policy):
                     AND updated_at<now()-interval '90 days' LIMIT :n)''',n=policy.batch)
             result['expired_images_deleted']=sweep_images(batch=policy.batch)
             async with member.begin() as c:
+                # 30일 넘게 처리되지 않은 관리자 가입 신청 정리(#60)
+                result['stale_admin_signups_deleted'] = (await one(c, 'SELECT app.purge_stale_admin_signups(30,:n) AS n', n=policy.batch))['n']
                 await run(c, 'DELETE FROM app.sessions WHERE token_hash IN (SELECT token_hash FROM app.sessions WHERE expires_at<now() LIMIT :n)', n=policy.batch)
                 await run(c, '''DELETE FROM app.admin_sessions WHERE token_hash IN
                     (SELECT token_hash FROM app.admin_sessions WHERE expires_at<now() LIMIT :n)''', n=policy.batch)

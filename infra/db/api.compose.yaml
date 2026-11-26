@@ -59,6 +59,9 @@ services:
       COLLECTOR_TOKEN: ${COLLECTOR_TOKEN:?run python services/api/dev.py init}
       CATALOG_URL_HOSTS: ${CATALOG_URL_HOSTS:-store.example.test}
       DEV_ORIGINS: ${DEV_ORIGINS:-http://localhost:3000}
+      # 앞단 프록시(nginx) 주소. 이 주소가 보낸 X-Forwarded-For만 사용자 주소로 믿는다(#17).
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1}
+      GUEST_ANALYSES_PER_MINUTE: ${GUEST_ANALYSES_PER_MINUTE:-6}
     volumes:
       - analysis_images:/var/lib/kkulpick/analysis
     ports:

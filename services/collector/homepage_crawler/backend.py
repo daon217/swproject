@@ -107,8 +107,20 @@ def _codes(names):
     return out
 
 
+def extensions(p, obs):
+    """식품 근거와 매칭 정보(브랜드·이미지)를 **따로** 보낸다(#76): 이미지 주소가 백엔드 허용 목록에 없어 422가 나도
+    알레르기 근거는 저장된다. 식품 근거를 먼저 보낸다. -> 확장 본문 목록(없으면 빈 목록)."""
+    out = []
+    ext = extension(p, obs)
+    if ext and "food_evidence" in ext:
+        out.append({k: v for k, v in ext.items() if k != "matching_profile"} | {"observation_key": obs["observation_key"] + ":food"})
+    if ext and "matching_profile" in ext:
+        out.append({k: v for k, v in ext.items() if k != "food_evidence"} | {"observation_key": obs["observation_key"] + ":profile"})
+    return out
+
+
 def extension(p, obs):
-    """식품 성분·알레르기(성분표를 읽은 경우), 브랜드·대표 이미지 -> 리스팅 확장. 보낼 내용이 없으면 None."""
+    """식품 성분·알레르기(성분표를 읽은 경우), 브랜드·대표 이미지 -> 리스팅 확장 하나. 보낼 내용이 없으면 None."""
     body = {
         "schema_version": "listing-extension-v1",
         "source": obs["source"],
@@ -193,8 +205,8 @@ class Backend:
             run = runs.setdefault(obs["source"], str(uuid.uuid4()))
             state = self._post(f"/internal/v2/crawl-runs/{run}/observations", obs)
             counts[state] = counts.get(state, 0) + 1
-            ext = extension(p, obs) if state in ("applied", "recorded") else None
-            if ext:
+            for ext in (extensions(p, obs) if state in ("applied", "recorded") else []):
+                kind = "food" if "food_evidence" in ext else "profile"
                 ext_state = self._post(f"/internal/v2/crawl-runs/{run}/extensions", ext)
-                counts["extension:" + ext_state] = counts.get("extension:" + ext_state, 0) + 1
+                counts[f"extension_{kind}:" + ext_state] = counts.get(f"extension_{kind}:" + ext_state, 0) + 1
         return counts

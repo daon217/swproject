@@ -85,16 +85,18 @@ def finalize_session_state(
     남은 대기열의 프레임 태스크들이 즉시 작업을 스킵하도록 `early_exit_flag="1"`을 설정합니다.
     """
     key = get_session_key(session_id)
-    r.hset(
-        key,
-        mapping={
-            "status": status,
-            "ingredients": json.dumps(ingredients, ensure_ascii=False),
-            "message": message,
-            "early_exit_flag": "1",
-        },
+    # (#64) 마감 경쟁: 늦게 끝난 '성분표 못 찾음'이 먼저 끝난 '성공'을 덮지 않도록 원자적으로 조건부 마감한다.
+    # 성공은 항상 기록하고, 실패 마감은 아직 처리 중일 때만 기록한다.
+    r.eval(
+        """
+        local s = redis.call('HGET', KEYS[1], 'status')
+        if ARGV[1] ~= 'success' and s and s ~= 'processing' then return 0 end
+        redis.call('HSET', KEYS[1], 'status', ARGV[1], 'ingredients', ARGV[2], 'message', ARGV[3], 'early_exit_flag', '1')
+        redis.call('EXPIRE', KEYS[1], ARGV[4])
+        return 1
+        """,
+        1, key, status, json.dumps(ingredients, ensure_ascii=False), message, int(settings.SESSION_TTL_SECONDS),
     )
-    r.expire(key, settings.SESSION_TTL_SECONDS)
 
 
 # ==============================================================================
@@ -123,7 +125,8 @@ def extract_metadata_fallback_task(session_id: str, first_frame_b64: str) -> Dic
 
     try:
         ocr_engine = get_ocr_engine()
-        img_hash = hashlib.md5(first_frame_b64[:4096].encode("utf-8", errors="ignore")).hexdigest()
+        # 앞 4KB만 해시하면 머리가 같은 다른 캡처(같은 쇼핑몰 화면)에 이전 결과를 재사용한다(#21) -> 전체 해시
+        img_hash = hashlib.sha256(first_frame_b64.encode("utf-8", errors="ignore")).hexdigest()
         tiles = split_into_horizontal_tiles(image)
         detected_title = None
         first_tile_items = []
@@ -216,6 +219,61 @@ def extract_metadata_fallback_task(session_id: str, first_frame_b64: str) -> Dic
 # ==============================================================================
 # [Phase 2 & 3 Task] 실시간 스트리밍 프레임 분석 및 조기 종료/타임아웃 제어 태스크
 # ==============================================================================
+def _scan_frame(frame_holder: list) -> List[str]:
+    """프레임 1장에서 성분표를 찾아 정제된 성분 목록을 돌려준다(못 찾으면 빈 목록). 예외는 호출한 쪽이 처리한다(#64).
+    원본 이미지는 리스트로 받아 꺼낸다: 호출한 쪽이 참조를 쥐고 있으면 ROI만 남기고 원본을 일찍 해제하는 설계(#66)가 깨진다."""
+    full_image = frame_holder.pop()
+    extracted_ingredients: List[str] = []
+    ocr_engine = get_ocr_engine()
+
+    # 3-1. 세로로 긴 이미지를 가로 블록 단위로 분할 (Tiling)
+    tiles = split_into_horizontal_tiles(full_image)
+
+    # 3-2. 1차 스캔: 앵커 Y좌표 탐색 + 1차 스캔 텍스트에서 즉시 성분 추출 시도 (1-Pass Fast Path)
+    anchor_y, fast_ingredients = ocr_engine.find_anchor_and_initial_ingredients(tiles)
+
+    # 타일 참조 리스트 정리
+    del tiles
+
+    if anchor_y is not None:
+        if len(fast_ingredients) >= 2:
+            # 1차 스캔에서 이미 선명하게 성분이 추출된 경우 2차/3차 ROI 재추론을 생략하여 시간 절반 단축
+            extracted_ingredients = fast_ingredients
+            del full_image
+            gc.collect()
+        else:
+            # 3-3. 앵커 Y 좌표 기준 아래쪽 영역(y ~ y + 500px)만 ROI 크롭 & 원본 배열 즉시 메모리 해제
+            roi_image = crop_roi_and_release_memory(
+                full_image=full_image,
+                anchor_y=anchor_y,
+                crop_height=settings.ROI_CROP_HEIGHT,
+            )
+            full_image = None  # 원본 참조 명시적 제거
+
+            try:
+                # 3-4. 크롭된 ROI에 Grayscale -> CLAHE(clipLimit=2.0, tileGridSize=(8,8)) -> 블러 보정 적용
+                enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
+
+                # 3-5. 2차 정밀 OCR 추출 및 정규표현식 기반 성분 리스트 정제
+                extracted_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
+
+                # 만약 기본 샤프닝 전처리에서 성분이 추출되지 않았다면 적응형 이진화로 1회 재시도
+                if not extracted_ingredients:
+                    binarized_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=True)
+                    extracted_ingredients = ocr_engine.extract_and_clean_ingredients(binarized_roi)
+                    del binarized_roi
+
+                del enhanced_roi
+            finally:
+                del roi_image
+                gc.collect()
+    else:
+        # 앵커가 없는 프레임도 즉시 메모리에서 해제
+        del full_image
+        gc.collect()
+    return extracted_ingredients
+
+
 @celery_app.task(name="app.tasks.process_frame_task")
 def process_frame_task(
     session_id: str,
@@ -275,7 +333,7 @@ def process_frame_task(
     # --------------------------------------------------------------------------
     # [Step 3] 이미지 디코딩 및 OpenCV 타일링 + 1차 앵커 탐색
     # --------------------------------------------------------------------------
-    frame_hash = hashlib.md5(image_b64[:4096].encode("utf-8", errors="ignore")).hexdigest() if image_b64 else ""
+    frame_hash = hashlib.sha256(image_b64.encode("utf-8", errors="ignore")).hexdigest() if image_b64 else ""
     extracted_ingredients: List[str] = []
 
     # [초고속 캐시 히트] 만약 Phase 1(init)에서 이미 동일 프레임 이미지를 스캔했다면
@@ -290,54 +348,17 @@ def process_frame_task(
     else:
         full_image = decode_image(image_b64)
 
-    if full_image is not None:
-        ocr_engine = get_ocr_engine()
+    try:
+        if full_image is not None:
+            frame_holder, full_image = [full_image], None
+            extracted_ingredients = _scan_frame(frame_holder)
+    except Exception:
+        # (#64) OCR 중 예외가 나도 세션이 '처리 중'에 멈추지 않게 이 프레임을 '못 찾음'으로 보고 아래 마감 규칙을 따른다.
+        logger.exception(f"[Phase 2] 프레임 처리 실패: session={session_id}, frame_index={frame_index}")
+        extracted_ingredients = []
+        full_image = None
+        gc.collect()
 
-        # 3-1. 세로로 긴 이미지를 가로 블록 단위로 분할 (Tiling)
-        tiles = split_into_horizontal_tiles(full_image)
-
-        # 3-2. 1차 스캔: 앵커 Y좌표 탐색 + 1차 스캔 텍스트에서 즉시 성분 추출 시도 (1-Pass Fast Path)
-        anchor_y, fast_ingredients = ocr_engine.find_anchor_and_initial_ingredients(tiles)
-
-        # 타일 참조 리스트 정리
-        del tiles
-
-        if anchor_y is not None:
-            if len(fast_ingredients) >= 2:
-                # 1차 스캔에서 이미 선명하게 성분이 추출된 경우 2차/3차 ROI 재추론을 생략하여 시간 절반 단축
-                extracted_ingredients = fast_ingredients
-                del full_image
-                gc.collect()
-            else:
-                # 3-3. 앵커 Y 좌표 기준 아래쪽 영역(y ~ y + 500px)만 ROI 크롭 & 원본 배열 즉시 메모리 해제
-                roi_image = crop_roi_and_release_memory(
-                    full_image=full_image,
-                    anchor_y=anchor_y,
-                    crop_height=settings.ROI_CROP_HEIGHT,
-                )
-                full_image = None  # 원본 참조 명시적 제거
-
-                try:
-                    # 3-4. 크롭된 ROI에 Grayscale -> CLAHE(clipLimit=2.0, tileGridSize=(8,8)) -> 블러 보정 적용
-                    enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
-
-                    # 3-5. 2차 정밀 OCR 추출 및 정규표현식 기반 성분 리스트 정제
-                    extracted_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
-
-                    # 만약 기본 샤프닝 전처리에서 성분이 추출되지 않았다면 적응형 이진화로 1회 재시도
-                    if not extracted_ingredients:
-                        binarized_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=True)
-                        extracted_ingredients = ocr_engine.extract_and_clean_ingredients(binarized_roi)
-                        del binarized_roi
-
-                    del enhanced_roi
-                finally:
-                    del roi_image
-                    gc.collect()
-        else:
-            # 앵커가 없는 프레임도 즉시 메모리에서 해제
-            del full_image
-            gc.collect()
 
     # --------------------------------------------------------------------------
     # [Step 4] Phase 3 생명주기 제어 (시나리오 A / B / C 판정)

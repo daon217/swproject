@@ -138,9 +138,9 @@ export function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
-/** 이 페이지에 보여줄 알레르기 경고(식품 페이지만 백엔드 경고를 보여주고, 상품 페이지는 띄우지 않는다) */
+/** 이 페이지에 보여줄 알레르기 경고(실제 성분이 감지된 경고만 띄우고, 성분표 미인식(unknown)만으로 무조건 경고를 띄우지 않는다) */
 export function visibleWarnings(a: Analysis | null) {
-  return a ? warningsForDomain(a.warnings, a.selected_domain) : [];
+  return a ? warningsForDomain(a.warnings, a.selected_domain).filter((w) => w.evidence !== 'unknown') : [];
 }
 
 /**

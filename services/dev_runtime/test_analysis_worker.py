@@ -347,13 +347,13 @@ def test_malformed_dependency_payload_fails_job_immediately():
     assert sent['fail']['code']=='RECOMMENDATION_FAILED' and sent['fail']['retryable'] is False
 
 
-def test_inferred_product_with_allergy_profile_warns_instead_of_hiding():
-    # 성분 같은 글자는 읽혔지만 식품인지 확정하지 못함 -> 식품 알레르기 '확인 필요' 경고(피부 항목 제외)
+def test_inferred_product_with_allergy_profile_does_not_emit_false_unknown_warnings():
+    # 성분표가 아직 읽히지 않았거나 알레르기 성분이 감지되지 않은 경우에는 무조건 '알레르기 주의'(unknown)를 띄우지 않는다
     worker,sent=_worker_with(allergens=['milk','peanut','nickel'],ingredients=['귀리','꿀'])
     assert worker.once()
     warnings=sent['complete']['metadata']['warnings']
     assert sent['complete']['selected_domain']=='product'
-    assert {w['allergen'] for w in warnings}=={'milk','peanut'} and all(w['evidence']=='unknown' for w in warnings)
+    assert warnings==[]
     # 성분 글자가 전혀 없는 일반 상품: 경고를 붙이지 않는다(모든 상품 페이지에 '알레르기 주의'가 뜨던 문제)
     worker,sent=_worker_with(allergens=['milk','peanut'])
     assert worker.once() and sent['complete']['metadata']['warnings']==[]

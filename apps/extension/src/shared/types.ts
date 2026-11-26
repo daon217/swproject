@@ -79,6 +79,8 @@ export interface CreateAnalysisRequest {
   request_key: string;
   /** [임시] 페이지에서 읽은 상품명·가격. 서버 OCR 연동 전 플로팅 표시용 */
   page_product?: PageProduct | null;
+  /** DB에 추천 상품이 전혀 없을 때만 AI 실시간 탐색 추천 사용 여부 */
+  ai_fallback?: boolean;
 }
 
 export interface CreateAnalysisResponse {

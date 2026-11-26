@@ -124,21 +124,27 @@ def candidate_links(html, base):
     return sorted(out, key=lambda u: not PRODUCT_HINT.search(u))  # 상품처럼 보이는 링크 먼저
 
 
-def sitemap_urls(s, sitemaps, limit=200):
-    """robots.txt에 공개된 사이트맵의 loc. 인덱스면 하위 1단계만."""
+def sitemap_urls(s, sitemaps, limit=1000):
+    """robots.txt에 공개된 사이트맵의 loc. 인덱스면 하위 사이트맵까지 탐색."""
     out, queue = [], list(sitemaps)
-    for sm in queue[:4]:
+    for sm in queue[:10]:
         try:
             locs = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", s.get(sm, timeout=15).text)
         except requests.RequestException:
             continue
         if sm in sitemaps and any(l.endswith((".xml", ".xml.gz")) or "sitemap" in l for l in locs[:3]):
-            queue += locs[:2]
+            queue += locs[:6]
         else:
             out += locs
         if len(out) >= limit:
             break
     return out[:limit]
+
+
+# 회차 간 방문한 URL과 페이지 내부에서 새로 발견한 후보 URL을 사이트별로 유지해
+# 매 회차 똑같은 앞쪽 12개 상품만 반복 수집하지 않고 새 상품을 계속 늘린다.
+_VISITED_URLS: dict[str, set[str]] = {}
+_DISCOVERED_URLS: dict[str, list[str]] = {}
 
 
 def crawl_site(name, home, max_pages, delay):
@@ -154,7 +160,7 @@ def crawl_site(name, home, max_pages, delay):
             rp.allow_all = True  # robots.txt가 없으면(404 등) 허용
         else:
             rp.parse(r.text.splitlines())
-            sitemaps = re.findall(r"(?im)^sitemap:\s*(\S+)", r.text)[:2]
+            sitemaps = re.findall(r"(?im)^sitemap:\s*(\S+)", r.text)[:4]
     except requests.RequestException:
         rp = None  # 네트워크 오류로 못 읽으면 허용으로 간주(사이트 접속 자체도 곧 실패한다)
 
@@ -178,9 +184,27 @@ def crawl_site(name, home, max_pages, delay):
     if html is None:
         return status, [], 0
     products, visited = [], 1
-    cands = candidate_links(html, home) + sitemap_urls(s, sitemaps)
-    cands.sort(key=lambda u: not PRODUCT_HINT.search(u))
-    for u in cands[:max_pages]:
+    seen = _VISITED_URLS.setdefault(name, set())
+    pool = _DISCOVERED_URLS.setdefault(name, [])
+
+    raw_cands = list(dict.fromkeys(pool + candidate_links(html, home) + sitemap_urls(s, sitemaps)))
+    raw_cands.sort(key=lambda u: not PRODUCT_HINT.search(u))
+    unseen = [u for u in raw_cands if u not in seen]
+    if not unseen and raw_cands:
+        # 모든 후보를 한 바퀴 다 돌았으면 방문 기록을 비우고 다시 순회
+        seen.clear()
+        unseen = raw_cands
+
+    queue = list(unseen)
+    idx = 0
+    visited_in_cycle = 0
+    while idx < len(queue) and visited_in_cycle < max_pages:
+        u = queue[idx]
+        idx += 1
+        if u in seen:
+            continue
+        seen.add(u)
+        visited_in_cycle += 1
         st, page = get(u)
         visited += 1
         if page is None:
@@ -188,10 +212,17 @@ def crawl_site(name, home, max_pages, delay):
                 status = st
                 break  # 우회하지 않고 해당 사이트 중단
             continue
+        # 방문한 페이지 안의 상품 링크도 후보 풀에 추가해 다음 페이지/회차에서 새 상품을 수집
+        for sub in candidate_links(page, u):
+            if sub not in seen and sub not in queue and PRODUCT_HINT.search(sub):
+                queue.append(sub)
         p = parse_product(page, u)
         if p and p["name"]:
             c = classify(name, p)
             products.append(dict(p, site=name, url=u, **extract_allergen_info(page), **c, **{k: v for k, v in to_krw(p).items() if not (k == 'review' and c['review'])}))
+
+    # 아직 방문하지 못한 남은 후보를 다음 회차로 넘긴다(최대 2000개 유지)
+    _DISCOVERED_URLS[name] = [u for u in queue[idx:] if u not in seen][:2000]
     return ("ok" if products else (status if status != "ok" else "no_products")), products, visited
 
 

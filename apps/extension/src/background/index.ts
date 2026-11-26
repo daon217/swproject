@@ -4,7 +4,7 @@ import { getAuthToken } from '../shared/auth';
 import type { Message, PanelRoute, TabState } from '../shared/messages';
 import { safeHttpUrl } from '../shared/format';
 import { captureRule, shouldCapture } from '../shared/pageFilter';
-import { isRecommendEnabled } from '../shared/recommendSetting';
+import { isAiFallbackEnabled, isRecommendEnabled } from '../shared/recommendSetting';
 import { KEYS } from '../shared/storage';
 import type { PageScan } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
@@ -138,6 +138,19 @@ async function isStale(tabId: number, state: TabState): Promise<boolean> {
 /** 탭별로 지금 분석 중인 URL. 같은 페이지 분석이 겹쳐 서로 취소하지 않게 한다. */
 const inflight = new Map<number, string>();
 
+/** 추천 상품 카드를 클릭해 열린 탭: 해당 상품 페이지가 열리는 동안에는 자동으로 새 분석을 돌리지 않는다. */
+const recommendedTabs = new Map<number, { initialUrl: string; settledUrl: string | null; openedAt: number }>();
+
+function isSameRecommendedNavigation(entry: { initialUrl: string; settledUrl: string | null; openedAt: number }, url: string): boolean {
+  if (url === entry.initialUrl || url === entry.settledUrl) return true;
+  // 클릭 직후(8초 이내) 리다이렉트·정규화 쿼리 파라미터가 붙는 경우는 같은 추천 상품 이동으로 본다.
+  if (Date.now() - entry.openedAt < 8000) {
+    entry.settledUrl = url;
+    return true;
+  }
+  return false;
+}
+
 /**
  * 같은 페이지는 한 번만 분석한다. 쇼핑몰은 로드 중 URL 변경·로드 완료 이벤트가 여러 번 와서,
  * 그대로 두면 분석을 여러 번 접수하고 앞의 것을 취소한다. 취소된 분석도 Vision 처리는 계속돼
@@ -145,7 +158,18 @@ const inflight = new Map<number, string>();
  * force: 다시 시도·로그인/설정 변경처럼 결과를 새로 받아야 할 때.
  */
 async function analyze(tabId: number, url: string, force = false) {
-  if (!force) {
+  if (force) {
+    recommendedTabs.delete(tabId);
+  } else {
+    const recEntry = recommendedTabs.get(tabId);
+    if (recEntry) {
+      if (isSameRecommendedNavigation(recEntry, url)) {
+        const prev = await readState(tabId);
+        if (prev && prev.url !== url) await writeState({ ...prev, url });
+        return dlog('analyze', '건너뜀: 추천 상품 클릭으로 이동한 페이지라 자동 재분석 안 함', { tabId, url });
+      }
+      recommendedTabs.delete(tabId);
+    }
     if (inflight.get(tabId) === url) return dlog('analyze', '건너뜀: 같은 페이지 분석 진행 중', { tabId, url });
     const prev = await readState(tabId);
     // 진행 중 여부는 메모리(inflight)로만 본다. 서비스 워커가 내려가 'analyzing'이 남아도 다시 분석할 수 있게.
@@ -198,7 +222,8 @@ async function runAnalyze(tabId: number, url: string) {
   if (await isStale(tabId, state)) return skip('탭/URL 변경됨');
   try {
     // 분석 종류는 페이지로 식품이 확실할 때만 보낸다. 그 밖에는 서버가 캡처 내용으로 판단한다.
-    dlog('analyze', '⑤ 분석 접수 요청 POST /analyses (캡처만 전송, page_url·분석 종류 미전송)', { image, page_revision: state.page_revision });
+    const ai_fallback = await isAiFallbackEnabled();
+    dlog('analyze', '⑤ 분석 접수 요청 POST /analyses', { image, page_revision: state.page_revision, ai_fallback });
     const created = await api.createAnalysis({
       image,
       page_product,
@@ -207,6 +232,7 @@ async function runAnalyze(tabId: number, url: string) {
       page_session_id: state.page_session_id,
       page_revision: state.page_revision,
       request_key: `${state.page_session_id}:${state.page_revision}`,
+      ai_fallback,
     });
     dlog('analyze', `⑥ 접수됨 analysis_id=${created.analysis_id} → ${POLL_MS}ms 간격 폴링 시작(최대 ${POLL_TIMEOUT_MS / 1000}s)`, created);
     const started = Date.now();
@@ -292,16 +318,18 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   dlog('event', 'tabs.onRemoved → 탭 상태 삭제', { tabId });
   clearTimeout(timers.get(tabId));
+  recommendedTabs.delete(tabId);
   void chrome.storage.session.remove(tabKey(tabId));
 });
 
 // 로그인/로그아웃 시 권한·개인화가 바뀌므로 현재 탭을 다시 분석한다.
 chrome.storage.onChanged.addListener((changes, area) => {
-  // 로그인 계정이 바뀌거나 상품 추천을 켜고 끄면 모든 탭 결과를 지우고 현재 탭을 다시 판단한다.
-  if (area === 'local' && (KEYS.auth in changes || KEYS.recommendEnabled in changes)) {
+  // 로그인 계정이 바뀌거나 상품 추천·AI 실시간 추천을 켜고 끄면 모든 탭 결과를 지우고 현재 탭을 다시 판단한다.
+  if (area === 'local' && (KEYS.auth in changes || KEYS.recommendEnabled in changes || KEYS.aiFallbackEnabled in changes)) {
     dlog('event', '설정 변경 → 모든 탭 결과 초기화 후 현재 탭 재분석', {
-      changed: Object.keys(changes).filter((k) => ([KEYS.auth, KEYS.recommendEnabled] as string[]).includes(k)),
+      changed: Object.keys(changes).filter((k) => ([KEYS.auth, KEYS.recommendEnabled, KEYS.aiFallbackEnabled] as string[]).includes(k)),
       recommendEnabled: KEYS.recommendEnabled in changes ? changes[KEYS.recommendEnabled].newValue : undefined,
+      aiFallbackEnabled: KEYS.aiFallbackEnabled in changes ? changes[KEYS.aiFallbackEnabled].newValue : undefined,
       logged_in: KEYS.auth in changes ? !!changes[KEYS.auth].newValue : undefined });
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
@@ -369,6 +397,23 @@ chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {
     case 'openUrl': {
       const url = safeHttpUrl(raw.url);
       if (url) void chrome.tabs.create({ url });
+      return false;
+    }
+    case 'openRecommendedUrl': {
+      const url = safeHttpUrl(raw.url);
+      if (url) {
+        void (async () => {
+          const cur = await activeTab();
+          const prev = cur?.id !== undefined ? await readState(cur.id) : null;
+          const created = await chrome.tabs.create({ url });
+          if (created.id !== undefined) {
+            recommendedTabs.set(created.id, { initialUrl: url, settledUrl: null, openedAt: Date.now() });
+            if (prev && prev.status === 'done' && prev.analysis) {
+              await writeState({ ...prev, tabId: created.id, url });
+            }
+          }
+        })();
+      }
       return false;
     }
     default:

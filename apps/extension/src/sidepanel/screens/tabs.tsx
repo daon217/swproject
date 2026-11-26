@@ -11,12 +11,26 @@ import { useNav } from '../nav';
 import { useSession } from '../session';
 import { useActiveTabState } from '../useActiveTabState';
 import { useRecommendEnabled } from '../useRecommendEnabled';
+import { isAiFallbackEnabled, setAiFallbackEnabled } from '../../shared/recommendSetting';
+import { KEYS, onItemChange } from '../../shared/storage';
+import { sendMessage } from '../../shared/messages';
 
 export function openUrl(url: string) {
   const safe = safeHttpUrl(url);
   if (!safe) return;
   if (typeof chrome !== 'undefined' && chrome.tabs?.create) void chrome.tabs.create({ url: safe });
   else window.open(safe, '_blank', 'noopener');
+}
+
+/** 추천 상품 카드를 눌러 판매처로 이동할 때는 그 탭에서 자동 재분석이 돌지 않도록 백그라운드에 알린다. */
+export function openRecommendedUrl(url: string) {
+  const safe = safeHttpUrl(url);
+  if (!safe) return;
+  if (typeof chrome !== 'undefined' && chrome.runtime?.id) {
+    void sendMessage({ type: 'openRecommendedUrl', url: safe });
+  } else {
+    openUrl(safe);
+  }
 }
 
 // ---------- AI 추천 (E01, E16~E27) ----------
@@ -41,7 +55,7 @@ export function RecommendTab() {
   ) : (
     <ResultView
       state={state}
-      onOpenUrl={openUrl}
+      onOpenUrl={openRecommendedUrl}
       onRetry={retry}
       onPremium={() => nav.push(me ? 'premium' : 'login')}
       onFilter={() => nav.push('filter')}
@@ -103,7 +117,7 @@ export function RecentTab() {
                 <div className="kp-offer-sub">{offerSubtitle(h.card.subtitle, h.card.condition)}</div>
                 <div className="kp-price">{formatPrice(h.card.price, h.card.currency)}</div>
               </div>
-              <button className="kp-icon-btn kp-link" onClick={() => openUrl(h.card.url)} aria-label={`${h.card.name} 판매처로 이동`}>
+              <button className="kp-icon-btn kp-link" onClick={() => openRecommendedUrl(h.card.url)} aria-label={`${h.card.name} 판매처로 이동`}>
                 <IconExternal size={20} />
               </button>
             </div>
@@ -143,7 +157,7 @@ function GuestRecent({ onLogin }: { onLogin: () => void }) {
       {items?.map((c, i) => (
         <div key={c.offer_id}>
           {i > 0 && <hr className="kp-divider" />}
-          <OfferRow card={c} onOpenUrl={openUrl} basic />
+          <OfferRow card={c} onOpenUrl={openRecommendedUrl} basic />
         </div>
       ))}
       {items?.some((c) => c.affiliate) && <p className="kp-footnote">제휴 링크가 포함된 상품이에요. 구매 시 꿀픽이 판매처로부터 수수료를 받을 수 있어요.</p>}
@@ -316,6 +330,28 @@ export function SettingsTab() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [aiFallback, setAiFallback] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    void isAiFallbackEnabled().then((v) => {
+      if (alive) setAiFallback(v);
+    });
+    const off = onItemChange(KEYS.aiFallbackEnabled, () => {
+      void isAiFallbackEnabled().then((v) => {
+        if (alive) setAiFallback(v);
+      });
+    });
+    return () => {
+      alive = false;
+      off();
+    };
+  }, []);
+
+  const toggleAiFallback = async (on: boolean) => {
+    setAiFallback(on);
+    await setAiFallbackEnabled(on);
+  };
 
   const saveSetting = async (patch: { include_used?: boolean; include_overseas?: boolean }) => {
     if (!me) return nav.push('login');
@@ -362,6 +398,12 @@ export function SettingsTab() {
           <Toggle label="해외상품 포함" checked={!!me && me.profile.include_overseas !== false} onChange={(on) => void saveSetting({ include_overseas: on })} disabled={saving} />
         </div>
         <p className="sp-desc sp-mt8">{me ? '끄면 아마존·이베이 같은 해외 판매처 상품은 추천하지 않아요.' : '로그인하면 해외 판매처 상품 포함 여부를 정할 수 있어요.'}</p>
+        <hr className="kp-divider" />
+        <div className="sp-setting">
+          <span className="sp-setting-title">추천 상품 없을 시 AI 추천</span>
+          <Toggle label="추천 상품 없을 시 AI 추천" checked={aiFallback} onChange={(on) => void toggleAiFallback(on)} />
+        </div>
+        <p className="sp-desc sp-mt8">DB에 관련 상품이 전혀 없을 때만 AI가 실시간으로 상품을 찾아 추천해요.</p>
         <hr className="kp-divider" />
         <RowButton onClick={() => nav.push(me ? 'support' : 'login')}>고객지원</RowButton>
         {me && (

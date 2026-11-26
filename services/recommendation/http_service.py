@@ -16,7 +16,7 @@ from .adapters.postgres import PgCatalog, PgVectorIndex
 from . import embedding_config as config
 from .contracts import UserProfile, ContractError
 from .pipeline import Recommender
-from .rankers import make_ranker
+from .rankers import FALLBACK_MODEL, make_ranker
 from .allergens import ALLERGENS,detect,normalize_code
 
 
@@ -27,6 +27,7 @@ class Input(BaseModel):
     ingredients: list[str] = Field(default_factory=list,max_length=100)
     allergens_declared: list[str] = Field(default_factory=list,max_length=32)
     profile: dict = Field(default_factory=lambda: {'user_id':'worker'})
+    ai_fallback: bool = False
 
 
 def authorize(authorization):
@@ -170,24 +171,43 @@ def process(body:Input,authorization:str=Header(default='')):
         food=body.selected_domain=='food'
         declared={normalize_code(x) for x in body.allergens_declared} - {None} if food else set()
         unknown_declared=[x for x in body.allergens_declared if normalize_code(x) is None] if food else []
-        detected=detect(list(body.ingredients)+unknown_declared) if food else {}
+        # OCR 성분 목록에서 '본 제품은 … 사용한 제품과 같은 제조시설에서 제조하고 있습니다' 같은 교차오염 안내 문구는
+        # 실제 함유 원재료가 아니므로 제외한다(표시 대상 19종이 모두 적혀 있어 모든 식품에 알레르기 주의가 뜨던 문제).
+        ocr_ings=[]
+        if food:
+            raw_ings=list(body.ingredients)
+            skip_until=-1
+            import re as _re
+            _facility_end=_re.compile(r'(?:같은|동일한?|가은)?\s*제조\s*시설|제조\s*공장|혼입\s*가능|사용한\s*제[품푼]',_re.I)
+            _facility_start=_re.compile(r'(?:본|이)\s*제[품푼]은',_re.I)
+            for idx_ing,tok in enumerate(raw_ings):
+                if idx_ing<=skip_until:
+                    continue
+                if _facility_end.search(tok):
+                    continue
+                m=_facility_start.search(tok)
+                if m and any(_facility_end.search(nxt) for nxt in raw_ings[idx_ing:idx_ing+6]):
+                    prefix=tok[:m.start()].strip()
+                    if prefix:
+                        ocr_ings.append(prefix)
+                    for j in range(idx_ing+1,min(len(raw_ings),idx_ing+6)):
+                        if _facility_end.search(raw_ings[j]):
+                            skip_until=j
+                    continue
+                ocr_ings.append(tok)
+        # 하단 성분표(body.ingredients)가 아직 화면에 안 보여도 상품명(body.query, 예: '100% 무가당 땅콩버터') 자체에
+        # 알레르기 원료가 명시되어 있으면 즉시 감지해 경고한다.
+        title_ings=[body.query] if food and body.query else []
+        detected=detect(title_ings+ocr_ings+unknown_declared) if food else {}
         warnings=[{'type':'allergy','allergen':a,'evidence':'contains',
             'message':f"판매처 알레르기 표시에 {ALLERGENS[a][0]}이(가) 포함되어 있습니다. 상품 표시를 직접 확인해 주세요."}
             for a in raw['allergens'] if a in declared]
         warnings+=[{'type':'allergy','allergen':a,'evidence':'contains',
-            'message':f"OCR에서 {ALLERGENS[a][0]} 관련 표현이 감지되었습니다. 상품 표시를 직접 확인해 주세요."}
+            'message':f"상품명 또는 성분 표시에서 {ALLERGENS[a][0]} 관련 표현이 감지되었습니다. 상품 표시를 직접 확인해 주세요."}
             for a in raw['allergens'] if a in detected and a not in declared]
         # 식품이 아닌 상품(노트북·가전 등)에는 알레르기 경고를 붙이지 않는다.
-        # 식품일 때만 자동 검증을 지원하지 않는 항목을 '확인 필요'로 알린다.
-        unchecked=unsupported if body.selected_domain=='food' else []
-        warnings += [{'type':'allergy','allergen':a,'evidence':'unknown',
-            'message':'이 알레르기 항목의 자동 검증은 지원하지 않습니다. 상품 표시를 직접 확인해 주세요.'} for a in unchecked]
-        # 성분표도, 판매처의 구조화된 알레르기 표시도 없을 때만 '인식하지 못함'으로 알린다.
-        # 판매처 표시가 있으면 추천 필터(allergens.assess)와 같은 기준으로 그 표시를 믿는다 —
-        # 표시에 없는 알레르기까지 '성분표를 인식하지 못했어요' 큰 경고를 띄우던 문제(컬리 생선까스 + 우유).
-        if body.selected_domain=='food' and raw['allergens'] and not body.ingredients and not body.allergens_declared:
-            warnings += [{'type':'allergy','allergen':a,'evidence':'unknown','message':'알레르기 성분표를 인식하지 못했습니다. 구매 전 판매처의 원재료 표시를 직접 확인해 주세요.'}
-                         for a in raw['allergens'] if a not in declared and a not in detected]
+        # 성분표를 아직 읽지 못했다고 해서 사용자의 모든 알레르기 항목에 무조건 '알레르기 주의' 경고를 띄우지 않는다.
+        # 실제 성분표나 판매처 표시에서 알레르기 성분이 감지되었을 때만 경고한다.
         # Internal code 'soy' is the clients' 'soybean'; answer in the code the client sent so its label lookup works.
         for w in warnings:
             if w['allergen']=='soy':w['allergen']='soybean'
@@ -200,17 +220,23 @@ def process(body:Input,authorization:str=Header(default='')):
             except ValueError as error:
                 raise HTTPException(503,'EMBEDDING_CONTRACT_UNAVAILABLE') from error
             catalog=PgCatalog(conn,body.selected_domain)
-            # 관련도 기준점: 엉뚱한 상품명(리뷰 문구 등)에도 가장 가까운 상품을 무조건 보여주지 않도록.
-            # 문장 임베딩 모델 기준 0.5(RECO_MIN_SCORE로 조절). 실측(2026-11-27, MiniLM): 관련 상품 0.5~0.86,
-            # 리뷰 문구·무관 상품 0.38~0.47. 테스트용 해시 임베딩은 점수 척도가 달라 기본 끔.
             embedder=config.embedder()
-            default_min='0' if embedder.name=='hash-ngram-384' else '0.5'
-            min_score=float(os.getenv('RECO_MIN_SCORE') or default_min)
-            # 가장 비슷한 후보보다 0.25 이상 낮은 후보도 뺀다(RECO_SCORE_MARGIN, 해시 임베딩은 끔)
-            margin=float(os.getenv('RECO_SCORE_MARGIN') or ('0' if embedder.name=='hash-ngram-384' else '0.25'))
+            min_score=float(os.getenv('RECO_MIN_SCORE') or '0')
+            margin=float(os.getenv('RECO_SCORE_MARGIN') or '0')
+            ranker_kind=os.getenv('RECO_RANKER','rule')
             engine=Recommender(catalog,PgVectorIndex(conn,model_id),
-                              embedder,make_ranker(os.getenv('RECO_RANKER','rule')))
+                              embedder,make_ranker(ranker_kind))
             result=engine.recommend(profile,body.query,top_k=8,min_score=min_score,score_margin=margin)  # 프리미엄 5개 + 중고·품절로 빠지는 여유
+            # DB에 관련 상품이 전혀 없어 추천 결과가 0건이고, 사용자가 '추천 상품 없을 시 AI 추천(ai_fallback)'을 켠 경우에만
+            # 실시간 쇼핑몰 검색으로 상품을 찾아 적재한 뒤 가벼운 폴백 전용 모델(FALLBACK_MODEL)로 다시 추천한다.
+            if not result.picks and body.ai_fallback:
+                from .live_fallback import discover_and_ingest
+                ingested=discover_and_ingest(conn,body.selected_domain,body.query,profile.include_used,
+                                             catalog,PgVectorIndex(conn,model_id),embedder)
+                if ingested:
+                    fb_engine=Recommender(catalog,PgVectorIndex(conn,model_id),
+                                          embedder,make_ranker(ranker_kind,model=FALLBACK_MODEL))
+                    result=fb_engine.recommend(profile,body.query,top_k=8,min_score=min_score,score_margin=margin)
             ids=catalog.offer_ids([p.product_id for p in result.picks])
         return {'offer_ids':[ids[p.product_id] for p in result.picks if p.product_id in ids],
                 'reasons':{ids[p.product_id]:p.reason for p in result.picks if p.product_id in ids},

@@ -10,3 +10,12 @@ export function isRecommendEnabled(): Promise<boolean> {
 export function setRecommendEnabled(on: boolean): Promise<void> {
   return setItem(KEYS.recommendEnabled, on);
 }
+
+// DB에 관련 추천 상품이 전혀 없을 때만 AI가 실시간으로 외부 쇼핑몰을 검색해 추천할지 여부(기본 켜짐).
+export function isAiFallbackEnabled(): Promise<boolean> {
+  return getItem<boolean>(KEYS.aiFallbackEnabled, true);
+}
+
+export function setAiFallbackEnabled(on: boolean): Promise<void> {
+  return setItem(KEYS.aiFallbackEnabled, on);
+}

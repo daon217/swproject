@@ -23,6 +23,7 @@ export type Message =
   | { type: 'retry'; tabId?: number }
   | { type: 'openSidePanel'; route: PanelRoute } // content → bg (사용자 클릭)
   | { type: 'openUrl'; url: string }
+  | { type: 'openRecommendedUrl'; url: string } // 추천 상품 클릭 시 새 탭에서 자동 재분석하지 않고 열기
   | { type: 'tabState'; state: TabState } // bg → content / sidepanel
   | { type: 'extractProduct' } // bg → content: 상품 표시 여부 + [임시] 페이지 상품명·가격 읽기(PageScan)
   | { type: 'scrollCapture' }; // content → bg: 스크롤 후 성분표 재탐색 캡처 요청

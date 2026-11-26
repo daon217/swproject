@@ -22,8 +22,8 @@ FOOD_TITLE=re.compile(r'라면|과자|스낵|쿠키|비스킷|초콜릿|초코|�
     r'즉석밥|햇반|도시락|밀키트|반찬|김치|소스|양념|간장|된장|고추장|케첩|마요네즈|드레싱|식용유|참기름|'
     r'우유|두유|요거트|요구르트|치즈|버터|분유|커피|음료|주스|탄산|생수|녹차|홍차|'
     r'견과|땅콩|아몬드|호두|캐슈|시리얼|그래놀라|오트밀|소시지|베이컨|참치|어묵|두부|계란|달걀|'
-    r'정육|한우|돼지고기|닭가슴살|닭고기|소고기|현미|잡곡|과일|사과|딸기|복숭아|오징어|새우|멸치|'
-    r'찌개|갈비탕|곰탕|설렁탕|삼계탕|감자탕|육개장|국밥|떡볶이|돈까스|돈가스|치킨까스|생선까스|볶음밥|'
+    r'정육|한우|돼지고기|닭가슴살|닭고기|소고기|현미|잡곡|메밀|보리|귀리|오트|대두|과일|사과|딸기|복숭아|오징어|새우|멸치|'
+    r'찌개|갈비탕|곰탕|설렁탕|삼계탕|감자탕|육개장|국밥|떡볶이|돈까스|돈가스|치킨까스|생선까스|볶음밥|잼|스프레드|땅콩버터|피넛버터|'
     r'식품|간식|과자류|영양제|홍삼|단백질\s*쉐이크|프로틴')
 # 화장품·생활용품 성분표는 식품 성분표로 보지 않는다(전성분에 '크림'·'우유' 같은 말이 섞여도 식품 아님).
 NON_FOOD=re.compile(r'화장품|스킨|토너|로션|에센스|세럼|앰플|선크림|썬크림|클렌징|폼클렌저|샴푸|린스|컨디셔너|트리트먼트|바디워시|'
@@ -130,21 +130,23 @@ class Worker:
                 kind='food' if evidence else 'product'
                 log.info('analysis %s: selected_domain 미지정 → 자동 판단 %s (근거=%s, vision 성분 %d개)',
                          job['analysis_id'],kind,evidence or 'default_product',len(ingredients))
+            query_text=title
+            if page:
+                from urllib.parse import parse_qs, urlsplit
+                qs=parse_qs(urlsplit(page).query)
+                for qk in ('q','query','keyword','searchKeyword'):
+                    qv=' '.join(qs.get(qk,())).strip()
+                    if qv and qv not in query_text:
+                        query_text=f'{query_text} {qv}'
+                        break
             r=self.http.post(self.reco+'/internal/process',headers=self.service_auth,json={
-                'query':title[:1000],'selected_domain':kind,
+                'query':query_text[:1000],'selected_domain':kind,
                 'ingredients':[str(i)[:500] for i in ingredients[:100]],
                 **({'allergens_declared':declared} if declared else {}),
+                **({'ai_fallback':True} if job.get('ai_fallback') else {}),
                 'profile':job.get('profile',{'user_id':'worker'})})
             r.raise_for_status();result=r.json()
             warnings=list(result.get('warnings',[]))
-            allergens=(job.get('profile') or {}).get('allergens') or []
-            if inferred and kind=='product' and allergens and maybe_food(title,ingredients):
-                # 식품인지 확인하지 못해 상품으로 처리했지만 성분 같은 글자가 보였다. 실제 식품이면 알레르기 검사가
-                # 빠졌으므로 숨기지 않고 알린다. 노트북처럼 식품 신호가 전혀 없는 상품에는 붙이지 않는다(모든 상품
-                # 페이지에 '알레르기 주의'가 뜨던 문제). 식품 알레르기 항목만(피부 항목은 성분표 검사 대상이 아님).
-                warnings+=[{'type':'allergy','allergen':str(a)[:100],'evidence':'unknown',
-                    'message':'알레르기 성분표를 인식하지 못했습니다. 구매 전 판매처의 성분 표시를 직접 확인해 주세요.'}
-                    for a in allergens[:50] if normalize_code(a) is not None]
             # 지금 보고 있는 그 판매처 상품은 추천하지 않는다(같은 상품의 다른 판매처는 가격 비교로 남긴다).
             own=match.get('offer_id') if match else None
             offer_ids=[o for o in result['offer_ids'] if o!=own]

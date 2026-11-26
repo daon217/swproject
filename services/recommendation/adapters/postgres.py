@@ -124,16 +124,28 @@ class PgCatalog:
     def upsert(self, products: Iterable[CollectedProduct]) -> int:
         raise NotImplementedError("DB 상품 쓰기는 수집기 -> /internal/v2/crawl-runs/{run}/observations 로만")
 
-    def name_matches(self, keywords: Sequence[str], limit: int = 20) -> list[str]:
-        """이름에 검색어가 그대로 들어 있는 판매 중 상품(벡터 점수 보완용). 검색어가 없으면 빈 목록."""
-        words = [w for w in keywords if w][:5]
+    def name_matches(self, keywords: Sequence[str], limit: int = 20,
+                     modifiers: Sequence[str] = ()) -> list[str]:
+        """이름·브랜드·분류에 핵심 검색어(keywords)가 들어 있는 판매 중 상품을 찾는다.
+        선호 수식어(modifiers: '무가당', '제로' 등)가 함께 일치하는 상품을 1순위로, 핵심 품목만 일치하는 상품을 2순위로 돌려준다."""
+        words = [w for w in keywords if w][:12]
         if not words:
             return []
-        patterns = ['%' + ''.join('\\' + ch if ch in '\\%_' else ch for ch in w) + '%' for w in words]
+        esc = lambda w: '%' + ''.join('\\' + ch if ch in '\\%_' else ch for ch in w) + '%'
+        patterns = [esc(w) for w in words]
+        mod_patterns = [esc(m) for m in modifiers if m][:4]
         rows = self.conn.execute(
             """SELECT o.source, o.source_listing_id, o.variant_key FROM app.offers o JOIN app.catalog_items i USING(item_id)
-               WHERE o.kind=%s AND o.availability='available' AND i.name ILIKE ANY(%s)
-               ORDER BY o.price, o.offer_id LIMIT %s""", (self.kind, patterns, limit)).fetchall()
+               WHERE o.kind=%s AND o.availability='available'
+                 AND (i.name ILIKE ANY(%s) OR coalesce(i.brand, '') ILIKE ANY(%s) OR coalesce(i.category, '') ILIKE ANY(%s))
+               ORDER BY (
+                   SELECT count(*) * 2 FROM unnest(%s::text[]) p
+                   WHERE i.name ILIKE p OR coalesce(i.brand, '') ILIKE p OR coalesce(i.category, '') ILIKE p
+               ) + (
+                   SELECT count(*) * 3 FROM unnest(%s::text[]) mp
+                   WHERE i.name ILIKE mp
+               ) DESC, o.price, o.offer_id LIMIT %s""",
+            (self.kind, patterns, patterns, patterns, patterns, mod_patterns, limit)).fetchall()
         return [join_product_id(*r) for r in rows]
 
     def all_ids(self) -> list[str]:

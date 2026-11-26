@@ -28,6 +28,7 @@ class AnalysisInput(Strict):
     page_revision:int=Field(ge=0)
     request_key:str=Field(min_length=1,max_length=180)
     selected_domain:Literal['product','food']|None=None
+    ai_fallback:bool=False
 
     @field_validator('page_url')
     @classmethod
@@ -131,7 +132,7 @@ async def input_data(req):
     image=None
     content=req.headers.get('content-type','').lower()
     if content.startswith('multipart/form-data'):
-        async with req.form(max_files=1,max_fields=7,max_part_size=4096) as form:
+        async with req.form(max_files=1,max_fields=8,max_part_size=4096) as form:
             if len(form.multi_items())!=len(form):fail(422,'DUPLICATE_FIELDS')
             raw={k:v for k,v in form.items() if k!='image'}
             upload=form.get('image')
@@ -174,7 +175,10 @@ async def create_analysis(req:Request,response:Response,owner=Depends(analysis_o
                 if pending['n']>=3:fail(429,'ANALYSIS_LIMIT')
                 if image is not None:image_id=save_image(image)
                 # result_metadata는 NOT NULL(기본 {}): 상품명이 없을 때 NULL을 넣으면 접수 전체가 409로 실패한다(#88).
-                init_meta=json.dumps({'page_title':data.page_title.strip()} if data.page_title and data.page_title.strip() else {})
+                meta_dict={}
+                if data.page_title and data.page_title.strip():meta_dict['page_title']=data.page_title.strip()
+                if data.ai_fallback:meta_dict['ai_fallback']=True
+                init_meta=json.dumps(meta_dict)
                 result=await row(c,'''INSERT INTO app.analyses(owner_id,guest,request_key,request_hash,page_url,page_session_id,page_revision,
                     selected_domain,image_id,image_hash,result_metadata)
                     VALUES(:u,:guest,:k,:h,:url,:session,:revision,:kind,:image,:ih,CAST(:meta AS jsonb))
@@ -334,14 +338,16 @@ async def claim(data:Claim,req:Request):
         result=await row(c,"""UPDATE app.analyses SET state='running',attempt=attempt+1,worker_id=:w,lease_token=:lease,
             lease_until=least(deadline,now()+interval '2 minutes'),updated_at=now() WHERE analysis_id=:id
             RETURNING analysis_id,owner_id,guest,page_url,selected_domain,lease_token,lease_until,attempt,image_id,result_metadata""",w=data.worker_id,lease=lease,id=r['analysis_id'])
-    page_title=(result.get('result_metadata') or {}).get('page_title') if isinstance(result.get('result_metadata'),dict) else None
+    meta_obj=result.get('result_metadata') if isinstance(result.get('result_metadata'),dict) else {}
+    page_title=meta_obj.get('page_title')
+    ai_fallback=bool(meta_obj.get('ai_fallback'))
     # Release the catalog connection before taking a member connection: public
     # routes use member -> catalog order, so nesting here could exhaust both pools.
     if result['guest']:
         # 비회원: 회원 DB를 조회하지 않고 기본 설정으로 추천한다(알레르기 없음, 중고·해외 제외, 무료 개수).
         # 설정 화면의 중고·해외 스위치가 비회원에게 꺼짐으로 보이므로 그와 같게 둔다.
         return wrap({k:v for k,v in result.items() if k not in {'image_id','owner_id','guest','result_metadata'}}|
-                    {'page_title':page_title,'profile':{'user_id':'guest','allergens':[],'include_used':False,'include_overseas':False,
+                    {'page_title':page_title,'ai_fallback':ai_fallback,'profile':{'user_id':'guest','allergens':[],'include_used':False,'include_overseas':False,
                         'avoid_ingredients':[],'preferences':''},
                      'image_url':'/internal/v2/analyses/'+str(result['analysis_id'])+'/image' if result['image_id'] else None},req)
     async with req.app.state.member_engine.connect() as m:
@@ -352,7 +358,7 @@ async def claim(data:Claim,req:Request):
             await execute(c,"UPDATE app.analyses SET state='cancelled',lease_token=NULL,updated_at=now() WHERE analysis_id=:id AND lease_token=:lease",id=result['analysis_id'],lease=lease)
         return wrap(None,req)
     return wrap({k:v for k,v in result.items() if k not in {'image_id','owner_id','guest','result_metadata'}}|
-                {'page_title':page_title,'profile':{'user_id':str(result['owner_id']),'allergens':profile['profile']['allergies'],
+                {'page_title':page_title,'ai_fallback':ai_fallback,'profile':{'user_id':str(result['owner_id']),'allergens':profile['profile']['allergies'],
                     'include_used':profile['profile']['include_used'],
                     'include_overseas':profile['profile']['include_overseas'],
                     'avoid_ingredients':profile['profile']['ingredient_filter']['avoid'] if profile['premium'] else [],

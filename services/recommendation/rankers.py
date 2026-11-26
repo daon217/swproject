@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from .contracts import CollectedProduct, UserProfile
 
 DEFAULT_MODEL = os.getenv("RECO_LLM_MODEL") or "claude-opus-5-5"  # 빈 값(compose 기본)도 기본 모델로
+FALLBACK_MODEL = os.getenv("RECO_FALLBACK_LLM_MODEL") or "claude-sonnet-4-6"  # DB 추천 0건 시 실시간 폴백 전용 가벼운 모델
 
 
 class RuleRanker:
@@ -75,15 +76,21 @@ class ClaudeRanker:
         return self.rank_rendered(*render_candidates(self.fmt, profile, query, items, top_k, **self.render_opts))
 
     def rank_rendered(self, system: str, user: str, id_map: dict[str, str]):
+        import anthropic
         self.last_usage = None  # 실패한 호출에 이전 호출의 토큰 수가 남지 않도록
-        resp = self.client.messages.parse(
+        kw = dict(
             model=self.model,
             max_tokens=self.max_tokens,
             system=system,
-            output_config={"effort": "low"},
             messages=[{"role": "user", "content": user}],
             output_format=_Picks,
         )
+        try:
+            resp = self.client.messages.parse(**kw, output_config={"effort": "low"})
+        except anthropic.BadRequestError as e:
+            if "effort" not in str(e):
+                raise
+            resp = self.client.messages.parse(**kw)
         u = getattr(resp, "usage", None)
         self.last_usage = (getattr(u, "input_tokens", None), getattr(u, "output_tokens", None)) if u else None
         if resp.stop_reason == "refusal" or resp.parsed_output is None:
@@ -163,17 +170,17 @@ class LocalLLMRanker:
         return [(id_map.get(x.id, f"unknown:{x.id}"), x.reason) for x in picks]
 
 
-def make_ranker(kind: str):
+def make_ranker(kind: str, model: str | None = None):
     if kind == "rule":
         return RuleRanker()
     if kind == "claude":
-        return ClaudeRanker()
+        return ClaudeRanker(model=model or DEFAULT_MODEL)
     if kind == "local":
-        return LocalLLMRanker()
+        return LocalLLMRanker(model=model)
     if kind == "auto":
         if os.getenv("ANTHROPIC_API_KEY"):
             try:
-                return ClaudeRanker()
+                return ClaudeRanker(model=model or DEFAULT_MODEL)
             except ImportError:
                 pass
         return RuleRanker()

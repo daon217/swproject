@@ -67,4 +67,6 @@ export const KEYS = {
   pendingRoute: 'kp.pendingRoute',
   /** 상품 추천 켜기/끄기(기본 꺼짐) */
   recommendEnabled: 'kp.recommendEnabled',
+  /** DB에 추천 상품이 없을 때 AI 실시간 쇼핑몰 검색 추천 켜기/끄기(기본 켜짐) */
+  aiFallbackEnabled: 'kp.aiFallbackEnabled',
 } as const;

@@ -239,12 +239,17 @@ def test_domains_availability_and_missing_food_ingredients(db):
         context = client.post('/internal/catalog-context',headers={'Authorization':'Bearer '+TOKEN},
             json={'page_url':'https://store.example.test/'+listing,'selected_domain':'food'}).json()['match']
         assert context['allergens_declared'] == ['shellfish'] and context['ingredients'] == ['현미','천일염']
-        # 성분표 없이 판매처 알레르기 표시만 있는 식품: 표시에 없는 알레르기는 '인식 못함'으로 경고하지 않고,
-        # 표시에 있는 알레르기는 경고한다. 둘 다 없을 때만 '인식 못함'.
-        w = lambda **kw: request(client,query='쿠키',selected_domain='food',profile={'user_id':'t','allergens':['milk','shellfish']},**kw).json()['warnings']
-        assert [(x['allergen'],x['evidence']) for x in w(allergens_declared=['soybean','wheat'])] == []
-        assert [(x['allergen'],x['evidence']) for x in w(allergens_declared=['shellfish'])] == [('shellfish','contains')]
-        assert {(x['allergen'],x['evidence']) for x in w()} == {('milk','unknown'),('shellfish','unknown')}
+        # 알레르기 경고는 실제로 감지됐을 때만(3be1719 정책): 판매처 표시·상품명·성분표에 있으면 '함유',
+        # 성분표를 못 읽었다는 이유만으로 '확인 필요(unknown)' 경고를 띄우지 않는다.
+        def w(query='쿠키', **kw):
+            return {(x['allergen'],x['evidence']) for x in request(client,query=query,selected_domain='food',
+                    profile={'user_id':'t','allergens':['milk','shellfish']},**kw).json()['warnings']}
+        assert w(allergens_declared=['soybean','wheat']) == set()
+        assert w(allergens_declared=['shellfish']) == {('shellfish','contains')}
+        assert w() == set()
+        assert w(query='우유 버터쿠키') == {('milk','contains')}  # 성분표 없이 상품명만으로 감지
+        # '같은 제조시설에서 제조' 교차오염 안내 문구의 원료는 함유로 보지 않는다.
+        assert w(ingredients=['밀가루','설탕','본 제품은 우유','조개류를 사용한 제품과 같은 제조시설에서 제조하고 있습니다']) == set()
 
 
 def test_missing_contract_returns_503_not_memory_fallback(db):

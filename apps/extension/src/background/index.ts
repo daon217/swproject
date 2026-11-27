@@ -3,7 +3,7 @@ import { api, isMockApi } from '../shared/api';
 import { getAuthToken } from '../shared/auth';
 import type { Message, PanelRoute, TabState } from '../shared/messages';
 import { safeHttpUrl } from '../shared/format';
-import { captureRule, shouldCapture } from '../shared/pageFilter';
+import { captureRule, sameUrl, shouldCapture } from '../shared/pageFilter';
 import { isAiFallbackEnabled, isRecommendEnabled } from '../shared/recommendSetting';
 import { KEYS } from '../shared/storage';
 import type { PageScan } from '../shared/pageProduct';
@@ -85,7 +85,7 @@ function emptyState(tabId: number, url: string, revision: number): TabState {
 async function resetForUrl(tabId: number, url: string): Promise<TabState> {
   const prev = await readState(tabId);
   const state = emptyState(tabId, url, (prev?.page_revision ?? 0) + 1);
-  if (prev && prev.url === url) state.page_session_id = prev.page_session_id;
+  if (prev && sameUrl(prev.url, url)) state.page_session_id = prev.page_session_id;
   await writeState(state);
   return state;
 }
@@ -124,7 +124,7 @@ async function staleReason(tabId: number, state: TabState): Promise<string | nul
   if (!(await isRecommendEnabled())) return '상품 추천 스위치 꺼짐';
   if (owners.has(state) && owners.get(state) !== await getAuthToken()) return '로그인 계정 변경';
   if (!tab) return '탭 닫힘';
-  if (tab.url !== state.url) return `탭 URL 변경 → ${tab.url}`;
+  if (!sameUrl(tab.url, state.url)) return `탭 URL 변경 → ${tab.url}`;
   if (latest?.page_revision !== state.page_revision) return `새 분석 시작됨(rev ${latest?.page_revision} ≠ ${state.page_revision})`;
   return null;
 }
@@ -142,7 +142,7 @@ const inflight = new Map<number, string>();
 const recommendedTabs = new Map<number, { initialUrl: string; settledUrl: string | null; openedAt: number }>();
 
 function isSameRecommendedNavigation(entry: { initialUrl: string; settledUrl: string | null; openedAt: number }, url: string): boolean {
-  if (url === entry.initialUrl || url === entry.settledUrl) return true;
+  if (sameUrl(url, entry.initialUrl) || sameUrl(url, entry.settledUrl)) return true;
   // 클릭 직후(8초 이내) 리다이렉트·정규화 쿼리 파라미터가 붙는 경우는 같은 추천 상품 이동으로 본다.
   if (Date.now() - entry.openedAt < 8000) {
     entry.settledUrl = url;
@@ -165,15 +165,15 @@ async function analyze(tabId: number, url: string, force = false) {
     if (recEntry) {
       if (isSameRecommendedNavigation(recEntry, url)) {
         const prev = await readState(tabId);
-        if (prev && prev.url !== url) await writeState({ ...prev, url });
+        if (prev && !sameUrl(prev.url, url)) await writeState({ ...prev, url });
         return dlog('analyze', '건너뜀: 추천 상품 클릭으로 이동한 페이지라 자동 재분석 안 함', { tabId, url });
       }
       recommendedTabs.delete(tabId);
     }
-    if (inflight.get(tabId) === url) return dlog('analyze', '건너뜀: 같은 페이지 분석 진행 중', { tabId, url });
+    if (sameUrl(inflight.get(tabId), url)) return dlog('analyze', '건너뜀: 같은 페이지 분석 진행 중', { tabId, url });
     const prev = await readState(tabId);
     // 진행 중 여부는 메모리(inflight)로만 본다. 서비스 워커가 내려가 'analyzing'이 남아도 다시 분석할 수 있게.
-    if (prev?.url === url && prev.status === 'done') {
+    if (sameUrl(prev?.url, url) && prev?.status === 'done') {
       return dlog('analyze', '건너뜀: 같은 페이지 결과 재사용', { tabId, url });
     }
   }
@@ -181,13 +181,13 @@ async function analyze(tabId: number, url: string, force = false) {
   try {
     await runAnalyze(tabId, url);
   } finally {
-    if (inflight.get(tabId) === url) inflight.delete(tabId);
+    if (sameUrl(inflight.get(tabId), url)) inflight.delete(tabId);
   }
 }
 
 async function runAnalyze(tabId: number, url: string) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
-  if (!tab || tab.url !== url) return;
+  if (!tab || !sameUrl(tab.url, url)) return;
   const token = await getAuthToken();
   const state = await resetForUrl(tabId, url);
   owners.set(state, token);
@@ -306,7 +306,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   if (!tab?.url) return;
   const state = await readState(tabId);
   // 활성화 시점에 결과가 없거나 다른 URL이면 다시 분석한다.
-  if (!state || state.url !== tab.url || (state.status === 'none' && shouldCapture(tab.url))) {
+  if (!state || !sameUrl(state.url, tab.url) || (state.status === 'none' && shouldCapture(tab.url))) {
     dlog('event', 'tabs.onActivated → 결과 없음/다른 URL이라 재분석', { tabId, url: tab.url, prev: state?.status ?? null });
     schedule(tabId, tab.url, '(탭 전환)');
   } else {
@@ -349,14 +349,14 @@ chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {
     case 'getTabState': {
       const tabId = sender.tab?.id;
       if (tabId === undefined) return false;
-      readState(tabId).then((s) => sendResponse(s && s.url === sender.tab?.url ? s : null));
+      readState(tabId).then((s) => sendResponse(s && sameUrl(s.url, sender.tab?.url) ? s : null));
       return true;
     }
     case 'getActiveTabState': {
       activeTab().then(async (tab) => {
         if (tab?.id === undefined) return sendResponse(null);
         const s = await readState(tab.id);
-        sendResponse(s && s.url === tab.url ? s : emptyState(tab.id, tab.url ?? '', 0));
+        sendResponse(s && sameUrl(s.url, tab.url) ? s : emptyState(tab.id, tab.url ?? '', 0));
       });
       return true;
     }
@@ -367,7 +367,7 @@ chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {
       const tab = sender.tab;
       if (tab?.id !== undefined && tab.url) {
         void readState(tab.id).then((s) => {
-          if (!s || s.url !== tab.url || s.status !== 'done') return;
+          if (!s || !sameUrl(s.url, tab.url) || s.status !== 'done') return;
           if (s.analysis?.ingredient_status && s.analysis.ingredient_status !== 'not_found') return;
           void analyze(tab.id!, tab.url!, true);
         });

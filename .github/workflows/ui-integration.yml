@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['apps/**', 'services/api/**', 'infra/**', 'tools/**', 'tests/ui/**', '.github/workflows/ui-integration.yml', '.dockerignore']
   push:
-    branches: [main]
+    branches: [main, maintest]
     paths: ['apps/**', 'services/api/**', 'infra/**', 'tools/**', 'tests/ui/**', '.github/workflows/ui-integration.yml', '.dockerignore']
 permissions:
   contents: read

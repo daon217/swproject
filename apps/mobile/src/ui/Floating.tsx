@@ -211,7 +211,7 @@ export function Floating({
         {kind === 'empty' && (
           <Pressable style={st.compact} onPress={openSheet} accessibilityRole="button" accessibilityLabel="추천할 상품을 찾지 못했어요">
             <Text style={st.label}>꿀픽 추천</Text>
-            <Text style={st.stateBody}>{a?.result_kind === 'ingredient_unknown' ? '성분 정보를 확인하지 못했어요' : a?.selected_domain ? '비슷한 상품을 찾지 못했어요' : '추천할 상품을 찾지 못했어요'}</Text>
+            <Text style={st.stateBody}>{a?.result_kind === 'ingredient_unknown' ? '성분 정보를 확인하지 못했어요' : a?.allergy_excluded ? '알레르기 걱정 없는 비슷한 상품이 없어요' : a?.selected_domain ? '비슷한 상품을 찾지 못했어요' : '추천할 상품을 찾지 못했어요'}</Text>
           </Pressable>
         )}
         {kind === 'result' && (

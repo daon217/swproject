@@ -222,6 +222,8 @@ body {
 }
 
 .sp-check {
+  /* 숨긴 input의 기준. 없으면 input이 .sp-app 기준으로 놓여 포커스 때 패널 전체가 밀려 올라가 굳었다. */
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;

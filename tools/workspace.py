@@ -103,11 +103,13 @@ def dev_adapters_enabled():
 
 
 def compose(*args, scope='full', shared=False):
+    # compose_command가 os.environ에 쇼핑몰 목록·모의 결제를 넣으므로 env를 복사하기 전에 먼저 부른다.
+    command = compose_command(scope, shared) + list(args)
     env = None
     if scope == 'integrated' and dev_adapters_enabled():
         profiles = [p for p in os.environ.get('COMPOSE_PROFILES', '').split(',') if p]
         env = os.environ | {'COMPOSE_PROFILES': ','.join(profiles + ['dev-adapters'])}
-    subprocess.run(compose_command(scope, shared) + list(args), cwd=ROOT, check=True, env=env)
+    subprocess.run(command, cwd=ROOT, check=True, env=env)
 
 
 def doctor():

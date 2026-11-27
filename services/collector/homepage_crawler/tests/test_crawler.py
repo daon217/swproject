@@ -91,6 +91,19 @@ def test_rest_after_100_saved(monkeypatch):
     assert naps == [600] and left == 60  # 60+60=120에서 한 번 쉬고, 다시 60부터
 
 
+def test_rest_zero_never_sleeps(monkeypatch):
+    rows = [{"kind": "상품"}] * 60
+    monkeypatch.setattr(C, "crawl_site", lambda *x: ("ok", rows, 1))
+    monkeypatch.setattr(C, "save", lambda *x: None)
+    monkeypatch.setattr(C, "REST", 0)
+    naps = []
+    monkeypatch.setattr(C.time, "sleep", naps.append)
+    a = SimpleNamespace(dry_run=False, watch=True, max_pages=1, delay=0, sender=None)
+    for conn in (FakeConn(), None):  # DB 저장·백엔드 전송 경로 둘 다
+        C.run_cycle([("A", "u"), ("B", "u"), ("C", "u")], a, conn)
+    assert naps == []
+
+
 def test_db_lost_stops_before_crawling(monkeypatch):
     called = []
     monkeypatch.setattr(C, "crawl_site", lambda *x: called.append(1))
@@ -107,7 +120,6 @@ def test_db_lost_during_save_stops(monkeypatch):
     a = SimpleNamespace(dry_run=False, watch=True, max_pages=1, delay=0)
     with pytest.raises(C.DBLost):
         C.run_cycle([("A", "u"), ("B", "u")], a, FakeConn())
-
 
 
 def test_canonical_url():

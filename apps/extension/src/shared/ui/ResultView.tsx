@@ -187,12 +187,20 @@ export function ResultView({ state, ...h }: { state: TabState | null } & Handler
   if (a.result_kind === 'empty') {
     // 분석은 됐지만 비슷한 상품이 없을 때도 알레르기 경고는 반드시 보여준다. 빈 추천 구역은 늘어놓지 않는다.
     if (visibleWarnings(a).length) return <EmptyWithWarning analysis={a} />;
-    if (a.selected_domain) {
-      return <EmptyState title="비슷한 상품을 찾지 못했어요" body="이 상품과 비슷한 추천 상품이 아직 꿀픽에 없어요. 다른 상품 페이지에서 다시 확인해 주세요." />;
-    }
+    if (a.selected_domain) return <EmptyState {...emptyCopy(a, ' 다른 상품 페이지에서 다시 확인해 주세요.')} />;
     return <EmptyState title="이 페이지에는 추천할 상품이 없어요" body="상품 정보를 찾지 못했어요. 상품 상세 페이지에서 다시 확인해 주세요." />;
   }
   return <ResultBody key={a.analysis_id} analysis={a} {...h} />;
+}
+
+/** 추천이 비었을 때 안내. 같은 품목 후보가 알레르기로 모두 빠졌으면 "비슷한 상품 없음" 대신 그 이유를 알려준다. */
+export function emptyCopy(a: Analysis, hint = '') {
+  const x = a.allergy_excluded;
+  if (!x) return { title: '비슷한 상품을 찾지 못했어요', body: '이 상품과 비슷한 추천 상품이 아직 꿀픽에 없어요.' + hint };
+  const parts = [x.allergen ? `알레르기 성분이 들었거나 같은 시설에서 만든 ${x.allergen}개` : '', x.unknown_ingredients ? `성분을 확인할 수 없는 ${x.unknown_ingredients}개` : '']
+    .filter(Boolean)
+    .join(', ');
+  return { title: '알레르기 걱정 없는 비슷한 상품을 아직 찾지 못했어요', body: `비슷한 상품 중 ${parts}를 안전을 위해 뺐어요.` };
 }
 
 function AllergyNoticeBox({ analysis: a }: { analysis: Analysis }) {
@@ -221,7 +229,7 @@ function EmptyWithWarning({ analysis: a }: { analysis: Analysis }) {
           <span className="kp-brand">{headerLabel(a).text}</span>
         </div>
         <AllergyNoticeBox analysis={a} />
-        <EmptyState title="비슷한 상품을 찾지 못했어요" body="이 상품과 비슷한 추천 상품이 아직 꿀픽에 없어요." />
+        <EmptyState {...emptyCopy(a)} />
       </div>
     </div>
   );

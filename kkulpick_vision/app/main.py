@@ -35,7 +35,8 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    # 인증은 쿠키가 아니라 Authorization 헤더. "*"와 credentials를 같이 켜면 모든 사이트에 자격 증명 요청을 허용한다.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -276,7 +277,12 @@ from starlette.responses import JSONResponse
 @app.middleware('http')
 async def service_auth(request,call_next):
     token=os.getenv('VISION_SERVICE_TOKEN','')
-    if request.url.path.startswith('/api/') and token:
+    if request.url.path.startswith('/api/'):
+        if not token:
+            # 토큰이 비면 열지 않고 닫는다. 혼자 로컬에서 띄울 때만 VISION_DEV_NO_AUTH=1로 끈다.
+            if os.getenv('VISION_DEV_NO_AUTH') == '1':
+                return await call_next(request)
+            return JSONResponse({'detail':'SERVICE_TOKEN_NOT_CONFIGURED'},status_code=503)
         given=request.headers.get('authorization','')
         if not secrets.compare_digest(given.encode(),('Bearer '+token).encode()):
             return JSONResponse({'detail':'SERVICE_AUTH_REQUIRED'},status_code=401)

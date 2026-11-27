@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['services/**', 'apps/**', 'infra/**', 'tools/**', '.github/workflows/workspace.yml']
   push:
-    branches: [main]
+    branches: [main, maintest]
     paths: ['services/**', 'apps/**', 'infra/**', 'tools/**', '.github/workflows/workspace.yml']
 permissions:
   contents: read

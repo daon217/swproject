@@ -52,6 +52,14 @@
           "install",
           "-r",
           "../dev_runtime/requirements.lock"
+        ],
+        [
+          "python",
+          "-m",
+          "pip",
+          "install",
+          "-r",
+          "../../kkulpick_vision/requirements-dev.txt"
         ]
       ],
       "check": [
@@ -59,6 +67,13 @@
           "python",
           "../../tools/check_adapter.py",
           "vision"
+        ],
+        [
+          "python",
+          "-m",
+          "pytest",
+          "-q",
+          "../../kkulpick_vision/tests"
         ]
       ],
       "build": [
@@ -237,6 +252,10 @@
         [
           "node",
           "../../tools/test_debug_privacy.cjs"
+        ],
+        [
+          "node",
+          "../../tools/test_page_url.cjs"
         ]
       ],
       "build": [

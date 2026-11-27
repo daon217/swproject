@@ -49,11 +49,17 @@ class AllergyWarning(Strict):
     evidence:Literal['contains','may_contain','unknown']
     message:str=Field(max_length=1000)
 
+class AllergyExclusions(Strict):
+    """같은 품목 후보 중 알레르기 성분이 있거나(allergen) 성분을 몰라(unknown_ingredients) 뺀 개수."""
+    allergen:int=Field(default=0,ge=0,le=10000)
+    unknown_ingredients:int=Field(default=0,ge=0,le=10000)
+
 class ResultMetadata(Strict):
     warnings:list[AllergyWarning]=Field(default_factory=list,max_length=100)
     ingredients:list[str]=Field(default_factory=list,max_length=100)
     reasons:dict[str,str]=Field(default_factory=dict,max_length=50)
     ranker:str=Field(default='',max_length=80)
+    exclusions:AllergyExclusions|None=None
     @field_validator('ingredients')
     @classmethod
     def bounded_ingredients(cls,values):
@@ -252,11 +258,16 @@ async def public_result(c,r,premium,by_id=None,include_used=False,include_overse
     cards=[x for x in cards if x.get('condition')!='used' and not is_overseas(x)][:PREMIUM_AI_ITEMS]
     cap=PREMIUM_AI_ITEMS if premium else FREE_AI_ITEMS
     result_kind=('recommendation' if cards or used or overseas else 'empty') if r['state']=='completed' else None
+    # 추천이 비었고 같은 품목 후보가 알레르기로 빠졌을 때만: 화면이 '비슷한 상품 없음' 대신 이유를 안내한다.
+    excl=metadata.get('exclusions') or {}
+    allergy_excluded=(excl if result_kind=='empty' and r['selected_domain']=='food'
+                      and (excl.get('allergen',0) or excl.get('unknown_ingredients',0)) else None)
     state='ready' if r['state']=='completed' else 'loading' if r['state'] in {'queued','running'} else 'failed'
     extra=lambda kind,items:{'kind':kind,'state':state,'items':items,'locked_count':0,'lock_reason':None,'footnote':None}
     used_section=([extra('overseas',overseas)] if overseas or include_overseas else [])+(
         [extra('used',used)] if (used or include_used) and r['selected_domain']!='food' else [])
     return {'analysis_id':r['analysis_id'],'state':r['state'],'result_kind':result_kind,
+        'allergy_excluded':allergy_excluded,
         'ingredient_status':('partial' if ingredients else 'not_found') if r['selected_domain']=='food' else 'not_applicable',
         'page_session_id':r['page_session_id'],'page_revision':r['page_revision'],'selected_domain':r['selected_domain'],
         'source_summary':{'vision':'success' if ingredients else 'empty'},'warnings':warnings_for_domain(metadata.get('warnings',[]),r['selected_domain']), 'premium':premium,'applied_filter':None,

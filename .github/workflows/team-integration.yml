@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['services/**', 'apps/**', 'kkulpick_vision/**', 'infra/**', 'tools/**', 'tests/ui/**', '.github/workflows/team-integration.yml']
   push:
-    branches: [main]
+    branches: [main, maintest]
     paths: ['services/**', 'apps/**', 'kkulpick_vision/**', 'infra/**', 'tools/**', 'tests/ui/**', '.github/workflows/team-integration.yml']
 permissions:
   contents: read

@@ -5,6 +5,7 @@ import baseCss from '../shared/ui/styles.css?inline';
 import floatingCss from './floating.css?inline';
 import { Floating } from './Floating';
 import { scanPage } from '../shared/pageProduct';
+import { sameUrl } from '../shared/pageFilter';
 import { dlog } from '../shared/debug';
 import { useDragPosition } from './drag';
 
@@ -40,7 +41,7 @@ function ContentApp() {
     const onMsg = (msg: Message) => {
       if (msg.type === 'panelVisibility') { visibilityChanged = true; setPanelOpen(msg.open); return; }
       // 현재 문서 URL과 다른 결과는 표시하지 않는다(이전 페이지 결과 노출 방지).
-      if (msg.type === 'tabState' && msg.state.url === location.href) {
+      if (msg.type === 'tabState' && sameUrl(msg.state.url, location.href)) {
         dlog('content', `플로팅 상태 갱신 → ${msg.state.status}`, { page_revision: msg.state.page_revision, error: msg.state.error });
         setState(msg.state);
       } else if (msg.type === 'tabState') {
@@ -64,7 +65,7 @@ function ContentApp() {
 
     const onScroll = () => {
       if (captures.count >= 15) return; // 최대 15프레임 제한(Hard Timeout)
-      if (!state || state.url !== location.href) return;
+      if (!state || !sameUrl(state.url, location.href)) return;
       if (state.status !== 'done' || !state.analysis) return;
       // 이미 성분을 찾았으면(partial/found) 더 이상 스크롤 캡처를 보내지 않음(Early Exit)
       if (state.analysis.ingredient_status && state.analysis.ingredient_status !== 'not_found') return;

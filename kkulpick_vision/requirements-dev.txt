@@ -1,0 +1,7 @@
+# 단위 테스트용(PaddleOCR 없이 실행). CI: services/dev_runtime/requirements.lock 다음에 설치.
+# numpy·opencv 상한은 infra/nas/vision/Dockerfile의 constraints와 같다.
+pytest==9.2.0
+fakeredis[lua]==2.41.0
+pydantic-settings==2.16.3
+numpy==1.26.4
+opencv-python-headless==4.10.0.84

@@ -146,7 +146,8 @@ class Worker:
             self.request('POST',path+'/complete',json=lease|{
                 'selected_domain':kind,'offer_ids':offer_ids,
                 'metadata':{'ingredients':[str(i)[:500] for i in ingredients[:100]] if kind=='food' else [],
-                    'reasons':result.get('reasons',{}),'ranker':result.get('ranker',''),'warnings':warnings}})
+                    'reasons':result.get('reasons',{}),'ranker':result.get('ranker',''),'warnings':warnings,
+                    **({'exclusions':result['exclusions']} if kind=='food' and result.get('exclusions') else {})}})
             return True
         except httpx.HTTPStatusError as error:
             status=error.response.status_code

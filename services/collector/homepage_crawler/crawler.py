@@ -296,7 +296,8 @@ def main():
         sys.exit(f"DB 연결이 끊겨 크롤링을 멈춥니다: {e}")
 
 
-BATCH, REST = 100, 600  # DB에 100개를 쌓을 때마다 10분(600초) 쉰다
+# DB에 100개를 쌓을 때마다 10분(600초) 쉰다. HOMEPAGE_CRAWLER_REST_SECONDS=0이면 쉬지 않는다(페이지 간 --delay는 유지).
+BATCH, REST = 100, int(os.environ.get("HOMEPAGE_CRAWLER_REST_SECONDS", "600"))
 
 
 class DBLost(Exception):
@@ -344,7 +345,7 @@ def run_cycle(sites, a, conn, saved=0):
                 print(f"{name:12} backend_error:{type(e).__name__}", flush=True)
         if conn is None:  # 백엔드만 전송: 저장 수와 쉬는 규칙은 같게
             saved += len(products)
-            if saved >= BATCH:
+            if REST and saved >= BATCH:
                 print(f"백엔드에 {saved}개 전송, {REST // 60}분 쉽니다 ({time.strftime('%H:%M:%S')})", flush=True)
                 time.sleep(REST)
                 saved = 0
@@ -363,7 +364,7 @@ def run_cycle(sites, a, conn, saved=0):
             print(f"{name:12} db_error:{type(e).__name__} {str(e)[:200]}", flush=True)
             continue
         saved += len(products)
-        if saved >= BATCH:
+        if REST and saved >= BATCH:
             print(f"DB에 {saved}개 저장, {REST // 60}분 쉽니다 ({time.strftime('%H:%M:%S')})", flush=True)
             time.sleep(REST)
             saved = 0

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, isMockApi } from '../shared/api';
 import { sendMessage, type Message, type TabState } from '../shared/messages';
-import { shouldCapture } from '../shared/pageFilter';
+import { sameUrl, shouldCapture } from '../shared/pageFilter';
 import { getAuth } from '../shared/auth';
 import { KEYS, onItemChange } from '../shared/storage';
 import { isRecommendEnabled } from '../shared/recommendSetting';
@@ -41,7 +41,7 @@ export function useActiveTabState(): { state: TabState | null; retry: () => void
     const onMsg = (msg: Message) => {
       if (msg.type !== 'tabState') return;
       chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
-        if (tab?.id === msg.state.tabId && tab.url === msg.state.url) {
+        if (tab?.id === msg.state.tabId && sameUrl(tab.url, msg.state.url)) {
           dlog('panel', `사이드패널 화면 갱신 → ${msg.state.status}`, { tabId: msg.state.tabId, page_revision: msg.state.page_revision, error: msg.state.error });
           setState(msg.state);
         }

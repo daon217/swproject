@@ -19,6 +19,24 @@ export const SHOP_HOSTS =
 export const PRODUCT_PATH =
   /(product|products|goods|item|vp\/|catalog|detail|\/dp\/|\/gp\/(product|aw\/d)\/|\/itm\/|\/info\/|\/prd\/|\/deal\/|\/buy-sell\/|\/articles\/|\/pr\/|\/pdr\/|-g-\d+\.html)/i;
 
+/**
+ * 같은 페이지 주소인가. 쇼핑몰이 로드 뒤 주소를 인코딩만 바꿔 다시 쓰면(쿠팡 ':' → '%3A') 다른 페이지로 보고
+ * 분석 결과를 버려 '분석 중'에 멈췄다. 쿼리는 순서·값을 그대로 두고 인코딩만 맞춰 비교한다.
+ */
+export function sameUrl(a?: string | null, b?: string | null): boolean {
+  return a === b || (!!a && !!b && canonicalUrl(a) === canonicalUrl(b));
+}
+
+function canonicalUrl(u: string): string {
+  try {
+    const url = new URL(u);
+    url.search = new URLSearchParams(url.search).toString();
+    return url.href;
+  } catch {
+    return u;
+  }
+}
+
 export type CaptureRule = 'shop' | 'needs-signal';
 
 export function isShopHost(hostname: string): boolean {

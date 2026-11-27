@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['tools/**','infra/team/**','infra/db/**','services/api/**','.github/workflows/team-access.yml']
   push:
-    branches: [main]
+    branches: [main, maintest]
     paths: ['tools/**','infra/team/**','infra/db/**','services/api/**','.github/workflows/team-access.yml']
 permissions:
   contents: read

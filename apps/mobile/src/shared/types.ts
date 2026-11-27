@@ -131,6 +131,8 @@ export interface Analysis {
   analysis_id: string;
   state: AnalysisState;
   result_kind: ResultKind | null;
+  /** 식품 추천이 비었고 같은 품목 후보가 알레르기로 빠졌을 때만: 알레르기 성분 포함 / 성분 확인 불가 개수 */
+  allergy_excluded?: { allergen: number; unknown_ingredients: number } | null;
   ingredient_status: IngredientStatus;
   page_session_id: string;
   page_revision: number;

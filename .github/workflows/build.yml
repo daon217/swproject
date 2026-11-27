@@ -1,9 +1,9 @@
 name: Team build
 on:
   pull_request:
-    branches: [main]
+    branches: [main, maintest]
   push:
-    branches: [main]
+    branches: [main, maintest]
   workflow_dispatch:
 permissions:
   contents: read

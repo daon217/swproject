@@ -61,7 +61,10 @@ celery -A app.celery_app.celery_app worker --loglevel=info --pool=solo
 
 ### 4) FastAPI 서버 실행
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# 혼자 로컬에서 띄울 때: 인증 끄기(내 PC에서만 열리게 127.0.0.1)
+VISION_DEV_NO_AUTH=1 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+# 다른 서비스와 연결할 때: VISION_SERVICE_TOKEN을 설정하면 /api/ 요청에 'Authorization: Bearer <토큰>'이 필요합니다.
+# 토큰도 VISION_DEV_NO_AUTH=1도 없으면 /api/ 요청은 503으로 거절됩니다.
 ```
 
 ---

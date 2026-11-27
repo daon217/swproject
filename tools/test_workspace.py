@@ -96,6 +96,20 @@ class LocalWorkspaceTests(unittest.TestCase):
             workspace.compose_command('core')
             self.assertIn('--reload', os.environ['API_RELOAD_ARGS'])
 
+    def test_integrated_compose_passes_shop_hosts_and_mock_billing_to_docker(self):
+        # dev-adapters 프로필용 env를 먼저 복사하면 compose_command가 더한 값이 docker에 안 넘어갔다.
+        self.initialize()
+        shutil.copyfile(Path(workspace.__file__).resolve().parents[1] / 'infra/workspace/shop_hosts.txt',
+                        self.root / 'infra/workspace/shop_hosts.txt')
+        with patch.dict(os.environ, {}, clear=False), patch.object(workspace.subprocess, 'run') as run:
+            for key in ('CATALOG_URL_HOSTS', 'AFFILIATE_URL_HOSTS', 'BILLING_MODE', 'COMPOSE_PROFILES'):
+                os.environ.pop(key, None)
+            workspace.compose('up', scope='integrated')
+        env = run.call_args.kwargs['env']
+        self.assertIn('kurly.com', env['CATALOG_URL_HOSTS'].split(','))
+        self.assertEqual(env['BILLING_MODE'], 'mock')
+        self.assertIn('dev-adapters', env['COMPOSE_PROFILES'])
+
     def test_core_omits_large_stack_and_full_retains_it(self):
         self.initialize()
         file = str(self.root / 'infra/workspace/compose.yaml')

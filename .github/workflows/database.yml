@@ -5,7 +5,7 @@ on:
       - infra/db/**
       - .github/workflows/database.yml
   push:
-    branches: [main]
+    branches: [main, maintest]
     paths:
       - infra/db/**
       - .github/workflows/database.yml

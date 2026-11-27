@@ -3,7 +3,7 @@ on:
   pull_request:
     paths: ['services/api/**','infra/db/**','tools/catalog.py','tools/performance.py','.github/workflows/catalog-api.yml']
   push:
-    branches: [main]
+    branches: [main, maintest]
     paths: ['services/api/**','infra/db/**','tools/catalog.py','tools/performance.py','.github/workflows/catalog-api.yml']
 permissions:
   contents: read

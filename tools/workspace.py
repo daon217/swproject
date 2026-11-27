@@ -142,7 +142,104 @@ def doctor():
             failed = True
             print('FAIL', ' '.join(command[:2]), '- start Docker Desktop with Linux containers / Compose v2')
     print('Local mode: no Tailscale, SSH enrollment, shared host, or Claude key required.')
+    wsl_advice()
     return int(failed)
+
+
+# --- Windows 도커(WSL2) 메모리 설정 -------------------------------------------------------------
+# 도커 VM은 컨테이너가 쓰는 메모리(통합 실행 약 2~3GB) 외에 파일 캐시까지 붙잡아 PC 메모리를 압박한다.
+# 그러면 Windows가 페이지 파일을 키워 C: 여유 공간이 줄어든다(실측: VM 6GB, PC 남은 메모리 1GB, 페이지 파일 10.7GB).
+# .wslconfig는 PC마다 따로 있는 파일이라 Git으로 공유되지 않으므로 doctor가 점검하고, 원하는 사람만 wslconfig --apply로 적용한다.
+WSL_CONFIG = Path(os.environ.get('USERPROFILE', str(Path.home()))) / '.wslconfig'
+
+
+def total_ram_gb():
+    if os.name != 'nt':
+        return None
+    import ctypes
+
+    class Status(ctypes.Structure):
+        _fields_ = [('length', ctypes.c_ulong), ('load', ctypes.c_ulong), ('total', ctypes.c_ulonglong),
+                    ('avail', ctypes.c_ulonglong), ('page_total', ctypes.c_ulonglong), ('page_avail', ctypes.c_ulonglong),
+                    ('virt_total', ctypes.c_ulonglong), ('virt_avail', ctypes.c_ulonglong), ('ext', ctypes.c_ulonglong)]
+    status = Status()
+    status.length = ctypes.sizeof(Status)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        return None
+    return status.total / 1024 ** 3
+
+
+def recommended_wsl(ram_gb):
+    """PC 메모리에 맞춘 도커 VM 설정. 통합 실행 실측(쉬는 상태 약 2.2GB, 분석 100회 부하 약 2.8GB)에 빌드 여유를 더했다."""
+    if ram_gb is None or ram_gb < 7.5:
+        return None
+    return {'memory': '5GB' if ram_gb >= 12 else '4GB', 'swap': '4GB', 'autoMemoryReclaim': 'dropcache'}
+
+
+def read_wsl_config(path=None):
+    path = path or WSL_CONFIG
+    values, section = {}, ''
+    if path.is_file():
+        for line in path.read_text(encoding='utf-8', errors='ignore').splitlines():
+            line = line.strip()
+            if line.startswith('[') and line.endswith(']'):
+                section = line[1:-1].strip().lower()
+            elif '=' in line and not line.startswith(('#', ';')):
+                key, value = (x.strip() for x in line.split('=', 1))
+                values[(section, key)] = value
+    return values
+
+
+def wsl_advice():
+    want = recommended_wsl(total_ram_gb())
+    if want is None:
+        return
+    have = read_wsl_config()
+    current = (have.get(('wsl2', 'memory')), have.get(('experimental', 'autoMemoryReclaim')))
+    if current == (want['memory'], want['autoMemoryReclaim']):
+        print('OK', f"Docker memory setting ({want['memory']}, unused memory returned to Windows)")
+    else:
+        print('TIP', f"Docker memory: now {current[0] or 'default (half of RAM)'}; recommended {want['memory']} + "
+              "returning unused memory. Apply: py tools/workspace.py wslconfig --apply (then restart Docker Desktop)")
+
+
+def write_wsl_config(apply, path=None, ram_gb=None):
+    """권장값을 보여 주고, --apply면 기존 파일을 .bak으로 남긴 뒤 해당 키만 바꾼다(다른 설정은 그대로)."""
+    path = path or WSL_CONFIG
+    want = recommended_wsl(ram_gb if ram_gb is not None else total_ram_gb())
+    if want is None:
+        print('Docker memory: this PC has under 8GB RAM or is not Windows; keep the default.')
+        return 0
+    targets = {('wsl2', 'memory'): want['memory'], ('wsl2', 'swap'): want['swap'],
+               ('experimental', 'autoMemoryReclaim'): want['autoMemoryReclaim']}
+    print('Recommended .wslconfig:', ', '.join(f'[{s}] {k}={v}' for (s, k), v in targets.items()))
+    if not apply:
+        print('Preview only. Apply with: py tools/workspace.py wslconfig --apply')
+        return 0
+    lines = path.read_text(encoding='utf-8', errors='ignore').splitlines() if path.is_file() else []
+    if path.is_file():
+        shutil.copyfile(path, path.with_name(path.name + '.bak'))
+    section, seen, out = '', set(), []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            out += [f'{k}={v}' for (s, k), v in targets.items() if s == section and (s, k) not in seen]
+            seen |= {key for key in targets if key[0] == section}
+            section = stripped[1:-1].strip().lower()
+        elif '=' in stripped and not stripped.startswith(('#', ';')) and (section, stripped.split('=', 1)[0].strip()) in targets:
+            key = (section, stripped.split('=', 1)[0].strip())
+            line = f'{key[1]}={targets[key]}'
+            seen.add(key)
+        out.append(line)
+    out += [f'{k}={v}' for (s, k), v in targets.items() if s == section and (s, k) not in seen]
+    seen |= {key for key in targets if key[0] == section}
+    for name in ('wsl2', 'experimental'):
+        missing = [f'{k}={v}' for (s, k), v in targets.items() if s == name and (s, k) not in seen]
+        if missing:
+            out += ['', f'[{name}]', *missing]
+    path.write_text('\n'.join(out).strip() + '\n', encoding='utf-8')
+    print('Saved', path, '(previous copy: .wslconfig.bak). Restart Docker Desktop (or run: wsl --shutdown) to apply.')
+    return 0
 
 
 def api_port():
@@ -184,7 +281,7 @@ def initialize():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share', 'maintenance', 'admin', 'validate', 'monitor'])
+    parser.add_argument('action', choices=['doctor', 'init', 'up', 'check', 'seed', 'backup', 'status', 'logs', 'stop', 'share', 'maintenance', 'admin', 'validate', 'monitor', 'wslconfig'])
     parser.add_argument('--login-id', help='Existing member login ID for owner-only admin grant/revoke')
     parser.add_argument('--role', choices=['admin','support'], default='support')
     parser.add_argument('--revoke', action='store_true')
@@ -198,6 +295,8 @@ def main():
     options = {'scope': args.scope, 'shared': args.shared or args.action == 'share'}
     if args.action == 'share' and args.scope != 'full':
         parser.error('share requires --scope full')
+    if args.action == 'wslconfig':
+        return write_wsl_config(args.apply)
     if args.action == 'doctor':
         return doctor()
     elif args.action == 'init':

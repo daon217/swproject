@@ -85,6 +85,23 @@ class LocalWorkspaceTests(unittest.TestCase):
             self.assertIn(host, catalog)
             self.assertIn(host, affiliate)
 
+    def test_wsl_memory_recommendation_and_safe_apply(self):
+        # PC 메모리에 맞는 도커 VM 권장값, 적용 시 다른 설정은 남기고 .bak을 만든다.
+        self.assertEqual(workspace.recommended_wsl(15.4)['memory'], '5GB')
+        self.assertEqual(workspace.recommended_wsl(8)['memory'], '4GB')
+        self.assertIsNone(workspace.recommended_wsl(4))
+        path = self.root / '.wslconfig'
+        path.write_text('[wsl2]\nmemory=7GB\nprocessors=4\n', encoding='utf-8')
+        with contextlib.redirect_stdout(io.StringIO()):
+            workspace.write_wsl_config(False, path, 15.4)
+            self.assertIn('memory=7GB', path.read_text(encoding='utf-8'))  # 미리보기는 바꾸지 않음
+            workspace.write_wsl_config(True, path, 15.4)
+        values = workspace.read_wsl_config(path)
+        self.assertEqual(values[('wsl2', 'memory')], '5GB')
+        self.assertEqual(values[('wsl2', 'processors')], '4')
+        self.assertEqual(values[('experimental', 'autoMemoryReclaim')], 'dropcache')
+        self.assertTrue((self.root / '.wslconfig.bak').is_file())
+
     def test_api_reload_is_opt_in(self):
         # 기본은 자동 반영 꺼짐(쉬는 동안 파일 감시 부하 없음), WORKSPACE_API_RELOAD=on일 때만 켠다.
         self.initialize()

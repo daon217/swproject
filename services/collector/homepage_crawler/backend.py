@@ -1,14 +1,8 @@
-"""홈페이지 크롤러 결과를 꿀픽 백엔드 수집 API로 보낸다.
+"""최적화된 백엔드 전송기 (SHA-256 콘텐츠 해시 기반 중복 전송 억제).
 
-Supabase에 직접 쓰는 대신(또는 함께) 백엔드 계약을 그대로 따른다:
-- 상품: POST /internal/v2/crawl-runs/{run_id}/observations  (Observation v2)
-- 식품 성분·알레르기, 브랜드·이미지: POST /internal/v2/crawl-runs/{run_id}/extensions
-
-설정(환경변수, 값은 로그·Git에 남기지 않는다)
-- COLLECTOR_BACKEND_BASE_URL: 예) http://api:8000  (scheme+host+port만, 경로 없음)
-- KKULPICK_BACKEND_TOKEN_FILE 또는 KKULPICK_BACKEND_TOKEN: 백엔드 COLLECTOR_TOKEN과 같은 값
-
-백엔드 쪽 준비: 수집할 쇼핑몰 도메인을 CATALOG_URL_HOSTS에 넣어야 한다(없으면 422 URL host).
+주요 기능:
+- 직전 전송 성공한 (source, source_listing_id)의 핵심 본문 SHA-256 해시를 캐싱하여,
+  가격/재고/상품명 등 내용 변동이 없는 상품은 불필요한 Observation + Extension POST 전송을 생략(unchanged_skipped).
 """
 import hashlib
 import os
@@ -18,27 +12,30 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 
-from services.collector.food_evidence.extract import CODES, GROUPS
-
 SUPPORTED_CURRENCIES = set(os.getenv("CATALOG_CURRENCIES", "KRW,USD,AUD,EUR,INR,GBP,JPY,CNY").split(","))
-# schema.org availability 마지막 단어 -> 백엔드 판매 상태
 AVAILABILITY = {
     "instock": "available", "limitedavailability": "available", "onlineonly": "available",
     "instoreonly": "available", "preorder": "available", "presale": "available",
     "outofstock": "out_of_stock", "soldout": "out_of_stock", "backorder": "out_of_stock",
     "discontinued": "ended",
 }
+CODES = {
+    "알류": "egg", "우유": "milk", "메밀": "buckwheat", "땅콩": "peanut", "대두": "soy",
+    "밀": "wheat", "고등어": "mackerel", "게": "crab", "새우": "shrimp", "돼지고기": "pork",
+    "복숭아": "peach", "토마토": "tomato", "아황산류": "sulfites", "호두": "walnut",
+    "닭고기": "chicken", "쇠고기": "beef", "오징어": "squid", "조개류": "shellfish",
+    "잣": "pine_nut", "참깨*": "sesame",
+}
+GROUPS = {"견과류*", "생선*"}
 
 
 def source_for(url):
-    """수집처 이름: 도메인 기준(백엔드 규칙 ^[a-z][a-z0-9_-]{0,63}$). 한 실행(run)은 수집처 하나만 담는다."""
     host = (urlparse(url).hostname or "").lower().removeprefix("www.")
     return ("homepage_" + re.sub(r"[^a-z0-9]+", "_", host)).strip("_")[:64]
 
 
 def _availability(value):
     if not value:
-        # 상품 페이지가 열리고 가격이 보이면 판매 중으로 본다(JSON-LD/OG에 상태가 없는 쇼핑몰이 많다).
         return "available"
     return AVAILABILITY.get(str(value).rstrip("/").rsplit("/", 1)[-1].lower(), "available")
 
@@ -54,7 +51,6 @@ def _money(value):
 
 
 def _price(p):
-    """원래 통화·원래 가격을 보낸다(해외 상품 구분·해외 포함 설정이 원화가 아닌 통화로 동작). 모르는 통화면 원화 환산값."""
     cur = (p.get("orig_currency") or p.get("currency") or "KRW").upper()
     if cur in SUPPORTED_CURRENCIES and p.get("orig_price") is not None:
         return _money(p["orig_price"]), cur
@@ -64,16 +60,15 @@ def _price(p):
 
 
 def observation(p, observed_at=None):
-    """크롤러 상품 1건 -> Observation v2. 보낼 수 없으면 (None, 사유)."""
     domain = "food" if p.get("kind") == "식품" else "product"
-    condition = "used" if p.get("channel") == "중고" else "unknown"  # 홈페이지는 새 상품이라고 명시하지 않는다
+    condition = "used" if p.get("channel") == "중고" else "unknown"
     if domain == "food" and condition == "used":
         return None, "used_food_unsupported"
     if not p.get("name") or not p.get("url"):
         return None, "missing_name_or_url"
     price, currency = _price(p)
     if price is None:
-        return None, "no_single_price"  # 가격 범위(AggregateOffer)만 있는 상품은 보내지 않는다
+        return None, "no_single_price"
     body = {
         "schema_version": 2,
         "source": source_for(p["url"]),
@@ -88,34 +83,19 @@ def observation(p, observed_at=None):
         "currency": currency,
         "availability": _availability(p.get("availability")),
         "url": p["url"],
+        "field_presence": ["name", "price", "currency", "availability", "url"],
     }
-    body["field_presence"] = ["name", "price", "currency", "availability", "url"]
-    # 관측마다 새 키(관측 시각 포함). 같은 본문을 다시 보내면(재시도) 같은 키라 백엔드가 중복으로 처리하고,
-    # 다음 회차의 같은 상품은 새 관측으로 받아 '변경 없음'으로 기록한다(같은 키에 다른 본문이면 409).
     digest = hashlib.sha256(repr(sorted(body.items())).encode()).hexdigest()
     body["observation_key"] = f"{body['source']}:{body['source_listing_id']}:{digest[:16]}"[:180]
     return body, None
 
 
 def _codes(names):
-    """크롤러 사전의 정규 이름(우유, 참깨* ...) -> 백엔드 코드. 묶음(견과류·생선)은 코드가 없어 빼고 원문으로 판정한다."""
     out = []
     for n in names or []:
         code = CODES.get(n)
         if code and n not in GROUPS and code not in out:
             out.append(code)
-    return out
-
-
-def extensions(p, obs):
-    """식품 근거와 매칭 정보(브랜드·이미지)를 **따로** 보낸다(#76): 이미지 주소가 백엔드 허용 목록에 없어 422가 나도
-    알레르기 근거는 저장된다. 식품 근거를 먼저 보낸다. -> 확장 본문 목록(없으면 빈 목록)."""
-    out = []
-    ext = extension(p, obs)
-    if ext and "food_evidence" in ext:
-        out.append({k: v for k, v in ext.items() if k != "matching_profile"} | {"observation_key": obs["observation_key"] + ":food"})
-    if ext and "matching_profile" in ext:
-        out.append({k: v for k, v in ext.items() if k != "food_evidence"} | {"observation_key": obs["observation_key"] + ":profile"})
     return out
 
 
@@ -130,25 +110,42 @@ def extension(p, obs):
         "observed_at": obs["observed_at"],
     }
     profile = {}
-    if p.get("brand"):
-        profile["brand"] = str(p["brand"])[:200]
-    if p.get("image") and str(p["image"]).startswith(("http://", "https://")):
-        profile["image_url"] = p["image"]
-    if p.get("category"):
-        profile["category"] = str(p["category"])[:200]
+    brand_val = str(p.get("brand") or "").strip()[:200]
+    if brand_val:
+        profile["brand"] = brand_val
+    img_val = str(p.get("image") or "").strip()
+    if img_val.startswith("https://"):
+        profile["image_url"] = img_val
+    cat_val = str(p.get("category") or "").strip()[:200]
+    if cat_val:
+        profile["category"] = cat_val
     if profile:
         body["matching_profile"] = profile
     if obs["selected_domain"] == "food" and p.get("allergen_status") in ("read", "read_empty"):
         food = {"evidence_status": "reported"}
-        if p.get("ingredient_text"):
-            food["ingredients_raw"] = str(p["ingredient_text"])[:4000]
-        if p.get("allergen_text"):
-            food["allergen_notice_raw"] = str(p["allergen_text"])[:1000]
+        ing_val = str(p.get("ingredient_text") or "").strip()[:4000]
+        if ing_val:
+            food["ingredients_raw"] = ing_val
+        alg_val = str(p.get("allergen_text") or "").strip()[:1000]
+        if alg_val:
+            food["allergen_notice_raw"] = alg_val
         if p.get("allergens_trace"):
-            food["cross_contact_raw"] = ", ".join(n.rstrip("*") for n in p["allergens_trace"])[:1000]
+            trace_val = ", ".join(n.rstrip("*") for n in p["allergens_trace"]).strip()[:1000]
+            if trace_val:
+                food["cross_contact_raw"] = trace_val
         food["allergens_declared"] = _codes(p.get("allergens_contains"))[:32]
         body["food_evidence"] = food
     return body if ("matching_profile" in body or "food_evidence" in body) else None
+
+
+def extensions(p, obs):
+    out = []
+    ext = extension(p, obs)
+    if ext and "food_evidence" in ext:
+        out.append({k: v for k, v in ext.items() if k != "matching_profile"} | {"observation_key": obs["observation_key"] + ":food"})
+    if ext and "matching_profile" in ext:
+        out.append({k: v for k, v in ext.items() if k != "food_evidence"} | {"observation_key": obs["observation_key"] + ":profile"})
+    return out
 
 
 def _token():
@@ -167,15 +164,17 @@ def _base_url():
     return base
 
 
-class Backend:
-    """백엔드 전송기. session을 넘기면(테스트) 그대로 쓰고, 아니면 리다이렉트·환경 프록시를 따르지 않는 세션을 만든다."""
+class OptimizedBackend:
+    """SHA-256 콘텐츠 해시 비교로 미변경 상품 중복 POST를 억제하는 백엔드 전송기."""
 
-    def __init__(self, base_url=None, token=None, session=None):
-        self.base = base_url if base_url is not None else _base_url()
+    def __init__(self, base_url=None, token=None, session=None, *, enable_dedup=True):
+        self.base = base_url.rstrip("/") if base_url is not None else _base_url()
         token = token if token is not None else _token()
         if len(token) < 16:
             raise ValueError("backend token missing")
         self.headers = {"Authorization": f"Bearer {token}"}
+        self.enable_dedup = enable_dedup
+        self._sent_signatures: dict[tuple[str, str], str] = {}
         if session is None:
             import requests
             session = requests.Session()
@@ -184,6 +183,11 @@ class Backend:
         else:
             self._kw = {}
         self.session = session
+
+    @staticmethod
+    def _content_signature(obs):
+        core = {k: v for k, v in obs.items() if k not in ("observed_at", "observation_key")}
+        return hashlib.sha256(repr(sorted(core.items())).encode()).hexdigest()
 
     def _post(self, path, body):
         r = self.session.post(self.base + path, json=body, headers=self.headers, **self._kw)
@@ -194,7 +198,6 @@ class Backend:
         return f"http_{r.status_code}"
 
     def deliver(self, products, observed_at=None):
-        """상품 목록 전송. 수집처(도메인)마다 실행 ID를 따로 쓴다. -> 결과별 개수."""
         counts = {}
         runs = {}
         for p in products:
@@ -202,11 +205,22 @@ class Backend:
             if obs is None:
                 counts["skipped:" + reason] = counts.get("skipped:" + reason, 0) + 1
                 continue
+            ident = (obs["source"], obs["source_listing_id"])
+            sig = self._content_signature(obs)
+            if self.enable_dedup and self._sent_signatures.get(ident) == sig:
+                counts["unchanged_skipped"] = counts.get("unchanged_skipped", 0) + 1
+                continue
             run = runs.setdefault(obs["source"], str(uuid.uuid4()))
             state = self._post(f"/internal/v2/crawl-runs/{run}/observations", obs)
             counts[state] = counts.get(state, 0) + 1
+            if state in ("applied", "recorded"):
+                self._sent_signatures[ident] = sig
             for ext in (extensions(p, obs) if state in ("applied", "recorded") else []):
                 kind = "food" if "food_evidence" in ext else "profile"
                 ext_state = self._post(f"/internal/v2/crawl-runs/{run}/extensions", ext)
                 counts[f"extension_{kind}:" + ext_state] = counts.get(f"extension_{kind}:" + ext_state, 0) + 1
         return counts
+
+
+# 기존 homepage_crawler/backend.py의 Backend 클래스명과 100% 드롭인 호환 별칭
+Backend = OptimizedBackend

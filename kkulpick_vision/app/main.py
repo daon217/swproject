@@ -106,12 +106,20 @@ async def init_vision_session(request: Request) -> AsyncDispatchResponse:
     price: Optional[int] = int(raw_price) if raw_price not in (None, "") else None
     first_frame_image: Optional[str] = payload.get("first_frame_image")
 
-    # 1. Redis에 초기 세션 해시 생성
-    initialize_session_in_redis(
+    # 1. Redis에 초기 세션 해시 생성 (명확한 일반 상품이면 Phase 1에서 즉시 조기 종료)
+    init_state = initialize_session_in_redis(
         session_id=session_id,
         product_name=product_name,
         price=price,
     )
+
+    if init_state.get("status") != "processing":
+        return AsyncDispatchResponse(
+            session_id=session_id,
+            status=init_state.get("status", "success"),
+            queued_task_id=None,
+            message=init_state.get("message", "일반 상품으로 판단되어 성분표 탐색을 생략했습니다."),
+        )
 
     queued_task_id: Optional[str] = None
 
@@ -263,10 +271,8 @@ async def get_vision_session_status(session_id: str) -> VisionAnalysisResultResp
         session_id=session_id,
         status=current_status,
         product_name=product_name_val,
-        price=price_val,
-        source_of_meta=source_of_meta,
+        product_category=session_state.get("product_category") or None,
         ingredients=ingredients_list,
-        message=session_state.get("message", ""),
     )
 
 

@@ -40,8 +40,8 @@ class Settings(BaseSettings):
     # OpenCV 전처리 및 ROI 크롭 파라미터
     TILE_MAX_HEIGHT: int = 1600              # 세로로 긴 상세페이지를 분할할 타일 높이(px)
     TILE_OVERLAP: int = 200                  # 타일 경계에서 앵커 텍스트가 잘리는 것을 방지하는 오버랩(px)
-    ROI_CROP_HEIGHT: int = 500               # 앵커(Anchor) Y좌표 하단으로 크롭할 영역 높이(px)
-    ROI_TOP_PADDING: int = 15                # 앵커 텍스트 상단 여유 마진(px)
+    ROI_CROP_HEIGHT: int = 520               # 앵커(Anchor) Y좌표 하단으로 크롭할 영역 높이(px)
+    ROI_TOP_PADDING: int = 160               # 2단 표(vertical-align: middle) 상단 성분 잘림 방지 여유 마진(px)
 
     # OCR 입력 모양 고정 (메모리 증가 방지, devlog #66)
     # Paddle 추론 엔진은 새 입력 모양(크기)마다 메모리를 잡고 돌려주지 않는다. 페이지·줄마다 크기가 다르면
@@ -68,12 +68,23 @@ class Settings(BaseSettings):
     # 성분표 탐색을 위한 앵커(Anchor) 키워드 리스트
     ANCHOR_KEYWORDS: List[str] = [
         "원재료명",
-        "영양정보",
-        "성분명",
         "원재료 및 함량",
         "원재료명및함량",
-        "전성분",
+        "원재료",
+        "원료명 및 함량",
+        "원료 및 함량",
         "원료명",
+        "주원료명",
+        "성분명 및 함량",
+        "성분 및 함량",
+        "성분명",
+        "전성분",
+        "모든 성분",
+        "화장품법에 따라 기재해야 하는 모든 성분",
+        "알레르기 유발물질",
+        "알레르기 물질",
+        "알레르기 정보",
+        "영양정보",
     ]
 
 

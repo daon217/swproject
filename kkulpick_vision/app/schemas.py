@@ -59,20 +59,19 @@ class AsyncDispatchResponse(BaseModel):
 # ==============================================================================
 class VisionAnalysisResultResponse(BaseModel):
     """
-    [Phase 3] 최종 반환 JSON 규격
-    - 성공 시: status="success", ingredients=[...], message="성분표 추출이 완료되었습니다."
-    - 분석 불가 시(EOF / 15프레임 Timeout): status="analysis_unavailable", ingredients=[], message="성분표를 찾지 못해 알레르기 분석이 불가합니다."
+    [Phase 3] 최종 반환 JSON 규격 (연동에 필요한 핵심 필드만 간결하게 반환)
+    - 성공 시: status="success", ingredients=[...]
+    - 일반 상품 조기 종료 시: status="success", product_category="general_product", ingredients=[]
+    - 분석 불가 시(EOF / 15프레임 Timeout): status="analysis_unavailable", ingredients=[]
     """
     session_id: str = Field(..., description="세션 고유 식별자")
     status: SessionStatusType = Field(..., description="세션 처리 상태 (processing | success | analysis_unavailable)")
     product_name: Optional[str] = Field(None, description="상품명 (크롤링 또는 Vision Fallback 추출)")
-    price: Optional[int] = Field(None, description="상품 가격")
-    source_of_meta: SourceOfMetaType = Field(
-        "html_crawler",
-        description="메타데이터 출처 (html_crawler | vision_fallback)"
+    product_category: Optional[str] = Field(
+        None,
+        description="상품 성격 분류 (food | cosmetic | general_product | unknown)"
     )
     ingredients: List[str] = Field(default_factory=list, description="정제된 중복 없는 성분 리스트")
-    message: str = Field(..., description="상태 안내 메시지")
 
     model_config = {
         "json_schema_extra": {
@@ -81,19 +80,15 @@ class VisionAnalysisResultResponse(BaseModel):
                     "session_id": "sess_kkulpick_001",
                     "status": "success",
                     "product_name": "신라면 120g",
-                    "price": 1200,
-                    "source_of_meta": "html_crawler",
-                    "ingredients": ["소맥분", "팜유", "감자전분", "L-글루탐산나트륨"],
-                    "message": "성분표 추출이 완료되었습니다."
+                    "product_category": "food",
+                    "ingredients": ["소맥분", "팜유", "감자전분", "L-글루탐산나트륨"]
                 },
                 {
                     "session_id": "sess_kkulpick_002",
-                    "status": "analysis_unavailable",
-                    "product_name": "신라면 120g",
-                    "price": 1200,
-                    "source_of_meta": "vision_fallback",
-                    "ingredients": [],
-                    "message": "성분표를 찾지 못해 알레르기 분석이 불가합니다."
+                    "status": "success",
+                    "product_name": "요넥스 65Z4 배드민턴화 남성화",
+                    "product_category": "general_product",
+                    "ingredients": []
                 }
             ]
         }

@@ -15,7 +15,7 @@ import redis
 
 from app.celery_app import celery_app
 from app.config import settings
-from app.vision.ocr_engine import get_ocr_engine
+from app.vision.ocr_engine import classify_product_category, get_ocr_engine
 from app.vision.preprocessor import (
     crop_roi_and_release_memory,
     decode_image,
@@ -55,18 +55,36 @@ def initialize_session_in_redis(
 
     has_product_name = bool(product_name and product_name.strip())
     source_of_meta = "html_crawler" if has_product_name else "vision_fallback"
+    clean_name = product_name.strip() if has_product_name else ""
+    category = classify_product_category(clean_name) if clean_name else "unknown"
 
-    session_data = {
-        "session_id": session_id,
-        "status": "processing",
-        "frame_count": "0",
-        "product_name": product_name.strip() if has_product_name else "",
-        "price": str(price) if price is not None else "",
-        "source_of_meta": source_of_meta,
-        "ingredients": json.dumps([], ensure_ascii=False),
-        "message": "성분표 탐색 중입니다.",
-        "early_exit_flag": "0",
-    }
+    # 명확한 일반 상품(비식품·비화장품)은 성분표가 없으므로 15프레임 탐색을 돌리지 않고 즉시 조기 종료한다.
+    if category == "general_product":
+        session_data = {
+            "session_id": session_id,
+            "status": "success",
+            "frame_count": "0",
+            "product_name": clean_name,
+            "price": str(price) if price is not None else "",
+            "source_of_meta": source_of_meta,
+            "product_category": category,
+            "ingredients": json.dumps([], ensure_ascii=False),
+            "message": "일반 상품(성분표 불필요)으로 판단되어 상품명 확인 후 분석을 즉시 종료했습니다.",
+            "early_exit_flag": "1",
+        }
+    else:
+        session_data = {
+            "session_id": session_id,
+            "status": "processing",
+            "frame_count": "0",
+            "product_name": clean_name,
+            "price": str(price) if price is not None else "",
+            "source_of_meta": source_of_meta,
+            "product_category": category,
+            "ingredients": json.dumps([], ensure_ascii=False),
+            "message": "성분표 탐색 중입니다.",
+            "early_exit_flag": "0",
+        }
 
     r.hset(key, mapping=session_data)
     r.expire(key, settings.SESSION_TTL_SECONDS)
@@ -129,68 +147,80 @@ def extract_metadata_fallback_task(session_id: str, first_frame_b64: str) -> Dic
         img_hash = hashlib.sha256(first_frame_b64.encode("utf-8", errors="ignore")).hexdigest()
         tiles = split_into_horizontal_tiles(image)
         detected_title = None
+        detected_category = "unknown"
         first_tile_items = []
 
         if tiles:
-            first_tile_items = ocr_engine.run_ocr(tiles[0][1])
-            best_text: Optional[str] = None
-            max_area: float = -1.0
-            for box, text, score in first_tile_items:
-                if score < 0.5 or len(text.strip()) < 2:
-                    continue
-                area = ocr_engine.calculate_bbox_area(box)
-                if area > max_area:
-                    max_area = area
-                    best_text = text.strip()
-            if best_text:
-                import re
-                best_text = re.sub(r"(?<=[가-힣])\s+(?=[가-힣])", "", best_text)
-                best_text = re.sub(r"(\b\d{2,4})9\b", r"\1g", best_text)
-                detected_title = best_text
+            tile0_img = tiles[0][1]
+            first_tile_items = ocr_engine.run_ocr(tile0_img)
+            th, tw = tile0_img.shape[:2]
+            detected_title, detected_category, _breadcrumbs = ocr_engine.extract_product_title_and_category(
+                first_tile_items, img_width=tw, img_height=th
+            )
+
+        # 명확한 일반 상품(노트북·가전·패션·가구 등)은 성분표 탐색 없이 즉시 조기 종료(Early Exit)
+        if detected_category == "general_product":
+            r.hset(
+                key,
+                mapping={
+                    "init_frame_hash": img_hash,
+                    "init_cached_ingredients": "[]",
+                    "product_name": detected_title or "",
+                    "source_of_meta": "vision_fallback",
+                    "product_category": detected_category,
+                },
+            )
+            finalize_session_state(
+                r=r,
+                session_id=session_id,
+                status="success",
+                ingredients=[],
+                message="일반 상품(성분표 불필요)으로 판단되어 상품명 추출 후 즉시 분석을 종료했습니다.",
+            )
+            logger.info(
+                f"[Phase 1 일반 상품 조기 종료] session={session_id}, 상품명='{detected_title}'"
+            )
+            return {
+                "session_id": session_id,
+                "product_name": detected_title,
+                "product_category": detected_category,
+                "source_of_meta": "vision_fallback",
+                "updated": bool(detected_title),
+                "early_exit": True,
+            }
 
         # [통합 스캔 캐시] 동일 프레임 안에 앵커 키워드(원재료명 등)까지 함께 있는지 즉시 검사하여
         # 뒤이어 동일한 이미지로 POST /frame이 호출될 때 중복 OCR을 100% 생략하도록 캐싱합니다.
-        normalized_anchors = [kw.replace(" ", "") for kw in settings.ANCHOR_KEYWORDS]
-        cached_anchor_y: Optional[int] = None
-        cached_ingredients: List[str] = []
-
-        for idx, (y_offset, tile_img) in enumerate(tiles):
-            ocr_items = first_tile_items if idx == 0 else ocr_engine.run_ocr(tile_img)
-            for box, text, _ in ocr_items:
-                if any(anchor in text.replace(" ", "") for anchor in normalized_anchors):
-                    min_y_in_tile = min(pt[1] for pt in box)
-                    cached_anchor_y = int(y_offset + min_y_in_tile)
-                    roi_top = min_y_in_tile - settings.ROI_TOP_PADDING
-                    roi_bottom = min_y_in_tile + settings.ROI_CROP_HEIGHT
-                    roi_items = [
-                        item for item in ocr_items
-                        if item[2] >= 0.45 and roi_top <= min(pt[1] for pt in item[0]) <= roi_bottom
-                    ]
-                    roi_items.sort(key=lambda item: (min(pt[1] for pt in item[0]), min(pt[0] for pt in item[0])))
-                    cached_ingredients = ocr_engine.clean_ingredient_text("\n".join(t for _, t, _ in roi_items))
-                    break
-            if cached_anchor_y is not None:
-                break
-
+        anchor_ys, cached_ingredients = ocr_engine.find_all_anchors_and_initial_ingredients(
+            tiles, precomputed_first_tile=first_tile_items
+        )
         del tiles
 
-        # 만약 1차 타일 스캔에서 앵커는 찾았는데 정밀 성분이 부족하면 ROI CLAHE 보정 수행
-        if cached_anchor_y is not None and not cached_ingredients:
-            roi_image = crop_roi_and_release_memory(
-                full_image=image,
-                anchor_y=cached_anchor_y,
-                crop_height=settings.ROI_CROP_HEIGHT,
-            )
-            try:
-                enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
-                cached_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
-                del enhanced_roi
-            finally:
-                del roi_image
+        # 만약 1차 타일 스캔에서 앵커는 찾았는데 정밀 성분이 부족하면 후보 앵커들에 대해 ROI CLAHE 보정 수행
+        if anchor_ys and not cached_ingredients:
+            for cand_y in anchor_ys[:3]:
+                roi_image = crop_roi_and_release_memory(
+                    full_image=image.copy(),
+                    anchor_y=cand_y,
+                    crop_height=settings.ROI_CROP_HEIGHT,
+                )
+                try:
+                    enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
+                    cached_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
+                    del enhanced_roi
+                    if not cached_ingredients:
+                        bin_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=True)
+                        cached_ingredients = ocr_engine.extract_and_clean_ingredients(bin_roi)
+                        del bin_roi
+                finally:
+                    del roi_image
+                if cached_ingredients:
+                    break
 
         cache_mapping: Dict[str, str] = {
             "init_frame_hash": img_hash,
             "init_cached_ingredients": json.dumps(cached_ingredients, ensure_ascii=False),
+            "product_category": detected_category,
         }
 
         if detected_title:
@@ -229,44 +259,47 @@ def _scan_frame(frame_holder: list) -> List[str]:
     # 3-1. 세로로 긴 이미지를 가로 블록 단위로 분할 (Tiling)
     tiles = split_into_horizontal_tiles(full_image)
 
-    # 3-2. 1차 스캔: 앵커 Y좌표 탐색 + 1차 스캔 텍스트에서 즉시 성분 추출 시도 (1-Pass Fast Path)
-    anchor_y, fast_ingredients = ocr_engine.find_anchor_and_initial_ingredients(tiles)
+    # 3-2. 1차 스캔: 다중 앵커 Y좌표 탐색 + 표 경계 기반 즉시 성분 추출 시도 ('상세설명 참조' 앵커 자동 우회)
+    anchor_ys, fast_ingredients = ocr_engine.find_all_anchors_and_initial_ingredients(tiles)
 
     # 타일 참조 리스트 정리
     del tiles
 
-    if anchor_y is not None:
+    if anchor_ys:
         if len(fast_ingredients) >= 2:
-            # 1차 스캔에서 이미 선명하게 성분이 추출된 경우 2차/3차 ROI 재추론을 생략하여 시간 절반 단축
             extracted_ingredients = fast_ingredients
             del full_image
             gc.collect()
         else:
-            # 3-3. 앵커 Y 좌표 기준 아래쪽 영역(y ~ y + 500px)만 ROI 크롭 & 원본 배열 즉시 메모리 해제
-            roi_image = crop_roi_and_release_memory(
-                full_image=full_image,
-                anchor_y=anchor_y,
-                crop_height=settings.ROI_CROP_HEIGHT,
-            )
-            full_image = None  # 원본 참조 명시적 제거
-
-            try:
-                # 3-4. 크롭된 ROI에 Grayscale -> CLAHE(clipLimit=2.0, tileGridSize=(8,8)) -> 블러 보정 적용
-                enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
-
-                # 3-5. 2차 정밀 OCR 추출 및 정규표현식 기반 성분 리스트 정제
-                extracted_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
-
-                # 만약 기본 샤프닝 전처리에서 성분이 추출되지 않았다면 적응형 이진화로 1회 재시도
-                if not extracted_ingredients:
-                    binarized_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=True)
-                    extracted_ingredients = ocr_engine.extract_and_clean_ingredients(binarized_roi)
-                    del binarized_roi
-
-                del enhanced_roi
-            finally:
-                del roi_image
-                gc.collect()
+            # 3-3. 최대 3개의 앵커 후보에 대해 순차적으로 ROI 크롭 및 CLAHE/이진화 2차 정밀 추출 수행
+            candidates = anchor_ys[:3]
+            for i, cand_y in enumerate(candidates):
+                is_last_cand = i == len(candidates) - 1
+                src_img = full_image if is_last_cand else full_image.copy()
+                if is_last_cand:
+                    full_image = None
+                roi_image = crop_roi_and_release_memory(
+                    full_image=src_img,
+                    anchor_y=cand_y,
+                    crop_height=settings.ROI_CROP_HEIGHT,
+                )
+                try:
+                    enhanced_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=False)
+                    extracted_ingredients = ocr_engine.extract_and_clean_ingredients(enhanced_roi)
+                    if not extracted_ingredients:
+                        binarized_roi = enhance_roi_for_ocr(roi_image, use_adaptive_binarization=True)
+                        extracted_ingredients = ocr_engine.extract_and_clean_ingredients(binarized_roi)
+                        del binarized_roi
+                    del enhanced_roi
+                finally:
+                    del roi_image
+                    gc.collect()
+                if extracted_ingredients:
+                    if full_image is not None:
+                        del full_image
+                        full_image = None
+                        gc.collect()
+                    break
     else:
         # 앵커가 없는 프레임도 즉시 메모리에서 해제
         del full_image
@@ -382,6 +415,58 @@ def process_frame_task(
             "status": "success",
             "ingredients": extracted_ingredients,
         }
+
+    # [Phase 2 동적 메타데이터/카테고리 보완]
+    # 초기(0초) 화면이 대형 배너여서 상품명/품목이 미분류('unknown')였더라도, 스크롤 중 상품명이나
+    # 비식품 상품정보제공고시(갑피/밑창/방문설치/정격전압 등)가 확인되면 즉시 반영 및 일반 상품 조기 종료 수행
+    if session_state.get("product_category", "unknown") in ("", "unknown"):
+        try:
+            eng = get_ocr_engine()
+            tls = getattr(eng, "_tls", None)
+            scan_info = getattr(tls, "last_scan_info", None) if tls is not None else None
+            if scan_info:
+                if tls is not None:
+                    tls.last_scan_info = None
+                cur_title = session_state.get("product_name") or ""
+                tw, th = scan_info.get("tile0_size", (0, 0))
+                t0_items = scan_info.get("tile0_items") or []
+                new_title = None
+                breadcrumbs: List[str] = []
+                if not cur_title and t0_items and tw > 0 and th > 0:
+                    new_title, _, breadcrumbs = eng.extract_product_title_and_category(
+                        t0_items, img_width=tw, img_height=th
+                    )
+                dyn_cat = classify_product_category(
+                    cur_title or new_title,
+                    breadcrumbs=breadcrumbs,
+                    page_texts=scan_info.get("all_texts") or [],
+                )
+                updates: Dict[str, str] = {}
+                if not cur_title and new_title:
+                    updates["product_name"] = new_title
+                if dyn_cat != "unknown":
+                    updates["product_category"] = dyn_cat
+                if updates:
+                    r.hset(key, mapping=updates)
+                if dyn_cat == "general_product":
+                    finalize_session_state(
+                        r=r,
+                        session_id=session_id,
+                        status="success",
+                        ingredients=[],
+                        message="스크롤 화면에서 일반 상품(성분표 불필요)으로 확인되어 분석을 즉시 종료했습니다.",
+                    )
+                    logger.info(
+                        f"[Phase 2 동적 일반 상품 조기 종료] session={session_id}, frame_index={frame_index}"
+                    )
+                    return {
+                        "session_id": session_id,
+                        "status": "success",
+                        "ingredients": [],
+                        "reason": "dynamic_general_product_exit",
+                    }
+        except Exception:
+            logger.debug("[Phase 2] 동적 카테고리 보완 스킵", exc_info=True)
 
     # [시나리오 B: 사용자 이탈/방치 - EOF]
     # 요청의 is_last_frame == True인데 현재 프레임에서도 성분표를 찾지 못한 경우 즉시 중단

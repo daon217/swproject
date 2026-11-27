@@ -67,10 +67,10 @@ SOY_MILK_PAGE = [
 SOY = UserProfile("u", allergens=["soy"])
 
 
-def recommend(rows, profile=SOY, domain="food"):
+def recommend(rows, profile=SOY, domain="food", query="매일두유 고단백 190ml 24팩"):
     fake = Fake(rows)
     return Recommender(fake, fake, fake, RuleRanker()).recommend(
-        profile, "매일두유 고단백 190ml 24팩", top_k=8, min_score=0.5, score_margin=0.25, domain=domain)
+        profile, query, top_k=8, min_score=0.5, score_margin=0.25, domain=domain)
 
 
 def test_soy_allergy_on_soy_milk_never_recommends_other_kinds():
@@ -117,3 +117,36 @@ def test_allergy_exclusion_counts_for_screen():
                 SafetyVerdict("b", False, ["성분 정보 없음: 알레르기 안전 확인 불가"], []),
                 SafetyVerdict("c", False, ["판매 상태 ended"], [])]
     assert allergy_exclusions(excluded) == {"allergen": 1, "unknown_ingredients": 1}
+
+
+def test_unknown_kind_borrows_kind_from_same_name_items():
+    # '해태제과 아이비, 58g, 2개'에는 품목 말이 없어 '아이비'가 든 상품만 남고 다른 크래커가 모두 빠졌다.
+    assert food_type("해태제과 아이비, 58g, 2개") is None
+    rows = [food(1, "[해태] 해태 아이비 크래커 309g", 0.8, ingredients_raw="밀가루"),
+            food(2, "슈가 크래커 280g 77704", 0.3, ingredients_raw="밀가루, 설탕"),   # 벡터 점수 낮아도 품목 이름으로 찾음
+            food(3, "[태우한우] 1+ 한우 채끝", 0.6, allergens_declared=["beef"]),
+            food(4, "해태제과 아이비 309g", 0.8, ingredients_raw="밀가루")]                # 품목 말 없어도 같은 이름이라 남김
+    r = recommend(rows, profile=UserProfile("u"), query="해태제과 아이비, 58g, 2개")
+    assert {p.name for p in r.picks} == {"[해태] 해태 아이비 크래커 309g", "슈가 크래커 280g 77704", "해태제과 아이비 309g"}
+    assert any("품목을 같은 이름 상품에서 추정: 과자·간식" in n for n in r.notes)
+
+
+def test_llm_pick_comes_first_then_filled_to_five_with_other_items():
+    class PicksOne:  # gemma 가 '58g·2개와 가장 부합'이라며 같은 상품 하나만 고른 실제 경우
+        name = "local"
+        def rank(self, profile, query, items, top_k):
+            return [("t:1", "요청한 58g 용량과 가장 부합")]
+    rows = [food(1, "갤러리아_아이비 58g x 24ea", 0.60, ingredients_raw="밀가루"),
+            food(2, "해태 아이비 크래커 309g", 0.60, ingredients_raw="밀가루"),
+            food(3, "해태 아이비 크래커 270g", 0.60, ingredients_raw="밀가루"),
+            food(4, "해태 아이비 아몬드 크래커 178g", 0.60, ingredients_raw="밀가루"),
+            food(5, "슈가 크래커 280g", 0.55, ingredients_raw="밀가루, 설탕"),
+            food(6, "오늘좋은 통밀 크래커 250g", 0.54, ingredients_raw="통밀"),
+            food(7, "참깨 크래커 216g", 0.53, ingredients_raw="밀가루, 참깨")]
+    fake = Fake(rows)
+    r = Recommender(fake, fake, fake, PicksOne()).recommend(
+        UserProfile("u"), "해태 아이비 크래커 58g", top_k=8, min_score=0.5, score_margin=0.5, domain="food")
+    # LLM 선택이 맨 앞, 아이비는 2개까지, 나머지는 다른 크래커로 5개
+    assert [p.product_id for p in r.picks] == ["t:1", "t:2", "t:5", "t:6", "t:7"]
+    assert r.picks[0].reason == "요청한 58g 용량과 가장 부합" and r.ranker == "local"
+    assert {p.reason for p in r.picks[1:]} == {"같은 종류의 비슷한 상품"}

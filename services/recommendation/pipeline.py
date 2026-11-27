@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections import Counter
 
 from .allergens import assess, focus_query
 from .contracts import Candidate
@@ -15,6 +16,8 @@ from .rankers import RuleRanker
 from .used_check import AVAILABLE, ListingChecker, verify_used
 
 log = logging.getLogger(__name__)
+MIN_PICKS = 5  # 식품·일반 상품 추천을 최소 이만큼 보여준다 (후보가 모자라면 그만큼만)
+MAX_SAME_NAME = 2  # 채울 때 보고 있는 상품과 이름이 겹치는 상품(같은 상품 다른 용량)은 이만큼까지 먼저
 
 # 단독으로 상품을 매칭하면 안 되지만, 핵심 품목과 함께 일치할 때 우선순위를 높여줄 선호 수식어('무가당 땅콩버터', '제로 초콜릿', '볶은 메밀' 등).
 _PREF_MODIFIERS = {
@@ -260,9 +263,26 @@ class Recommender:
                 boosted = [Candidate(pid, round(boost + (len(matched) - idx) * 1e-4, 6)) for idx, pid in enumerate(matched)]
                 cands = boosted + [c for c in cands if c.product_id not in matched_set]
         products = self.catalog.get_many([c.product_id for c in cands])
+        if food and query_kind is None:
+            # 상품명에 품목 말이 없으면('해태제과 아이비, 58g, 2개') 이름이 겹치는 후보('해태 아이비 크래커 309g')의
+            # 품목을 빌린다. 안 그러면 '아이비'가 든 상품만 남아 다른 크래커가 전부 빠졌다.
+            words = name_keywords(query)
+            kinds = Counter(food_type(p.name, p.category) for p in products.values()
+                            if same_kind(None, p.name, p.category, words))
+            kinds.pop(None, None)
+            if kinds:
+                query_kind = kinds.most_common(1)[0][0]
+                notes.append(f"품목을 같은 이름 상품에서 추정: {query_kind}")
+                if find is not None:  # 같은 품목 다른 상품은 벡터 상위에 없을 수 있어 품목 이름으로도 찾는다
+                    have = {c.product_id for c in cands}
+                    extra = [pid for pid in dict.fromkeys(find(list(kind_terms(query_kind)), 20)) if pid not in have]
+                    cands = cands + [Candidate(pid, round(cutoff, 6)) for pid in extra]
+                    products.update(self.catalog.get_many(extra))
 
         safe, excluded = [], []
         query_words = name_keywords(query) if food else []
+        # 품목 말이 없어 품목을 모르는 상품도 이름이 겹치면('해태제과 아이비 309g') 같은 상품으로 남긴다.
+        same_name = lambda p: food_type(p.name, p.category) is None and same_kind(None, p.name, p.category, query_words)
         off_kind = 0
         for c in cands:
             p = products.get(c.product_id)
@@ -270,7 +290,7 @@ class Recommender:
                 notes.append(f"인덱스에만 있고 카탈로그에 없음: {c.product_id}")
                 continue
             # 알레르기 검사로 비슷한 상품이 다 빠진 뒤 점수만 넘은 다른 품목(두유 -> 한우)이 남지 않게 먼저 거른다.
-            if food and not same_kind(query_kind, p.name, p.category, query_words) or                     typed and not food and not product_same_kind(query_kind, p.name, p.category):
+            if food and not (same_kind(query_kind, p.name, p.category, query_words) or same_name(p)) or                     typed and not food and not product_same_kind(query_kind, p.name, p.category):
                 off_kind += 1
                 continue
             v = assess(p, profile)
@@ -297,12 +317,36 @@ class Recommender:
                 notes.append(f"{ranker_name} 실패 → 유사도 순으로 대체: {type(e).__name__}")
                 ranker_name = "rule-fallback"
                 picks_raw = RuleRanker().rank(profile, query, safe, top_k)
-            # 같은 품목 확인은 코드가 이미 했다. LLM이 '요청과 똑같지 않다'며 대체품을 다 버리면 유사도 순으로 보여준다.
+            # 같은 품목 확인은 코드가 이미 했다. LLM은 '요청과 똑같은 것'만 고르는 경향이 있어(아이비 크래커 페이지에서
+            # 아이비 1개만), LLM 이 고른 것을 앞에 두고 MIN_PICKS 개까지 같은 품목 안에서 유사도 순으로 채운다.
             safe_ids = {p.product_id for p, _ in safe}
-            if typed and not any(pid in safe_ids for pid, _ in picks_raw):
-                notes.append(f"{ranker_name}가 고른 후보 없음 → 같은 품목 안에서 유사도 순")
-                ranker_name = "rule-fallback"
-                picks_raw = RuleRanker().rank(profile, query, safe, top_k)
+            chosen = list(dict.fromkeys(pid for pid, _ in picks_raw if pid in safe_ids))
+            want = min(MIN_PICKS, top_k, len(safe))
+            if typed and len(chosen) < want:
+                if chosen:
+                    notes.append(f"{ranker_name} {len(chosen)}개 + 같은 품목 유사도 순으로 {want}개까지 채움")
+                else:
+                    notes.append(f"{ranker_name}가 고른 후보 없음 → 같은 품목 안에서 유사도 순")
+                    ranker_name = "rule-fallback"
+                # 이름이 겹치는 같은 상품(아이비 309g·270g…)이 점수가 높아 다 차지하지 않게 MAX_SAME_NAME 개까지만 먼저 넣고,
+                # 다른 상품(슈가·통밀 크래커)을 채운 뒤에도 모자라면 나머지를 넣는다.
+                by_id = {p.product_id: p for p, _ in safe}
+                # '크래커' 같은 품목 말은 모든 크래커가 공유하므로 '같은 상품' 판단에서 뺀다
+                kind_of = food_type if food else product_type
+                words = [w for w in name_keywords(query) if kind_of(w) is None]
+                same = lambda pid: same_kind(None, by_id[pid].name, None, words)
+                n_same = sum(1 for pid in chosen if same(pid))
+                fill, later = [], []
+                for pid, _ in RuleRanker().rank(profile, query, safe, len(safe)):
+                    if pid in chosen:
+                        continue
+                    if same(pid) and n_same >= MAX_SAME_NAME:
+                        later.append(pid)
+                        continue
+                    n_same += same(pid)
+                    fill.append(pid)
+                fill = (fill + later)[:want - len(chosen)]
+                picks_raw = list(picks_raw) + [(pid, "같은 종류의 비슷한 상품") for pid in fill]
 
         # 랭커가 무엇을 돌려주든 안전 후보 안에서만, 중복 없이, top_k 까지.
         allowed = {p.product_id: (p, s) for p, s in safe}

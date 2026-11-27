@@ -203,10 +203,8 @@ def test_condition_unknown_is_stored_listed_and_never_erases_a_known_condition(c
 
 
 def test_listing_extension_matching_and_food_evidence(catalog):
-    api, post, _, _, source, _, base, start, path, headers = catalog
+    api, post, _, _, source, db, base, start, path, headers = catalog
     first_id = post(0).json()['offer_id']
-    second_id = post(5, dict(source_listing_id='stable-2', variant_key='sku-1', condition='used', price='9500')).json()['offer_id']
-    conflict_id = post(5, dict(source_listing_id='stable-3', variant_key='sku-1', price='9000')).json()['offer_id']
     food_id = post(5, dict(source_listing_id='food-1', variant_key='default', selected_domain='food', name='유기농 현미 스낵')).json()['offer_id']
 
     ext_path = path.replace('/observations', '/extensions')
@@ -243,37 +241,13 @@ def test_listing_extension_matching_and_food_evidence(catalog):
     }
     assert api.post(ext_path, json=stale, headers=headers).json()['change_kind'] == 'stale'
 
-    # Second offer matches exact brand + model_number + GTIN (used condition)
-    ext2 = ext_body | {
-        'source_listing_id': 'stable-2',
-        'observation_key': 'ext-stable-2',
-    }
-    assert api.post(ext_path, json=ext2, headers=headers).status_code == 201
-
-    # Third offer has conflicting color option
-    ext3 = ext_body | {
-        'source_listing_id': 'stable-3',
-        'observation_key': 'ext-stable-3',
-        'matching_profile': ext_body['matching_profile'] | {'color': 'red'},
-    }
-    assert api.post(ext_path, json=ext3, headers=headers).status_code == 201
-
-    matches = api.get(f'/v2/offers/{first_id}/matches?include_used=true').json()
-    exact_ids = [c['offer_id'] for c in matches['exact_candidates']]
-    assert second_id in exact_ids and conflict_id not in exact_ids
-    assert api.get(f'/v2/offers/{first_id}/matches?include_used=false').json()['exact_candidates'] == []
-
-    # Even if >200 cheaper unrelated offers exist, a higher-priced exact GTIN match is still found
-    for idx in range(210):
-        post(6, dict(source_listing_id=f'cheap-{idx}', variant_key='default', price='100'))
-    expensive_exact_id = post(7, dict(source_listing_id='expensive-exact', variant_key='sku-1', price='99000')).json()['offer_id']
-    ext_expensive = ext_body | {
-        'source_listing_id': 'expensive-exact',
-        'observation_key': 'ext-expensive-exact',
-    }
-    assert api.post(ext_path, json=ext_expensive, headers=headers).status_code == 201
-    matches_after_210 = api.get(f'/v2/offers/{first_id}/matches?include_used=false').json()
-    assert expensive_exact_id in [c['offer_id'] for c in matches_after_210['exact_candidates']]
+    # 예전 수집기가 보내는 바코드·모델·판매자 값은 받기만 하고 저장하지 않는다(2026-11-27 컬럼 정리).
+    item = db.execute('SELECT brand,image_url FROM app.catalog_items i JOIN app.offers o USING(item_id) WHERE o.offer_id=%s',
+                      (first_id,)).fetchone()
+    assert item == ('꿀픽테크', 'https://store.example.test/images/kettle.jpg')
+    changed = db.execute("SELECT changed_fields FROM app.listing_extensions WHERE source=%s AND observation_key='ext-stable-1'",
+                         (source,)).fetchone()[0]
+    assert set(changed) <= {'brand', 'image_url', 'image_urls'}
 
     # Food evidence on product domain is quarantined
     bad_domain = {
@@ -368,12 +342,6 @@ def test_extension_before_first_observation_is_held_then_applied(catalog):
     replay = api.post(ext_path, json=early, headers=headers)
     assert replay.status_code == 200 and replay.json()['state'] == 'applied'
 
-    # null removes an option; other options stay.
-    drop = early | {'observation_key': 'ext-drop', 'observed_at': (start + timedelta(seconds=20)).isoformat(),
-                    'matching_profile': {'options': {'engraving': None}}}
-    assert api.post(ext_path, json=drop, headers=headers).json()['change_kind'] == 'updated'
-    options = db.execute('SELECT options FROM app.products WHERE item_id=%s', (current()['item_id'],)).fetchone()[0]
-    assert options == {'capacity': '1L'}
 
 
 def test_listing_checks_refresh_freshness_only_when_catalog_matches(catalog, monkeypatch):

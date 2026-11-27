@@ -3,8 +3,7 @@ import math
 from dataclasses import asdict, dataclass
 from psycopg import sql
 
-TARGETS = {"product":("products","catalog_items","item_id"),"food":("foods","catalog_items","item_id"),
-           "ingredient":("ingredients","ingredients","ingredient_id")}
+TARGETS = {"product":("products","catalog_items","item_id"),"food":("foods","catalog_items","item_id")}
 
 
 @dataclass(frozen=True)

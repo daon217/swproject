@@ -362,14 +362,6 @@ def test_inferred_product_with_allergy_profile_does_not_emit_false_unknown_warni
     assert worker.once() and sent['complete']['metadata']['warnings']==[]
 
 
-def test_inferred_product_warns_only_when_food_is_possible():
-    # 식품 신호가 없는 상품(노트북 등)에 모든 알레르기 '주의'가 붙던 문제
-    from services.dev_runtime.analysis_worker import maybe_food
-    assert not maybe_food('삼성 노트북 15인치', [])
-    assert not maybe_food('노트북 파우치', ['폴리에스터', '나일론'])
-    assert not maybe_food('원목 의자', [])
-    assert maybe_food('수제 그래놀라 바', ['귀리', '꿀', '아몬드'])
-
 
 def test_page_own_offer_is_not_recommended():
     # 사료 페이지에서 바로 그 사료를 추천하던 문제: 매칭된 판매처 상품 자신은 뺀다

@@ -1,4 +1,4 @@
-"""Idempotent listing extension ingestion (matching profile & food evidence) and candidate matching."""
+"""수집기가 보내는 상품 부가 정보(브랜드·분류·이미지)와 식품 성분 근거를 멱등하게 반영한다."""
 import hashlib
 import os
 import re
@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
@@ -51,18 +51,6 @@ def collector_auth(req: Request, auth: HTTPAuthorizationCredentials | None = Dep
         raise HTTPException(401, "COLLECTOR_AUTH_REQUIRED")
 
 
-def canonical_gtin(raw: str) -> str:
-    value = raw.strip() if isinstance(raw, str) else ""
-    if not value.isdigit() or len(value) not in (8, 12, 13, 14):
-        raise ValueError("GTIN must be an 8, 12, 13, or 14 digit string")
-    padded = value.zfill(14)
-    total = sum((3 if idx % 2 == 0 else 1) * int(ch) for idx, ch in enumerate(padded[:13]))
-    check = (10 - (total % 10)) % 10
-    if check != int(padded[13]):
-        raise ValueError("invalid GTIN check digit")
-    return padded
-
-
 def check_image_url(value: HttpUrl) -> HttpUrl:
     host = (value.host or "").lower()
     if value.scheme != "https" or value.username or value.password or not host or _PRIVATE_HOST.match(host):
@@ -73,43 +61,28 @@ def check_image_url(value: HttpUrl) -> HttpUrl:
     return value
 
 
-class ProductIdentifier(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    type: Literal["gtin", "mpn", "sku"] = "gtin"
-    value: Annotated[str, Field(min_length=1, max_length=128)]
-    source_field: Annotated[str, Field(min_length=1, max_length=64)] | None = None
-
-    @model_validator(mode="after")
-    def normalize_identifier(self):
-        if self.type == "gtin":
-            object.__setattr__(self, "value", canonical_gtin(self.value))
-        return self
-
-
 class MatchingProfile(BaseModel):
+    """상품 부가 정보. 저장하는 값은 브랜드·분류·대표/추가 이미지뿐이다.
+    바코드(gtin)·부품번호(mpn)·모델명·색상·사이즈·옵션·제조사·판매자 정보는 읽는 기능이 없어 2026-11-27 DB에서
+    지웠다. 도매꾹·11번가 수집기가 이 값을 보내도 오류 없이 받되 저장하지 않는다(팀원 수집 코드가 깨지지 않게)."""
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     brand: Annotated[str, Field(min_length=1, max_length=200)] | None = None
-    manufacturer: Annotated[str, Field(min_length=1, max_length=200)] | None = None
-    model_name: Annotated[str, Field(min_length=1, max_length=200)] | None = None
-    model_number: Annotated[str, Field(min_length=1, max_length=200)] | None = None
-    mpn: Annotated[str, Field(min_length=1, max_length=200)] | None = None
-    gtin: Annotated[str, Field(min_length=8, max_length=14)] | None = None
-    identifiers: list[ProductIdentifier] = Field(default_factory=list, max_length=8)
     image_url: HttpUrl | None = None
     image_urls: list[HttpUrl] = Field(default_factory=list, max_length=8)
-    color: Annotated[str, Field(min_length=1, max_length=100)] | None = None
-    size: Annotated[str, Field(min_length=1, max_length=100)] | None = None
-    # A null value removes that option (e.g. a listing that dropped its 'engraving' choice).
-    options: dict[str, str | None] = Field(default_factory=dict)
     category: Annotated[str, Field(min_length=1, max_length=200)] | None = None
-    seller_id: Annotated[str, Field(min_length=1, max_length=120)] | None = None
-    seller_name: Annotated[str, Field(min_length=1, max_length=200)] | None = None
     exact_match_confirmed: bool = False
-
-    @field_validator("gtin")
-    @classmethod
-    def valid_gtin(cls, value):
-        return canonical_gtin(value) if value is not None else None
+    # 받기만 하고 저장하지 않는 예전 필드
+    manufacturer: str | None = None
+    model_name: str | None = None
+    model_number: str | None = None
+    mpn: str | None = None
+    gtin: str | None = None
+    identifiers: list[dict] = Field(default_factory=list, max_length=8)
+    color: str | None = None
+    size: str | None = None
+    options: dict[str, str | None] = Field(default_factory=dict)
+    seller_id: str | None = None
+    seller_name: str | None = None
 
     @field_validator("image_url")
     @classmethod
@@ -128,25 +101,6 @@ class MatchingProfile(BaseModel):
                 seen_urls.add(s)
                 deduped.append(v)
         return deduped
-
-    @field_validator("options")
-    @classmethod
-    def bounded_options(cls, value):
-        if len(value) > 16:
-            raise ValueError("options may contain at most 16 attributes")
-        cleaned = {}
-        for k, v in value.items():
-            key = str(k).strip()
-            if not key or len(key) > 64:
-                raise ValueError("invalid option key length")
-            if v is None:
-                cleaned[key] = None
-                continue
-            val = str(v).strip()
-            if not val or len(val) > 200:
-                raise ValueError("invalid option value length")
-            cleaned[key] = val
-        return cleaned
 
 
 class FoodEvidence(BaseModel):
@@ -200,17 +154,6 @@ class ListingExtension(BaseModel):
         if self.matching_profile is None and self.food_evidence is None:
             raise ValueError("at least one of matching_profile or food_evidence is required")
         return self
-
-
-def compute_variant_signature(color: str | None, size: str | None, options: dict[str, str]) -> str | None:
-    merged = {k.strip().casefold(): v.strip().casefold() for k, v in (options or {}).items() if k and v}
-    if color:
-        merged["color"] = color.strip().casefold()
-    if size:
-        merged["size"] = size.strip().casefold()
-    if not merged:
-        return None
-    return hashlib.sha256(encode(merged).encode()).hexdigest()
 
 
 async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
@@ -268,8 +211,8 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
     if tombstone and at <= tombstone["observed_at"]:
         return await finish("recorded", reason="DELETED_STALE_OBSERVATION", kind="stale")
 
-    current = await one(c, """SELECT o.offer_id,o.item_id,o.kind,o.seller_id,o.seller_name,o.detail_observed_at,
-        i.brand,i.manufacturer,i.category,i.image_url,i.image_urls,i.content_version
+    current = await one(c, """SELECT o.offer_id,o.item_id,o.kind,o.detail_observed_at,
+        i.brand,i.category,i.image_url,i.image_urls,i.content_version
         FROM app.offers o JOIN app.catalog_items i USING(item_id)
         WHERE o.source=:s AND o.source_listing_id=:l AND o.variant_key=:v FOR UPDATE OF o,i""", **ident)
     if not current:
@@ -299,7 +242,6 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
             item_updates = {}
             for col, val in (
                 ("brand", mp.brand),
-                ("manufacturer", mp.manufacturer),
                 ("category", mp.category),
                 ("image_url", primary_image),
             ):
@@ -323,67 +265,7 @@ async def accept_extension(c, run_id: UUID | None, ext: ListingExtension):
                     params[col] = val
                 await run(c, f"UPDATE app.catalog_items SET {','.join(sets)} WHERE item_id=:id", **params)
 
-            offer_updates = {"detail_observed_at": at, "id": offer_id}
-            offer_sets = ["detail_observed_at=:detail_observed_at"]
-            for col in ("seller_id", "seller_name"):
-                val = getattr(mp, col)
-                if val is not None and current[col] != val:
-                    before[col] = current[col]
-                    after[col] = val
-                    offer_updates[col] = val
-                    offer_sets.append(f"{col}=:{col}")
-            await run(c, f"UPDATE app.offers SET {','.join(offer_sets)} WHERE offer_id=:id", **offer_updates)
-
-            if kind == "product":
-                prod = await one(c, "SELECT * FROM app.products WHERE item_id=:id FOR UPDATE", id=item_id)
-                gtin_val = mp.gtin or next((i.value for i in mp.identifiers if i.type == "gtin"), None)
-                ident_list = [i.model_dump(exclude_none=True) for i in mp.identifiers]
-                if gtin_val and not any(i.get("type") == "gtin" and i.get("value") == gtin_val for i in ident_list):
-                    ident_list.insert(0, {"type": "gtin", "value": gtin_val})
-
-                merged_options = dict(prod["options"] or {})
-                for opt_key, opt_val in (mp.options or {}).items():
-                    if opt_val is None:
-                        merged_options.pop(opt_key, None)
-                    else:
-                        merged_options[opt_key] = opt_val
-                color_val = mp.color if mp.color is not None else prod["color"]
-                size_val = mp.size if mp.size is not None else prod["size"]
-                sig = compute_variant_signature(color_val, size_val, merged_options)
-
-                prod_updates = {}
-                for col, val in (
-                    ("model_name", mp.model_name),
-                    ("model_number", mp.model_number),
-                    ("mpn", mp.mpn),
-                    ("gtin", gtin_val),
-                    ("color", mp.color),
-                    ("size", mp.size),
-                    ("variant_signature", sig),
-                ):
-                    if val is not None and prod[col] != val:
-                        before[col] = prod[col]
-                        after[col] = val
-                        prod_updates[col] = val
-                if ident_list and list(prod["identifiers"] or []) != ident_list:
-                    before["identifiers"] = prod["identifiers"]
-                    after["identifiers"] = ident_list
-                    prod_updates["identifiers"] = encode(ident_list)
-                if dict(prod["options"] or {}) != merged_options:
-                    before["options"] = prod["options"]
-                    after["options"] = merged_options
-                    prod_updates["options"] = encode(merged_options)
-
-                if prod_updates:
-                    sets = []
-                    params = {"id": item_id}
-                    for col, val in prod_updates.items():
-                        if col in ("identifiers", "options"):
-                            sets.append(f"{col}=CAST(:{col} AS jsonb)")
-                        else:
-                            sets.append(f"{col}=:{col}")
-                        params[col] = val
-                    await run(c, f"UPDATE app.products SET {','.join(sets)} WHERE item_id=:id", **params)
+            await run(c, "UPDATE app.offers SET detail_observed_at=:at WHERE offer_id=:id", at=at, id=offer_id)
 
     if ext.food_evidence is not None:
         fe = ext.food_evidence
@@ -458,197 +340,3 @@ async def ingest_listing_extension(ext: ListingExtension, response: Response, re
         result, created = await accept_extension(c, None, ext)
     response.status_code = _status(result, created)
     return result
-
-
-def _compare_options(base_row, cand_row) -> tuple[str, list[str]]:
-    conflicts = []
-    partial = False
-    for key in ("color", "size"):
-        a, b = base_row.get(key), cand_row.get(key)
-        if a and b:
-            if a.strip().casefold() != b.strip().casefold():
-                conflicts.append(key)
-        elif a or b:
-            partial = True
-    opts_a = {k.casefold(): str(v).casefold() for k, v in (base_row.get("options") or {}).items()}
-    opts_b = {k.casefold(): str(v).casefold() for k, v in (cand_row.get("options") or {}).items()}
-    for k in set(opts_a) | set(opts_b):
-        if k in opts_a and k in opts_b:
-            if opts_a[k] != opts_b[k]:
-                conflicts.append(f"options.{k}")
-        else:
-            partial = True
-    if conflicts:
-        return "conflict", conflicts
-    if partial:
-        return "partially_specified", []
-    return "complete", []
-
-
-@router.get("/v2/offers/{offer_id}/matches")
-async def offer_matches(
-    offer_id: UUID,
-    req: Request,
-    include_used: bool = Query(True),
-    limit: int = Query(20, ge=1, le=100),
-):
-    async with req.app.state.engine.connect() as c:
-        target = await one(c, """SELECT o.offer_id,o.item_id,o.kind,o.source,o.source_listing_id,o.variant_key,
-            o.condition,o.price::text AS price,o.currency,o.current_url,o.availability,
-            i.name,i.brand,i.manufacturer,i.category,i.image_url,
-            p.model_name,p.model_number,p.mpn,p.gtin,p.color,p.size,p.options,p.variant_signature
-            FROM app.offers o
-            JOIN app.catalog_items i USING(item_id)
-            LEFT JOIN app.products p USING(item_id)
-            WHERE o.offer_id=:id""", id=offer_id)
-        if not target:
-            raise HTTPException(404, "OFFER_NOT_FOUND")
-
-        t_gtin = target["gtin"]
-        t_brand = (target["brand"] or "").strip().casefold() or None
-        t_model_num = (target["model_number"] or "").strip().casefold() or None
-        t_mpn = (target["mpn"] or "").strip().casefold() or None
-        t_model_name = (target["model_name"] or "").strip().casefold() or None
-        t_cat = (target["category"] or "").strip().casefold() or None
-
-        if not any((t_gtin, t_brand, t_model_num, t_mpn, t_model_name)):
-            return {
-                "offer_id": offer_id,
-                "exact_candidates": [],
-                "similar_candidates": [],
-            }
-
-        match_clauses = []
-        exact_rank_clauses = []
-        query_params: dict[str, object] = {
-            "kind": target["kind"],
-            "id": offer_id,
-            "include_used": include_used,
-            "candidate_cap": max(200, limit * 10),
-        }
-        if t_gtin:
-            match_clauses.append("p.gtin = :gtin")
-            exact_rank_clauses.append("p.gtin = :gtin")
-            query_params["gtin"] = t_gtin
-        if t_brand:
-            match_clauses.append("lower(i.brand) = :brand")
-            query_params["brand"] = t_brand
-        if t_model_num:
-            match_clauses.append("lower(p.model_number) = :model_num")
-            query_params["model_num"] = t_model_num
-            if t_brand:
-                exact_rank_clauses.append("(lower(i.brand) = :brand AND lower(p.model_number) = :model_num)")
-        if t_mpn:
-            match_clauses.append("lower(p.mpn) = :mpn")
-            query_params["mpn"] = t_mpn
-            if t_brand:
-                exact_rank_clauses.append("(lower(i.brand) = :brand AND lower(p.mpn) = :mpn)")
-
-        if not match_clauses:
-            return {
-                "offer_id": offer_id,
-                "exact_candidates": [],
-                "similar_candidates": [],
-            }
-
-        where_filter = " OR ".join(match_clauses)
-        # Rank before the candidate cap: exact identifiers, then brand+model name, then the rest by price.
-        # Without this a brand with many cheap listings pushes real similar items past LIMIT.
-        rank_cases = []
-        if exact_rank_clauses:
-            rank_cases.append(f"WHEN ({' OR '.join(exact_rank_clauses)}) THEN 0")
-        if t_brand and t_model_name:
-            rank_cases.append("WHEN lower(i.brand) = :brand AND lower(p.model_name) = :model_name THEN 1")
-            query_params["model_name"] = t_model_name
-        order_priority = f"CASE {' '.join(rank_cases)} ELSE 2 END ASC," if rank_cases else ""
-
-        rows = (await c.execute(text(f"""SELECT o.offer_id,o.source,o.source_listing_id,o.variant_key,
-            o.condition,o.price::text AS price,o.currency,o.shipping_fee::text AS shipping_fee,
-            o.current_url,o.availability,o.price_observed_at,o.last_seen_at,o.last_checked_at,o.seller_name,
-            i.name,i.brand,i.manufacturer,i.category,i.image_url,
-            p.model_name,p.model_number,p.mpn,p.gtin,p.color,p.size,p.options,p.variant_signature
-            FROM app.offers o
-            JOIN app.catalog_items i USING(item_id)
-            LEFT JOIN app.products p USING(item_id)
-            WHERE o.kind=:kind AND o.offer_id<>:id AND o.availability='available'
-              AND (:include_used OR o.condition<>'used')
-              AND ({where_filter})
-            ORDER BY {order_priority} o.price ASC, o.offer_id ASC
-            LIMIT :candidate_cap"""),
-            query_params)).mappings().all()
-
-    exact_candidates = []
-    similar_candidates = []
-
-    for r in rows:
-        c_gtin = r["gtin"]
-        c_brand = (r["brand"] or "").strip().casefold()
-        c_model_num = (r["model_number"] or "").strip().casefold()
-        c_mpn = (r["mpn"] or "").strip().casefold()
-        c_model_name = (r["model_name"] or "").strip().casefold()
-        c_cat = (r["category"] or "").strip().casefold()
-
-        if t_gtin and c_gtin and t_gtin != c_gtin:
-            continue
-        if t_brand and c_brand and t_brand != c_brand:
-            continue
-        if t_model_num and c_model_num and t_model_num != c_model_num:
-            continue
-        if t_mpn and c_mpn and t_mpn != c_mpn:
-            continue
-
-        completeness, conflicts = _compare_options(target, r)
-        if conflicts:
-            continue
-
-        basis = []
-        if t_gtin and c_gtin and t_gtin == c_gtin:
-            basis.append("gtin")
-        if t_brand and c_brand == t_brand and t_model_num and c_model_num == t_model_num:
-            basis.append("brand_model_number")
-        if t_brand and c_brand == t_brand and t_mpn and c_mpn == t_mpn:
-            basis.append("brand_mpn")
-
-        card = {
-            "offer_id": r["offer_id"],
-            "source": r["source"],
-            "source_listing_id": r["source_listing_id"],
-            "variant_key": r["variant_key"],
-            "name": r["name"],
-            "brand": r["brand"],
-            "model_name": r["model_name"],
-            "model_number": r["model_number"],
-            "mpn": r["mpn"],
-            "gtin": r["gtin"],
-            "image_url": r["image_url"],
-            "seller_name": r["seller_name"],
-            "condition": r["condition"],
-            "price": r["price"],
-            "currency": r["currency"],
-            "shipping_fee": r["shipping_fee"],
-            "current_url": r["current_url"],
-            "availability": r["availability"],
-            "last_seen_at": r["last_seen_at"],
-            "options": r["options"] or {},
-            "color": r["color"],
-            "size": r["size"],
-            "option_completeness": completeness,
-            "exact_match_confirmed": False,
-            "requires_review": True,
-        }
-
-        if basis:
-            if len(exact_candidates) < limit:
-                exact_candidates.append(card | {"match_basis": basis})
-        elif (t_brand and c_brand == t_brand and t_model_name and c_model_name == t_model_name) or (
-            t_brand and c_brand == t_brand and t_cat and c_cat == t_cat
-        ):
-            sim_basis = ["brand_model_name"] if (t_model_name and c_model_name == t_model_name) else ["brand_category"]
-            if len(similar_candidates) < limit:
-                similar_candidates.append(card | {"match_basis": sim_basis})
-
-    return {
-        "offer_id": offer_id,
-        "exact_candidates": exact_candidates,
-        "similar_candidates": similar_candidates,
-    }

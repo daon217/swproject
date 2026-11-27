@@ -44,7 +44,7 @@ POST /internal/v2/crawl-runs/{run_id}/observations. UUID run_id를 생성하고 
 - food와 product는 분리 조회한다. 중고는 condition=used로 조회한다. 제휴·회원·상담 API는 위 업무별 문서를 참고한다. 실제 상품 상세정보 수집 연동은 별도다.
 
 ## 정우: 임베딩 연결
-근거: 2026-10-06 pgvector 설계서 2~4절, 통합 기술 명세 10장. product / food / ingredient별 테이블과 embedding_models 사용. Sentence-Transformers의 실제 모델명·가중치 revision·차원은 미정이다. 테스트의 3차원 배열은 인코더 결과가 아니다.
+근거: 2026-10-06 pgvector 설계서 2~4절, 통합 기술 명세 10장. product / food별 테이블과 embedding_models 사용(성분 단위 ingredient 테이블은 사용하지 않아 2026-11-27 제거). Sentence-Transformers의 실제 모델명·가중치 revision·차원은 미정이다. 테스트의 3차원 배열은 인코더 결과가 아니다.
 1. 모델 확정 후 catalog owner 연결에서 kkulpick.vectors.Contract와 register(conn, contract)로 불변 모델 계약과 모델 전용 HNSW 코사인 인덱스를 생성한다. 테스트 통과 후 해당 모델의 is_serving을 true로 변경한다. 기존 계약 수정 대신 새 ID를 등록한다.
 2. 추천 작업자는 공개 텍스트만 사용해 계약의 입력 템플릿·접두사·정규화 규칙으로 인코딩한 후 put(conn, model_id, parent_id, content_version, values)로 저장한다. psycopg 동기 연결 대상이며 비동기 HTTP 요청 스레드에서 직접 호출하지 않는다.
 3. candidates(conn, model_id, query_vector, limit)는 같은 모델·최신 content_version의 후보만 코사인 거리로 반환한다. HNSW m=16, ef_construction=64, 검색 ef_search=40. 여러 차원의 모델 등록을 위해 저장 컬럼은 vector, 인덱스는 모델별 vector(D) 캐스트와 고정 조건을 쓴다. 작은 후보 집합에서는 옵티마이저가 exact를 선택할 수 있다. 차원·영벡터 검증, 콘텐츠 버전 검증, 원본 텍스트 변경 시 기존 벡터 검색 제외. 가격 변경만으로 내용 버전을 올리지 않는다.

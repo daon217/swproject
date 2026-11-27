@@ -1,11 +1,12 @@
 # 팀 문서 안내
 
-처음 참여하는 팀원은 **[개발환경 사용 안내](LOCAL_DEVELOPMENT.md)**부터 읽으세요. 기본은 각자 PC의 독립 실행입니다.
+처음 참여하는 팀원은 **[실행 방법](../실행방법.md)**으로 전체 기능을 띄운 뒤, 필요한 내용을 아래에서 찾으세요. 기본은 각자 PC의 독립 실행입니다.
 
 ## 공통 개발환경
 
 | 목적 | 기준 문서 |
 | --- | --- |
+| 전체 기능 실행(분석·추천·수집·관리자)·Claude 키 | [TEAM_INTEGRATION](TEAM_INTEGRATION.md) |
 | 설치·브랜치 반영·매일 실행·종료·문제 해결 | [LOCAL_DEVELOPMENT](LOCAL_DEVELOPMENT.md) |
 | 담당 브랜치·PR·기존 코드 반입 | [CONTRIBUTING](../CONTRIBUTING.md) |
 | 전체 Docker·개발 큐·선택 AI 이미지 | [WORKSPACE](WORKSPACE.md) |
@@ -40,4 +41,4 @@
 - 업무 사용법은 docs/backend, 요청·응답은 contracts, 시점별 검증 결과는 docs/reviews에 기록합니다.
 - 같은 설명을 복사하지 않고 기준 문서로 연결합니다. 코드 변경 시 현재 구현·임시 정책·미연결 부분을 함께 갱신합니다.
 - 실행 명령은 저장소 루트 기준입니다. 실제 비밀번호·원본 수집 데이터·DB 백업은 Git에 올리지 않습니다.
-- 공통 코드의 main 반영 여부는 [PR #3](https://github.com/daon217/swproject/pull/3)에서 확인합니다.
+- 통합 기준 브랜치는 `maintest`입니다. 진행 일지·미해결 문제는 `devlog` 브랜치에 있습니다.

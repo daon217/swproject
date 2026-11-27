@@ -11,7 +11,6 @@ import os
 import re
 import time
 import httpx
-from services.recommendation.allergens import normalize_code
 
 log=logging.getLogger('analysis-worker')
 
@@ -47,11 +46,6 @@ def food_evidence(title,ingredients):
     if ingredients and FOOD_INGREDIENT.search(' '.join(str(i) for i in ingredients)):return 'vision_ingredients'
     if FOOD_TITLE.search(title or ''):return 'title_keyword'
     return None
-
-def maybe_food(title,ingredients):
-    """식품이라고 확정하지는 못했지만 식품일 수 있는가: 식품이 아닌 신호가 없고, 화면에서 성분 같은 글자를 읽었을 때."""
-    text=' '.join([title or '',*[str(i) for i in (ingredients or [])]])
-    return bool(ingredients) and not NON_FOOD.search(text)
 
 class Worker:
     def __init__(self,client=None,*,worker_id='team-integration',max_concurrency=None,poll_interval=0.5):
@@ -123,7 +117,6 @@ class Worker:
                 code='OCR_FAILED' if job.get('image_url') else 'CATALOG_NO_MATCH'
                 self.request('POST',path+'/fail',json=lease|{'code':code,'retryable':False});return True
             # A generic cosmetics ingredient list must not automatically classify a page as food.
-            inferred=not kind
             if not kind:
                 # Vision 성분표·상품명으로 판별. 전체 카탈로그를 매번 내려받지 않는다.
                 evidence=food_evidence(title,ingredients)

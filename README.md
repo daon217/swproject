@@ -1,6 +1,6 @@
 # 꿀픽 온라인
 
-> 최신 실제 API 연결·Docker UI 실행은 [프론트 · 백엔드 통합 실행](docs/FRONTEND_INTEGRATION.md)을 따릅니다. 기본 API는 실제 로컬 백엔드이며 화면 목업은 명시적으로 선택합니다.
+> **전체 기능을 한 번에 실행**: [실행 방법](실행방법.md) — `init` → `up --scope integrated`. Claude 키를 넣으면 AI 추천까지 동작합니다.
 
 상품·식품 화면 분석, 가격 비교와 대체 상품 탐색을 위한 팀 프로젝트입니다.
 
@@ -10,7 +10,7 @@
 
 현재 기본 방식은 **각자 PC의 Docker에서 서버와 DB를 실행**하는 것입니다. GitHub로 코드를 공유하며 각 PC의 DB 데이터·비밀번호·백업은 자동 공유되지 않습니다. 로컬 개발에 VPN·공용 서버·클라우드 가입·Claude 키는 필요하지 않습니다.
 
-공통 환경 반영 상태는 [PR #3](https://github.com/daon217/swproject/pull/3)에서 확인하세요. 아직 병합 전이면 안내의 `part/소병선-backend` 반영 절차를 따르고, 병합 후에는 `origin/main`을 반영합니다.
+통합 기준 브랜치는 `maintest`입니다. 각자 브랜치에서 작업한 뒤 검증을 거쳐 `maintest`에 반영합니다.
 
 ### 최초 실행
 
@@ -32,6 +32,7 @@ API 문서: http://127.0.0.1:8000/docs. 평소에는 `up --scope core`, 종료�
 
 | 필요한 내용 | 안내 |
 | --- | --- |
+| 전체 기능 실행(분석·추천·수집·관리자) | [팀 통합 개발 안내](docs/TEAM_INTEGRATION.md) |
 | 설치·실행·명령어·문제 해결 | [팀원 개발환경 사용 안내](docs/LOCAL_DEVELOPMENT.md) |
 | 전체 문서와 코드 위치 | [문서 목록](docs/README.md) |
 | 브랜치·커밋·PR·기존 코드 반입 | [협업 규칙](CONTRIBUTING.md) |
@@ -44,7 +45,7 @@ API 문서: http://127.0.0.1:8000/docs. 평소에는 `up --scope core`, 종료�
 
 | 담당 | 브랜치 | 코드 위치 |
 | --- | --- | --- |
-| 소병선 — 백엔드·공통 환경 | `part/소병선-backend` | `services/api`, `infra`, `tools` |
+| 소병선 — 백엔드·DB·공통 환경·통합 | `part/소병선-backend` (작업: `part/소병선-backend-test`) | `services/api`, `services/dev_runtime`, `infra`, `tools` |
 | 이다온 — 이미지 분석 | `part/이다온-vision` | `services/vision` |
 | 박정우 — 임베딩·추천 | `part/박정우-recommendation` | `services/recommendation` |
 | 최준서 — 수집 | `part/최준서-collector` | `services/collector` |
@@ -56,11 +57,11 @@ API 문서: http://127.0.0.1:8000/docs. 평소에는 `up --scope core`, 종료�
 
 ## 구현 상태와 설계 기준
 
-- 제공: 독립 PostgreSQL DB 3개, 수집 데이터 갱신·상품 조회·pgvector 저장/검색, 회원 인증·프로필, 모의 구독 결제, 고객센터·제휴·관리자·탈퇴, 분석 작업 관리 API.
-- 제공: 웹·관리자·확장·모바일 시작 코드, OCR·추천·수집 HTTP 개발 틀, Redis·Celery·비공개 임시 저장소, 9개 프로젝트 검사·빌드 설정.
-- 미완료: 프론트 화면 연결, 실제 수집·OCR·추천·임베딩 통합, 실제 결제사·정기청구, 비밀번호 재설정용 본인 확인과 운영 배포.
+- 동작(2026-11-27 기준): 독립 PostgreSQL DB 3개(회원·상품·고객센터), 수집 데이터 갱신·상품 조회, 회원·비회원 분석(페이지 주소·화면 캡처 OCR), 문장 임베딩 + pgvector 후보 검색, Claude 추천 순서(키가 있을 때), 알레르기 경고, 모의 구독 결제, 고객센터·제휴·관리자 콘솔·탈퇴, 홈페이지 크롤러 자동 수집.
+- 연결된 화면: 확장(미리보기), 모바일 앱(웹 미리보기), 관리자 콘솔(:3000).
+- 미완료: 실제 결제사·정기청구, 비밀번호 재설정 본인 확인, 운영 배포, 실제 Chrome 설치·휴대폰 실기기 검증.
 - 백엔드 사용법은 [백엔드 업무 안내](docs/backend/INDEPENDENT_BACKEND.md), 요청·응답은 [API 계약 목록](contracts/README.md)을 기준으로 합니다.
-- 기본 환경 점검은 실제 크롤링·모델 추론·Claude 유료 호출을 하지 않습니다. 검사 통과는 서비스 기능 전체 완성을 뜻하지 않습니다.
+- `check`·CI는 Claude 유료 호출을 하지 않습니다. 진행 기록과 미해결 문제는 `devlog` 브랜치의 일지·`OPEN_ISSUES.md`에 있습니다.
 
 2026-11-02 기술 명세서와 팀 WBS를 기준으로 합니다. FastAPI/Pydantic, Celery/Redis, PostgreSQL/pgvector를 사용하며 과거 Java/Spring 목록은 적용하지 않습니다. 실행 버전은 코드의 의존성 명세·잠금 파일과 `.python-version`, `.nvmrc`를 기준으로 합니다.
 

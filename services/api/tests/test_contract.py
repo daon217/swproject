@@ -78,11 +78,8 @@ def test_food_evidence_allergen_codes_are_canonical():
     assert evidence.allergens_declared == ['soybean', 'shellfish', '조개 함유']  # deduplicated, unknown text kept
 
 
-def test_listing_extension_validation_gtin_and_images():
-    from kkulpick.extensions import ListingExtension, canonical_gtin
-    assert canonical_gtin("8801043014809") == "08801043014809"
-    with pytest.raises(ValueError):
-        canonical_gtin("8801043014800")  # invalid check digit
+def test_listing_extension_validation_images_and_legacy_fields():
+    from kkulpick.extensions import ListingExtension
 
     ext = ListingExtension(
         source="demo",
@@ -104,7 +101,8 @@ def test_listing_extension_validation_gtin_and_images():
             "options": {"color": "silver", "capacity": "1.7L"},
         },
     )
-    assert ext.matching_profile.gtin == "08801043014809"
+    # 예전 수집기 필드(바코드·모델번호·옵션)는 오류 없이 받는다(저장하지 않음).
+    assert ext.matching_profile.gtin == "8801043014809"
     assert [str(u) for u in ext.matching_profile.image_urls] == [
         "https://store.example.test/img/1.jpg",
         "https://store.example.test/img/2.jpg",
@@ -114,7 +112,6 @@ def test_listing_extension_validation_gtin_and_images():
         {"matching_profile": None, "food_evidence": None},
         {"matching_profile": {"image_url": "http://store.example.test/insecure.jpg"}},
         {"matching_profile": {"image_url": "https://127.0.0.1/private.jpg"}},
-        {"matching_profile": {"gtin": "8801043014800"}},
     ):
         with pytest.raises(ValidationError):
             ListingExtension(

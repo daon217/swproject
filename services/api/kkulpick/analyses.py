@@ -195,9 +195,8 @@ async def offer_cards(c,ids):
         return {}
     rows=(await execute(c,f'''SELECT o.offer_id,i.name,o.price::text,o.currency,o.price_observed_at AS observed_at,
         o.availability,o.current_url AS url,o.kind AS image_kind,{CARD_FRESHNESS},
-        i.brand,i.image_url,i.category,o.seller_name,p.model_name,p.model_number,p.mpn,p.gtin,p.options
+        i.brand,i.image_url,i.category
         FROM app.offers o JOIN app.catalog_items i USING(item_id)
-        LEFT JOIN app.products p USING(item_id)
         WHERE o.offer_id=ANY(CAST(:ids AS uuid[])) AND o.availability='available' ''',
         ids=list(set(ids)),stale_hours=stale_hours())).mappings().all()
     return {x['offer_id']:x for x in rows}

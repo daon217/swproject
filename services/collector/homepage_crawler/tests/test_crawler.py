@@ -107,3 +107,12 @@ def test_db_lost_during_save_stops(monkeypatch):
     a = SimpleNamespace(dry_run=False, watch=True, max_pages=1, delay=0)
     with pytest.raises(C.DBLost):
         C.run_cycle([("A", "u"), ("B", "u")], a, FakeConn())
+
+
+
+def test_canonical_url():
+    from services.collector.homepage_crawler.crawler import canonical_url
+    u = "https://www.yes24.com/product/goods/1?ReviewYn=Y"
+    assert canonical_url('<link rel="canonical" href="https://www.yes24.com/product/goods/1">', u) == "https://www.yes24.com/product/goods/1"
+    assert canonical_url('<link rel="canonical" href="https://evil.com/x">', u) == u
+    assert canonical_url("<html></html>", u) == u

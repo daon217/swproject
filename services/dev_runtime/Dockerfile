@@ -3,7 +3,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /workspace
 COPY services/dev_runtime/requirements.lock /tmp/requirements.lock
 COPY services/collector/domeggook_live/requirements.txt /tmp/collector-requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.lock -r /tmp/collector-requirements.txt \
+COPY services/collector/url_crawler/requirements.txt /tmp/url-crawler-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.lock -r /tmp/collector-requirements.txt -r /tmp/url-crawler-requirements.txt \
     && useradd --uid 10001 --create-home developer \
     && mkdir -p /var/lib/kkulpick/images \
     && chown developer /var/lib/kkulpick/images

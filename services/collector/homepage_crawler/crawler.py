@@ -113,6 +113,16 @@ def to_krw(p):
     return out
 
 
+def canonical_url(html, url):
+    """페이지가 밝힌 대표 주소(<link rel=canonical>, 같은 사이트일 때만). ?ReviewYn=Y 같은 변형 주소로 같은 상품이 두 번 저장되던 문제 방지."""
+    tag = BeautifulSoup(html, "lxml").find("link", rel="canonical", href=True)
+    if tag:
+        c = urljoin(url, tag["href"]).split("#")[0]
+        if urlparse(c).netloc.removeprefix("www.") == urlparse(url).netloc.removeprefix("www."):
+            return c
+    return url
+
+
 def candidate_links(html, base):
     host = urlparse(base).netloc.removeprefix("www.")  # 하위 도메인(product.xxx)까지 같은 출처로 본다
     out = []
@@ -219,7 +229,7 @@ def crawl_site(name, home, max_pages, delay):
         p = parse_product(page, u)
         if p and p["name"]:
             c = classify(name, p)
-            products.append(dict(p, site=name, url=u, **extract_allergen_info(page), **c, **{k: v for k, v in to_krw(p).items() if not (k == 'review' and c['review'])}))
+            products.append(dict(p, site=name, url=canonical_url(page, u), **extract_allergen_info(page), **c, **{k: v for k, v in to_krw(p).items() if not (k == 'review' and c['review'])}))
 
     # 아직 방문하지 못한 남은 후보를 다음 회차로 넘긴다(최대 2000개 유지)
     _DISCOVERED_URLS[name] = [u for u in queue[idx:] if u not in seen][:2000]

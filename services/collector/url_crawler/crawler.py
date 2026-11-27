@@ -1,6 +1,6 @@
 """platform-urls.md의 쇼핑몰을 직접 방문해 상품을 Supabase(Postgres)에 저장.
 
-사용: python crawler.py [--dry-run] [--only 올리브영,교보문고] [--skip 당근] [--max-pages 12] [--workers 4] [--no-browser]
+사용: python crawler.py [--dry-run] [--only 올리브영,교보문고] [--skip 당근] [--max-pages 12] [--workers 4] [--browser]
 DB:   환경변수 DATABASE_URL (Supabase > Settings > Database > Connection string)
 
 하이브리드 우선순위 (빠른 방식부터, 실패하면 다음):
@@ -283,7 +283,7 @@ def main():
     ap.add_argument("--delay", type=float, default=1.0)
     ap.add_argument("--skip", help="쉼표로 구분한 제외할 플랫폼 이름")
     ap.add_argument("--workers", type=int, default=4, help="정적 단계에서 동시에 도는 사이트 수 (사이트 안에서는 순차)")
-    ap.add_argument("--no-browser", action="store_true", help="헤드리스 브라우저 단계 끄기")
+    ap.add_argument("--browser", action="store_true", help="헤드리스 브라우저 단계 켜기 (기본은 정적만, 2026-11-27 결정)")
     a = ap.parse_args()
     sites = load_sites()
     if a.only:
@@ -300,7 +300,7 @@ def main():
     with ThreadPoolExecutor(a.workers) as ex:  # 1단계: 정적 HTML
         results = dict(zip([n for n, _ in sites], ex.map(lambda nh: crawl_site(nh[0], nh[1], a.max_pages, a.delay), sites)))
     retry = [(n, h) for n, h in sites if results[n][0] == "no_products" and n not in NO_BROWSER]
-    if retry and not a.no_browser:  # 2단계: 헤드리스 브라우저 (느려서 실패한 곳만, 순차)
+    if retry and a.browser:  # 2단계: 헤드리스 브라우저 (느려서 실패한 곳만, 순차)
         from playwright.sync_api import sync_playwright
         with sync_playwright() as pw:
             b = pw.chromium.launch(headless=True)

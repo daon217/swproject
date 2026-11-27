@@ -50,5 +50,5 @@
 - [GitHub Actions `Persistent embedding pipeline` (Run #45105156543)](https://github.com/daon217/swproject/actions/runs/45105156543): `postgres` 및 `semantic-model` **전원 통과**.
 
 ## 남은 과제 / 주의
-- `ANALYSIS_WORKER_CONCURRENCY=4`일 때 캡처 이미지 분석만 대량으로 동시에 몰리면 단일 OCR 워커 대기열 뒤쪽 작업이 90초 폴링 기한을 넘길 수 있다([OPEN_ISSUES.md](../OPEN_ISSUES.md) #18).
+- `ANALYSIS_WORKER_CONCURRENCY=4`일 때 캡처 이미지 분석만 대량으로 동시에 몰리면 단일 OCR 워커 대기열 뒤쪽 작업이 90초 폴링 기한을 넘길 수 있다([OPEN_ISSUES.md](../../OPEN_ISSUES.md) #18).
 - 당시 `analysis_worker.py`의 예외 처리는 실패를 일괄 `retryable=False`로 보고했으나, 이후 Claude 세션 1(#05, `2e2a806`)에서 일시 장애(`retryable=True`)와 코드 오류(`RECOMMENDATION_FAILED`)로 세분화되었다.

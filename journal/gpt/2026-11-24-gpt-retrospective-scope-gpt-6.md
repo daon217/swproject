@@ -3,7 +3,7 @@
 - 날짜: 2026-11-24 (Asia/Seoul, 과거 작업을 정리한 날)
 - 상태: 부분 해결 — 확인 가능한 GPT 작업 기록 완료, 귀속 불명 작업 제외
 - 브랜치 / 커밋: `devlog`; 아래 개별 일지는 코드 커밋을 고정 링크로 참조
-- 관련 파일: [LOG_TEMPLATE.md:1](../LOG_TEMPLATE.md), [PROMPTS.md:35](../PROMPTS.md), [INDEX.md:1](../INDEX.md)
+- 관련 파일: [LOG_TEMPLATE.md:1](../../guide/LOG_TEMPLATE.md), [PROMPTS.md:35](../../guide/PROMPTS.md), [INDEX.md:1](../../INDEX.md)
 - 작성 AI: GPT-6 (Codex, 현재 회고 작성자)
 - 원 작업 AI: GPT/ChatGPT/Codex. 과거 각 세션의 상세 모델 버전은 확인되지 않아 현재 모델명을 소급해서 붙이지 않는다.
 

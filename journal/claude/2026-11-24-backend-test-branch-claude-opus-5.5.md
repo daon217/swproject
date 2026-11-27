@@ -170,4 +170,4 @@
 ---
 
 ## 이 세션의 검증 환경
-[VERIFY.md](../VERIFY.md) 참고. Windows에서는 psycopg async가 ProactorEventLoop에서 동작하지 않아 통합 테스트를 Linux 컨테이너에서 실행했다.
+[VERIFY.md](../../guide/VERIFY.md) 참고. Windows에서는 psycopg async가 ProactorEventLoop에서 동작하지 않아 통합 테스트를 Linux 컨테이너에서 실행했다.

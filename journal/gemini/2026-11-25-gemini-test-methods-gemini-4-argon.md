@@ -22,7 +22,7 @@
 | C. `METHODS.md`의 로컬 Linux 컨테이너(`tools/run-all.sh`)나 시뮬레이션(`sim/`)을 Gemini도 실행한 것처럼 합쳐서 기술 | 문서가 단순해짐 | 실행 주체와 시점 오귀속(당시 로컬 Docker 데몬은 꺼져 있었음) | |
 
 ## 해결 (적용 내용)
-1. **[GEMINI_METHODS.md](../GEMINI_METHODS.md) 신규 작성**:
+1. **[GEMINI_METHODS.md](../../guide/GEMINI_METHODS.md) 신규 작성**:
    - **원칙 및 범위(1절)**: Gemini가 실제 수행한 범위(`11-19` 파악, `11-23` 조사·구현·4중 검증, `11-24/25` devlog 검증)만 기록하고, GPT(`2d444b0` 이전)와 Claude(`2c65ccd` 이후 `part/소병선-backend-test`, `tools/run-all.sh`, `sim/`, 브라우저 UI 클릭, ERD 생성)의 작업을 소급 합산하지 않도록 경계를 명시했다.
    - **도구와 역할(2절)**: 격리 클론/worktree, `gh` CLI, `uv` Python 3.12, `pytest`·`TestClient`, `httpx.MockTransport`·`ThreadPoolExecutor`, 인메모리 시나리오 스크립트, Ubuntu Actions PostgreSQL 17 + pgvector + Alembic `0009`, 오프라인 MiniLM 컨테이너의 역할과 한계를 표로 정리했다.
    - **점검·검증 방식 및 항목별 판정 기준(3~4절)**: `#48`~`#54` 각각에 대해 목적, 환경, 고정 코드 SHA·줄 링크, 입력·행동·기대값을 구체적으로 기록했다.
@@ -43,4 +43,4 @@
 
 ## 남은 과제 / 주의
 - 이번 작업은 과거 Gemini 수행 방법의 문서화 및 근거 재검증이며, 오늘 새로운 DB/컨테이너 통합 테스트를 다시 실행한 것이 아니다.
-- `2c65ccd` 이후 `maintest`에 병합된 Claude 작업(`82a81db`, `b51ffdc` 등)과 현재 미해결 이슈는 [OPEN_ISSUES.md](../OPEN_ISSUES.md) 및 최신 Claude 일지를 따른다.
+- `2c65ccd` 이후 `maintest`에 병합된 Claude 작업(`82a81db`, `b51ffdc` 등)과 현재 미해결 이슈는 [OPEN_ISSUES.md](../../OPEN_ISSUES.md) 및 최신 Claude 일지를 따른다.

@@ -2,7 +2,7 @@
 
 > 이 저장소(꿀픽, daon217/swproject)에서 **어떻게 점검하고, 무엇으로, 어떤 순서로 테스트했는지**를 2026-11-24부터 지금까지 한 일 포함해 정리한 문서.
 > 다른 AI나 사람이 같은 방식으로 이어서 하라고 만들었다. 그대로 붙여 넣을 프롬프트는 [PROMPTS.md](PROMPTS.md) 5번에 있다.
-> 실행 명령의 세부(격리 DB 띄우기)는 [VERIFY.md](VERIFY.md), 쓰는 스크립트는 [`tools/`](tools/)에 있다.
+> 실행 명령의 세부(격리 DB 띄우기)는 [VERIFY.md](VERIFY.md), 쓰는 스크립트는 [`tools/`](../tools)에 있다.
 > 마지막 갱신: 2026-11-25 · 기준 커밋 `part/소병선-backend-test` b51ffdc
 > GPT의 11-04 이후 실제 수행 방법·명령·검증 이력은 [GPT_METHODS.md](GPT_METHODS.md)에 별도로 기록했다. 아래 Claude 실행 이력과 구분한다.
 > Gemini 4 Argon의 11-19/11-23 점검·구현·4중 검증 방법과 실행 근거는 [GEMINI_METHODS.md](GEMINI_METHODS.md)에 별도로 기록했다.
@@ -89,13 +89,13 @@ print([c for c in ALLERGENS if not detect(split_ingredients(c))])"   # → ['she
 | 단계 | 무엇 | 어디서 | 도구 |
 | --- | --- | --- | --- |
 | ① 단위 | DB 없는 테스트(API 36, 추천·워커 단위) | Windows venv | `py -3.14 -m venv`, pytest |
-| ② 통합 | 실제 PostgreSQL+pgvector에 마이그레이션 적용 후 전체 | 격리 compose + **Linux 컨테이너** | docker compose, `python:3.12-slim`, [`tools/run-all.sh`](tools/run-all.sh) |
+| ② 통합 | 실제 PostgreSQL+pgvector에 마이그레이션 적용 후 전체 | 격리 compose + **Linux 컨테이너** | docker compose, `python:3.12-slim`, [`tools/run-all.sh`](../tools/run-all.sh) |
 | ③ 순서 바꿔 재실행 | 추천→API, API→추천 두 순서 + 같은 DB 재실행 | 위와 같음 | 테스트 간 잔여 데이터(서빙 중 임베딩 계약 등) 탐지 |
 | ④ 샘플 변조 | 계약 샘플을 일부러 망가뜨려 검증이 잡는지 | 위와 같음 | `tests/test_sample_mutations.py` |
-| ⑤ 실제 구동 시뮬레이션 | 실제 수집 원본 300건 적재 → 임베딩 대기 → 추천·분석·관리자 흐름, Vision 끊긴 상태 포함 | 격리 compose 네트워크 | [`sim/`](sim/), [`tools/sim-worker.compose.yaml`](tools/sim-worker.compose.yaml) |
-| ⑥ 화면 검증 | 관리자 웹을 실제 API에 붙여 클릭으로 확인 | 격리 compose(API 58000, 웹 53000) | [`tools/ui.compose.yaml`](tools/ui.compose.yaml), Claude 데스크톱 앱 내장 브라우저 |
+| ⑤ 실제 구동 시뮬레이션 | 실제 수집 원본 300건 적재 → 임베딩 대기 → 추천·분석·관리자 흐름, Vision 끊긴 상태 포함 | 격리 compose 네트워크 | [`sim/`](../sim), [`tools/sim-worker.compose.yaml`](../tools/sim-worker.compose.yaml) |
+| ⑥ 화면 검증 | 관리자 웹을 실제 API에 붙여 클릭으로 확인 | 격리 compose(API 58000, 웹 53000) | [`tools/ui.compose.yaml`](../tools/ui.compose.yaml), Claude 데스크톱 앱 내장 브라우저 |
 | ⑦ CI | GitHub Actions 24개(Playwright 포함) | PR #15 | `gh pr checks 15` |
-| ⑧ 문서 출력 | DB에서 직접 스키마 추출 → ERD·PDF | 격리 DB + docgen 컨테이너 | [`tools/extract_schema.sh`](tools/extract_schema.sh), [`tools/erd/`](tools/erd/) |
+| ⑧ 문서 출력 | DB에서 직접 스키마 추출 → ERD·PDF | 격리 DB + docgen 컨테이너 | [`tools/extract_schema.sh`](../tools/extract_schema.sh), [`tools/erd/`](../tools/erd) |
 
 ### 4.1 격리 통합 테스트 (매번 하는 기본)
 ```bash
@@ -149,15 +149,15 @@ $C down -v
 
 | 날짜 | 작업 | 방법 | 결과 | 일지 |
 | --- | --- | --- | --- | --- |
-| 11-24 | 현황 조사(브랜치·Actions·구조·성능) | gh·git log·grep, 수정 없음 | 구조·병목 파악 | [현황 조사](journal/2026-11-24-initial-survey-claude-opus-5.5.md) |
-| 11-24 | 관리자 백엔드 병합, 무한 재시도·예외 처리 개선, 애드픽 | 코드 리뷰 + 격리 통합 테스트 | #01~#10 | [세션 1](journal/2026-11-24-backend-test-branch-claude-opus-5.5.md) |
-| 11-24 | 4·5·6·8 개선, devlog 개설 | 같음 | #11~#15 | [세션 2](journal/2026-11-24-backend-test-round2-claude-opus-5.5.md) |
-| 11-24 | 실제 구동 시뮬레이션 | 실제 300건 + Vision 끊김 시나리오 | #24~#27 발견 | [시뮬레이션](journal/2026-11-24-runtime-simulation-claude-opus-5.5.md) |
-| 11-24 | 수집기 로직 검토 | 상태 머신·응답 대응표 | #29~#33 발견 | [수집기 검토](journal/2026-11-24-collector-review-claude-opus-5.5.md) |
-| 11-24 | #31 판매 확인 API | 구현 + 통합 테스트 | 백엔드 부분 해결 | [신선도](journal/2026-11-24-freshness-checkins-claude-opus-5.5.md) |
-| 11-25 | maintest CI·다른 AI 로그 검토 | gh run 로그, 커밋 대조 | #55~#57, 정오표 | [CI·AI 로그](journal/2026-11-25-maintest-ci-and-ai-log-review-claude-opus-5.5.md) |
-| 11-25 | 웹 404·덮어쓰기 계층 정리 | 코드 리뷰 + 화면 검증 | #55~#57 해결 | [웹 정리](journal/2026-11-25-web-fix-cleanup-claude-opus-5.5.md) |
-| 11-25 | 김호진 웹 병합 | 충돌 해결 + 화면 검증 + 통합 테스트 | #20·#58 해결 | [웹 병합](journal/2026-11-25-web-branch-merge-claude-opus-5.5.md) |
+| 11-24 | 현황 조사(브랜치·Actions·구조·성능) | gh·git log·grep, 수정 없음 | 구조·병목 파악 | [현황 조사](../journal/claude/2026-11-24-initial-survey-claude-opus-5.5.md) |
+| 11-24 | 관리자 백엔드 병합, 무한 재시도·예외 처리 개선, 애드픽 | 코드 리뷰 + 격리 통합 테스트 | #01~#10 | [세션 1](../journal/claude/2026-11-24-backend-test-branch-claude-opus-5.5.md) |
+| 11-24 | 4·5·6·8 개선, devlog 개설 | 같음 | #11~#15 | [세션 2](../journal/claude/2026-11-24-backend-test-round2-claude-opus-5.5.md) |
+| 11-24 | 실제 구동 시뮬레이션 | 실제 300건 + Vision 끊김 시나리오 | #24~#27 발견 | [시뮬레이션](../journal/claude/2026-11-24-runtime-simulation-claude-opus-5.5.md) |
+| 11-24 | 수집기 로직 검토 | 상태 머신·응답 대응표 | #29~#33 발견 | [수집기 검토](../journal/claude/2026-11-24-collector-review-claude-opus-5.5.md) |
+| 11-24 | #31 판매 확인 API | 구현 + 통합 테스트 | 백엔드 부분 해결 | [신선도](../journal/claude/2026-11-24-freshness-checkins-claude-opus-5.5.md) |
+| 11-25 | maintest CI·다른 AI 로그 검토 | gh run 로그, 커밋 대조 | #55~#57, 정오표 | [CI·AI 로그](../journal/claude/2026-11-25-maintest-ci-and-ai-log-review-claude-opus-5.5.md) |
+| 11-25 | 웹 404·덮어쓰기 계층 정리 | 코드 리뷰 + 화면 검증 | #55~#57 해결 | [웹 정리](../journal/claude/2026-11-25-web-fix-cleanup-claude-opus-5.5.md) |
+| 11-25 | 김호진 웹 병합 | 충돌 해결 + 화면 검증 + 통합 테스트 | #20·#58 해결 | [웹 병합](../journal/claude/2026-11-25-web-branch-merge-claude-opus-5.5.md) |
 | 11-25 | ERD·프로젝트 정리 PDF | 격리 DB 스키마 추출 → graphviz·reportlab | ERD 4장, PDF 15쪽 | (일지 없음, 4.4 참고) |
-| 11-25 | maintest 최신화 후 재점검 | ff 최신화, 계약 대조, 재현, 통합 테스트, CI | #59~#61 발견 | [재점검](journal/2026-11-25-maintest-sync-recheck-claude-opus-5.5.md) |
-| 11-25 | #59 알레르기 신고 코드 수정 | 재현 → 수정 → 단위·통합 테스트 추가 | #59 해결 | [#59](journal/2026-11-25-allergen-declared-codes-claude-opus-5.5.md) |
+| 11-25 | maintest 최신화 후 재점검 | ff 최신화, 계약 대조, 재현, 통합 테스트, CI | #59~#61 발견 | [재점검](../journal/claude/2026-11-25-maintest-sync-recheck-claude-opus-5.5.md) |
+| 11-25 | #59 알레르기 신고 코드 수정 | 재현 → 수정 → 단위·통합 테스트 추가 | #59 해결 | [#59](../journal/claude/2026-11-25-allergen-declared-codes-claude-opus-5.5.md) |

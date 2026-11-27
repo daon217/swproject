@@ -1,7 +1,7 @@
 # [Claude Opus 5.5] 미해결 문제 목록
 
 > **살아 있는 문서.** 아직 해결되지 않은 문제만 둔다. 해결하면 이 파일에서 지우고, 해결 내용은 개발일지(`journal/`)에 쓰고 INDEX.md 상태를 바꾼다.
-> 마지막 갱신: 2026-11-26 · Claude Opus 5.5 · 기준 `part/소병선-backend-test` **c16723e** (maintest 2a2e521 + 서지웅 3acf402 + 김호진 e7e34a9 + 수정, maintest 미반영) · [수정 일지](journal/2026-11-26-open-issues-fix-claude-opus-5.5.md)
+> 마지막 갱신: 2026-11-26 · Claude Opus 5.5 · 기준 `part/소병선-backend-test` **c16723e** (maintest 2a2e521 + 서지웅 3acf402 + 김호진 e7e34a9 + 수정, maintest 미반영) · [수정 일지](journal/claude/2026-11-26-open-issues-fix-claude-opus-5.5.md)
 
 ## 운영 전제 (2026-11-24 사용자 결정, 같은 날 정정)
 - **크롤링 데이터는 수집기가 주기적으로 DB에 넣는다.** 사용자 요청 때 실시간 수집하지 않는다.
@@ -52,34 +52,34 @@
 ### #76 / #77 — 수집기·웹 ↔ 백엔드 재점검(9b4d366)에서 발견
 - 확인 결과 문제없음: 수집기 오류 응답 해석(error.code/detail), 관측 ACK 상태, 확장 202 pending, listing-checks 응답 형식·rejected 사유, 알레르기 코드(soy→soybean), unknown 상태, run_id·source 규칙
 
-### 2026-11-25 저녁: #72 해결, 수집기 병합으로 #31·#32 해결, #29·#30 부분 해결 — [일지](journal/2026-11-25-support-summary-collector-merge-claude-opus-5.5.md)
+### 2026-11-25 저녁: #72 해결, 수집기 병합으로 #31·#32 해결, #29·#30 부분 해결 — [일지](journal/claude/2026-11-25-support-summary-collector-merge-claude-opus-5.5.md)
 - 정책 결정 필요: 수집기 제안서는 unknown 상태 상품을 확인 전 제외 요구, 현재 백엔드는 추천에 포함
 
-### #69 / #71 해결, #70 이력 조치 남음 — [수정 일지](journal/2026-11-25-fix-69-70-71-claude-opus-5.5.md)
+### #69 / #71 해결, #70 이력 조치 남음 — [수정 일지](journal/claude/2026-11-25-fix-69-70-71-claude-opus-5.5.md)
 
 ### #69 / #70 / #71 — 2026-11-25 발견
-상세: [condition·웹 반영 일지](journal/2026-11-25-condition-unknown-web-sync-claude-opus-5.5.md#3-새로-발견한-문제)
+상세: [condition·웹 반영 일지](journal/claude/2026-11-25-condition-unknown-web-sync-claude-opus-5.5.md#3-새로-발견한-문제)
 
 ### #66 / #67 — 해결(9247330, 426a5da)
-상세: [측정 일지](journal/2026-11-25-vision-memory-embedding-speed-claude-opus-5.5.md)
+상세: [측정 일지](journal/claude/2026-11-25-vision-memory-embedding-speed-claude-opus-5.5.md)
 
 ### #62~#65, #21 — Vision 파이프라인 검토
-상세: [Vision 검토 일지](journal/2026-11-25-vision-pipeline-review-claude-opus-5.5.md)
+상세: [Vision 검토 일지](journal/claude/2026-11-25-vision-pipeline-review-claude-opus-5.5.md)
 
 ### #60 / #61 — 2026-11-25 재점검에서 발견 (#59는 b51ffdc로 해결)
-상세: [재점검 일지](journal/2026-11-25-maintest-sync-recheck-claude-opus-5.5.md#3-새로-발견한-문제)
+상세: [재점검 일지](journal/claude/2026-11-25-maintest-sync-recheck-claude-opus-5.5.md#3-새로-발견한-문제)
 
 ### #29 / #30 / #31 / #32 / #33 — 수집기 연동
-- 원인·근거·해결 방안: [수집기 검토 일지](journal/2026-11-24-collector-review-claude-opus-5.5.md)
+- 원인·근거·해결 방안: [수집기 검토 일지](journal/claude/2026-11-24-collector-review-claude-opus-5.5.md)
 - #29: `changes.py` `_stage()`가 직전 이벤트가 quarantine/held/exhausted/rejected면 그 상품을 영구 보류. exhausted는 5회·약 75초, quarantine은 백엔드의 PRICE_ANOMALY 등.
 - #30: `domeggook_delivery.py` `flush()`에서 409를 401/403과 같이 Outbox 전체 hold.
-- #31: 내용 같으면 미전송, 404/410은 판매 종료로 보내지 않음, 재확인은 사이클당 1개. → **백엔드 check-in API 추가 완료(4f26501)**, [개발일지](journal/2026-11-24-freshness-checkins-claude-opus-5.5.md). 남은 일: 수집기가 `unchanged_skipped` 매물을 묶어 호출, mismatch·unknown은 전체 관측 재전송.
+- #31: 내용 같으면 미전송, 404/410은 판매 종료로 보내지 않음, 재확인은 사이클당 1개. → **백엔드 check-in API 추가 완료(4f26501)**, [개발일지](journal/claude/2026-11-24-freshness-checkins-claude-opus-5.5.md). 남은 일: 수집기가 `unchanged_skipped` 매물을 묶어 호출, mismatch·unknown은 전체 관측 재전송.
 - #32: 백엔드 `/extensions`는 있으나 수집기 `collector_ops/backend_transport.py`는 observations만 허용, 확장은 로컬 보관.
 - #33: `CATALOG_URL_HOSTS`/`CATALOG_CURRENCIES` 누락 → 422 → rejected → #29.
 - 담당: 수집기(최준서) + 백엔드(소병선) 공동. 계약 변경이 필요하므로 한쪽만 고치지 않는다.
 
 ### #24 v2 임베딩 전환 직후 추천 0건 — 중요
-- 발견: [시뮬레이션](journal/2026-11-24-runtime-simulation-claude-opus-5.5.md#24), 원인 변경: #12 (0e3da73)
+- 발견: [시뮬레이션](journal/claude/2026-11-24-runtime-simulation-claude-opus-5.5.md#24), 원인 변경: #12 (0e3da73)
 - 증상: 업그레이드 후 재임베딩이 끝날 때까지 상품·식품 추천이 모두 0건. hash 320건은 2초, 실제 MiniLM CPU·대량 카탈로그는 수 분~수 시간.
 - 원인: 추천 서비스가 즉시 v2 계약만 조회. bootstrap이 v1을 바로 내림.
 - **주기 적재 시**: 운영 중인 DB를 업그레이드하므로 공백이 그대로 생긴다. 재임베딩 중에도 수집기가 새 상품을 계속 넣는다. 이후 템플릿·모델을 바꿀 때마다 재발.
@@ -96,7 +96,7 @@
 - 해결 방안 후보: 적재 전용 경로에 별도 최대 나이 설정(예: `CATALOG_MAX_OBSERVATION_AGE_DAYS`), 마지막 확인 시각이 오래된 상품은 추천에서 낮추거나 "가격 확인 필요" 표시.
 
 ### #25 분석 재시도 대기 없음 — 중요
-- 발견: [시뮬레이션](journal/2026-11-24-runtime-simulation-claude-opus-5.5.md#25)
+- 발견: [시뮬레이션](journal/claude/2026-11-24-runtime-simulation-claude-opus-5.5.md#25)
 - 증상: Vision 꺼짐 상태에서 캡처 분석이 2.3초 만에 3회 재시도 소진 → 몇 초짜리 Vision 재시작에도 그 사이 분석 전부 실패.
 - 원인: `/fail` retryable → 즉시 `queued`, claim이 바로 다시 가져감.
 - 해결 방안: analyses에 `available_at` 추가, 5초→20초 지수 대기, deadline(10분) 안에서만.

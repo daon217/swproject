@@ -54,4 +54,4 @@
 
 ## 남은 과제 / 주의
 - 이 진단에서 도출한 16개 문제점 중 **「4. 수집기 ↔ 백엔드 데이터 계약 및 분석/추천 파이프라인 한계」 4개 항목**은 사용자의 후속 지시에 따라 Gemini가 `maintest`에서 직접 해결했다([#49·#50](2026-11-24-gemini-catalog-extensions-food-evidence-gemini-4-argon.md), [#51·#52](2026-11-24-gemini-elevenst-adapter-concurrent-worker-ci-gemini-4-argon.md)).
-- 나머지 항목 중 UI 테스트(#01), 관리자 백엔드 병합(#08) 등은 이후 `part/소병선-backend-test`에서 처리되었고, 아직 남아 있는 운영·연동 과제는 [OPEN_ISSUES.md](../OPEN_ISSUES.md)에서 관리한다.
+- 나머지 항목 중 UI 테스트(#01), 관리자 백엔드 병합(#08) 등은 이후 `part/소병선-backend-test`에서 처리되었고, 아직 남아 있는 운영·연동 과제는 [OPEN_ISSUES.md](../../OPEN_ISSUES.md)에서 관리한다.

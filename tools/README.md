@@ -1,6 +1,6 @@
 # 검증 스크립트
 
-[METHODS.md](../METHODS.md) 4장에서 쓰는 도구. 비밀값은 들어 있지 않다(env는 `gen_env.py`가 매번 무작위로 만든다).
+[METHODS.md](../guide/METHODS.md) 4장에서 쓰는 도구. 비밀값은 들어 있지 않다(env는 `gen_env.py`가 매번 무작위로 만든다).
 
 | 파일 | 용도 | 사용 |
 | --- | --- | --- |

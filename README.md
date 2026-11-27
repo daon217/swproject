@@ -10,17 +10,15 @@
 
 | 경로 | 내용 | 성격 |
 | --- | --- | --- |
-| [OPEN_ISSUES.md](OPEN_ISSUES.md) | **아직 해결 안 된 문제만** (상태·영향·다음 행동) | 살아 있는 문서 — 계속 고쳐 씀 |
-| `journal/YYYY-MM-DD-<주제>-<모델명>.md` | **개발일지**: 그날 무엇을 왜 했는지 | 기록 — 쓴 뒤에는 고치지 않음(정정은 새 일지에) |
+| [SUMMARY.md](SUMMARY.md) | **전체 작업 요약**: 맡은 범위·진행 흐름·결과 숫자·현재 기능 (발표·검토용) | 정기 갱신 |
+| [OPEN_ISSUES.md](OPEN_ISSUES.md) | **아직 해결 안 된 문제만** (상태·영향·다음 행동) | 살아 있는 문서 |
 | [INDEX.md](INDEX.md) | 해결된 이슈 표 + 개발일지 목록 | 색인 |
-| [LOG_TEMPLATE.md](LOG_TEMPLATE.md) | 개발일지·미해결 항목 양식 | |
-| [PROMPTS.md](PROMPTS.md) | 다른 AI에게 그대로 붙여 넣는 프롬프트 | |
-| [METHODS.md](METHODS.md) | **점검·테스트 방법론**: 원칙, 브랜치 흐름, 리뷰 체크리스트, 테스트 단계, 함정, 지금까지의 이력 | 살아 있는 문서 |
-| [GPT_METHODS.md](GPT_METHODS.md) | GPT가 실제 개발 이후 수행한 점검·테스트: 도구, 환경, 명령, 판정 기준, 실행 근거 | 수행 방법·회고 |
-| [GEMINI_METHODS.md](GEMINI_METHODS.md) | Gemini 4 Argon이 수행한 점검·테스트: 도구, 환경 분리, 4중 검증, 명령, 실패·정정 및 실행 근거 | 수행 방법·회고 |
-| [VERIFY.md](VERIFY.md) | 테스트·검증 명령 (격리 DB, Windows 주의점) | |
+| `journal/claude/` · `journal/gpt/` · `journal/gemini/` | **개발일지** — 작성 AI별 폴더, 파일명 `YYYY-MM-DD-<주제>-<모델명>.md` | 기록 — 쓴 뒤에는 고치지 않음(정정은 새 일지에) |
+| `guide/` | 일지 양식([LOG_TEMPLATE](guide/LOG_TEMPLATE.md)), 검증 명령([VERIFY](guide/VERIFY.md)), 점검 방법론([METHODS](guide/METHODS.md)·[GPT](guide/GPT_METHODS.md)·[Gemini](guide/GEMINI_METHODS.md)), 기록 대응표([GPT](guide/GPT_COVERAGE.md)·[Gemini](guide/GEMINI_COVERAGE.md)), AI 프롬프트([PROMPTS](guide/PROMPTS.md)) | 참고 |
 | `tools/` | 검증 스크립트: env 생성, 통합 테스트 실행, UI·워커 compose 덮어쓰기, 스키마 추출, ERD·PDF 생성 | |
 | `sim/` | 실제 구동 시뮬레이션 스크립트 | |
+
+새 AI의 일지는 `journal/<ai 이름>/`에 넣고, INDEX의 개발일지 목록에 한 줄 추가한다.
 
 ## 흐름
 

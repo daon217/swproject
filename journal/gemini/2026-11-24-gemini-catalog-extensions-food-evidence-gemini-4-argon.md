@@ -2,7 +2,7 @@
 
 - 날짜: 2026-11-24 (기록일, Asia/Seoul)
 - 실제 작업 시기: 2026-11-23 11:31~12:21
-- 상태: 부분 해결 — 백엔드 DB 스키마(`0009_catalog_details`), 확장 적재·매칭 API, `PgCatalog` 식품 원재료 추천 연동 완료 (운영 수집기의 주기적 확장 전송 연결은 [OPEN_ISSUES.md](../OPEN_ISSUES.md) #27·#32 참조)
+- 상태: 부분 해결 — 백엔드 DB 스키마(`0009_catalog_details`), 확장 적재·매칭 API, `PgCatalog` 식품 원재료 추천 연동 완료 (운영 수집기의 주기적 확장 전송 연결은 [OPEN_ISSUES.md](../../OPEN_ISSUES.md) #27·#32 참조)
 - 브랜치 / 커밋: `maintest` / [`4b1f5fc`](https://github.com/daon217/swproject/commit/4b1f5fc9b0ef80124b87676e829a2e1f6c4063c6), [`89948df`](https://github.com/daon217/swproject/commit/89948dfcd6131d88af7b62d74026e40562e7a23c)
 - 관련 파일: `services/api/migrations/versions/0009_catalog_details.py:1`, `services/api/migrations/versions/catalog_details.sql:1`, `services/api/kkulpick/extensions.py:1`, `services/api/kkulpick/api.py:55`, `services/api/kkulpick/analyses.py:130`, `services/recommendation/adapters/postgres.py:103`, `services/recommendation/adapters/offers_api.py:15`, `services/recommendation/http_service.py:71`
 - 작성 AI: Gemini 4 Argon
@@ -60,4 +60,4 @@
 ## 남은 과제 / 주의
 - 당시 커밋(`4b1f5fc`)에서는 확장 정보가 첫 관측(`Observation v2`)보다 먼저 도착하면 `404 OFFER_NOT_FOUND`를 반환하고, 옵션은 `dict.update`로 병합만 했다. 이후 Claude 세션 2(#13, `b5c8caa`)에서 선도착 `pending` 보관 및 `null` 옵션 삭제가 보완되었다.
 - 또한 당시에는 브랜드·카테고리 변경이 임베딩 트리거(`embedding_content_version`)에 포함되지 않았으나 이후 Claude 세션 2(#12, `0e3da73`)에서 `catalog-v2` 스냅샷으로 확장되었다.
-- 백엔드 확장 API와 어댑터 도구는 준비되었으나 실제 운영 수집기 데몬이 주기적으로 `/extensions`를 호출하도록 연결하는 과제는 [OPEN_ISSUES.md](../OPEN_ISSUES.md) #27·#32에 남아 있다.
+- 백엔드 확장 API와 어댑터 도구는 준비되었으나 실제 운영 수집기 데몬이 주기적으로 `/extensions`를 호출하도록 연결하는 과제는 [OPEN_ISSUES.md](../../OPEN_ISSUES.md) #27·#32에 남아 있다.

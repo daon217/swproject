@@ -57,7 +57,7 @@ function ContentApp() {
   // 성분표를 아직 못 찾은 식품 페이지(ingredient_status === 'not_found')에서는
   // 스크롤하는 동안 0.7초마다 화면 캡처를 요청한다(백그라운드가 캡처해 Vision AI로 바로 보낸다).
   // 스크롤이 멈추면(250ms 동안 스크롤 이벤트 없음) 바로 타이머를 끄고 더 보내지 않는다.
-  // 백그라운드가 '이 페이지는 끝(15장·Vision 종료)'이라고 답하면 같은 주소에서는 더 요청하지 않는다.
+  // 백그라운드가 '이 페이지는 끝(25장·Vision 종료)'이라고 답하면 같은 주소에서는 더 요청하지 않는다.
   const framesDone = useRef<string | null>(null);
   useEffect(() => {
     let tick: ReturnType<typeof setTimeout> | null = null;
@@ -76,7 +76,7 @@ function ContentApp() {
         void sendMessage<{ more: boolean }>({ type: 'scrollFrame' }).then((r) => {
           if (r && !r.more) {
             framesDone.current = url;
-            dlog('content', '스크롤 캡처 종료(15장 또는 Vision 세션 끝)');
+            dlog('content', '스크롤 캡처 종료(25장 또는 Vision 세션 끝)');
           }
         });
         next();

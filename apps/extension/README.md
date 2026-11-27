@@ -120,7 +120,7 @@ npm run preview:sidepanel   # http://localhost:5174/preview.html
 
 - 캡처 시점: 페이지 로드 완료, 탭 전환, 로그인·로그아웃, 상품 추천·AI 실시간 추천 켜고 끄기, 다시 시도 → 기존처럼 백엔드 분석(`POST /analyses`).
 - **스크롤 중**: 성분표를 아직 못 찾은 식품 페이지(`ingredient_status === 'not_found'`)에서 스크롤하는 동안 **0.7초마다** 보이는 화면을 캡처해 Vision AI로 바로 보낸다(`/api/v1/vision/init` 한 번 → `/frame` 0, 1, 2 …). 백엔드를 거치지 않는다.
-- 스크롤이 멈추면(250ms 동안 스크롤 이벤트 없음) 바로 멈추고 보내지 않는다. 페이지당 최대 15장, Vision이 세션을 끝내면(`success`·`analysis_unavailable`) 그 페이지에서는 멈춘다. 연속 3번 실패해도 멈춘다.
+- 스크롤이 멈추면(250ms 동안 스크롤 이벤트 없음) 바로 멈추고 보내지 않는다. 페이지당 최대 25장(Vision `MAX_FRAME_LIMIT`도 25여야 함), Vision이 세션을 끝내면(`success`·`analysis_unavailable`) 그 페이지에서는 멈춘다. 연속 3번 실패해도 멈춘다.
 - Vision 세션 id는 그 페이지의 `page_session_id`(백엔드 분석 요청과 같은 값).
 - 설정: 확장 `VITE_VISION_BASE_URL`·`VITE_VISION_TOKEN`, 모바일 `EXPO_PUBLIC_VISION_BASE_URL`·`EXPO_PUBLIC_VISION_TOKEN`. 토큰은 로컬 개발용(앱에 넣은 값은 누구나 볼 수 있다). 코드: 확장 `shared/api/vision.ts`·`content/index.tsx`·`background/index.ts`(`streamFrame`), 모바일 `shared/api/vision.ts`·`useScrollFrames.ts`.
 

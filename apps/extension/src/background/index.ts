@@ -120,7 +120,7 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<Blob | null> {
 
 // ── 스크롤 중 Vision AI 직접 전송 ──────────────────────────────────────────
 // content script가 스크롤하는 동안 0.7초마다 'scrollFrame'을 보내면, 여기서 보이는 화면을 캡처해 Vision에 보낸다.
-// Vision 세션 id는 이 페이지의 page_session_id(백엔드 분석 요청과 같은 값). 페이지마다 init 한 번, frame 최대 15장.
+// Vision 세션 id는 이 페이지의 page_session_id(백엔드 분석 요청과 같은 값). 페이지마다 init 한 번, frame 최대 25장.
 
 interface VisionStream {
   sessionId: string;
@@ -153,15 +153,19 @@ async function streamFrame(tab: chrome.tabs.Tab): Promise<boolean> {
     const image = dataUrl.slice(dataUrl.indexOf(',') + 1);
     if (!s.inited) {
       const scan = await readPageScan(tabId);
-      await initVisionSession({ session_id: s.sessionId, product_name: scan?.product?.name, price: scan?.product?.price, first_frame_image: image });
+      const init = await initVisionSession({ session_id: s.sessionId, product_name: scan?.product?.name, price: scan?.product?.price, first_frame_image: image });
       s.inited = true;
+      // 일반 상품처럼 Vision이 시작하자마자 세션을 끝내면 프레임을 보내지 않는다.
+      if (init.status && init.status !== 'processing') s.ended = true;
     }
-    const frame_index = s.next++;
-    const is_last_frame = frame_index === MAX_FRAMES - 1;
-    dlog('vision', `스크롤 프레임 ${frame_index + 1}/${MAX_FRAMES} 전송`, { session: s.sessionId });
-    const res = await sendVisionFrame({ session_id: s.sessionId, frame_index, image, is_last_frame });
+    if (!s.ended) {
+      const frame_index = s.next++;
+      const is_last_frame = frame_index === MAX_FRAMES - 1;
+      dlog('vision', `스크롤 프레임 ${frame_index + 1}/${MAX_FRAMES} 전송`, { session: s.sessionId });
+      const res = await sendVisionFrame({ session_id: s.sessionId, frame_index, image, is_last_frame });
+      if (is_last_frame || (res.status && res.status !== 'processing')) s.ended = true;
+    }
     s.failures = 0;
-    if (is_last_frame || (res.status && res.status !== 'processing')) s.ended = true;
   } catch (e) {
     // 세션이 만료됐으면(404) 다음 차례에 다시 시작한다. Vision이 계속 응답하지 않으면 이 페이지에서는 멈춘다.
     if (e instanceof VisionError && e.status === 404) s.inited = false;

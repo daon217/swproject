@@ -2,7 +2,7 @@ import { dlog } from '../debug';
 import type { TabState } from '../messages';
 
 // 스크롤 중 캡처한 화면을 Vision AI(성분표 OCR)로 바로 보낸다. 백엔드를 거치지 않는다.
-// 흐름: 페이지마다 init(세션 시작) 한 번 → 스크롤하는 동안 0.7초마다 frame(0, 1, 2 …), 최대 15장.
+// 흐름: 페이지마다 init(세션 시작) 한 번 → 스크롤하는 동안 0.7초마다 frame(0, 1, 2 …), 최대 25장.
 // Vision이 세션을 끝냈다고 답하면(success · analysis_unavailable) 그 페이지에서는 더 보내지 않는다.
 // 같은 내용이 apps/mobile/src/shared/api/vision.ts에도 있다. 고치면 같이 고친다.
 
@@ -10,8 +10,8 @@ import type { TabState } from '../messages';
 export const FRAME_INTERVAL_MS = 700;
 /** 마지막 스크롤 이벤트 뒤 이만큼 조용하면 멈춘 것으로 본다 */
 export const SCROLL_STOP_MS = 250;
-/** 페이지(Vision 세션)당 최대 프레임 수. Vision의 15프레임 상한과 같다 */
-export const MAX_FRAMES = 15;
+/** 페이지(Vision 세션)당 최대 프레임 수. Vision의 MAX_FRAME_LIMIT과 맞춰야 한다 */
+export const MAX_FRAMES = 25;
 
 const BASE = (import.meta.env.VITE_VISION_BASE_URL || 'http://127.0.0.1:8100').replace(/\/$/, '') + '/api/v1/vision';
 // 로컬 개발용. 확장에 넣은 값은 누구나 볼 수 있으므로 운영 토큰을 넣지 않는다.

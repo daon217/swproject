@@ -16,7 +16,7 @@ import type { PageAnalysis } from './usePageAnalysis';
 // 앱 안 브라우저에서 스크롤하는 동안 0.7초마다 보이는 화면을 캡처해 Vision AI로 바로 보낸다(확장과 같은 규칙).
 // - 성분표를 아직 못 찾은 식품 페이지(ingredient_status === 'not_found')에서만 동작한다.
 // - 스크롤이 멈추면(250ms 동안 스크롤 신호 없음) 바로 멈추고 더 보내지 않는다.
-// - 페이지마다 init 한 번, frame 최대 15장. Vision이 세션을 끝내면 그 페이지에서는 멈춘다.
+// - 페이지마다 init 한 번, frame 최대 25장. Vision이 세션을 끝내면 그 페이지에서는 멈춘다.
 // 스크롤 신호는 WebView에 주입한 스크립트(pageProductScript.ts)가 'kp-scroll'로 보낸다.
 
 interface Context {
@@ -68,14 +68,18 @@ function createScrollFrames() {
       if (stream !== s) return; // 캡처하는 사이 페이지가 바뀌었다
       if (!s.inited) {
         const scan = getPageScan?.(url);
-        await initVisionSession({ session_id: s.sessionId, product_name: scan?.product?.name, price: scan?.product?.price, first_frame_image: image });
+        const init = await initVisionSession({ session_id: s.sessionId, product_name: scan?.product?.name, price: scan?.product?.price, first_frame_image: image });
         s.inited = true;
+        // 일반 상품처럼 Vision이 시작하자마자 세션을 끝내면 프레임을 보내지 않는다.
+        if (init.status && init.status !== 'processing') s.ended = true;
       }
-      const frame_index = s.next++;
-      const is_last_frame = frame_index === MAX_FRAMES - 1;
-      const res = await sendVisionFrame({ session_id: s.sessionId, frame_index, image, is_last_frame });
+      if (!s.ended) {
+        const frame_index = s.next++;
+        const is_last_frame = frame_index === MAX_FRAMES - 1;
+        const res = await sendVisionFrame({ session_id: s.sessionId, frame_index, image, is_last_frame });
+        if (is_last_frame || (res.status && res.status !== 'processing')) s.ended = true;
+      }
       s.failures = 0;
-      if (is_last_frame || (res.status && res.status !== 'processing')) s.ended = true;
     } catch (e) {
       // 세션이 만료됐으면(404) 다음 차례에 다시 시작한다. Vision이 계속 응답하지 않으면 이 페이지에서는 멈춘다.
       if (e instanceof VisionError && e.status === 404) s.inited = false;

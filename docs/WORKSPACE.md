@@ -89,7 +89,7 @@ Chrome의 chrome://extensions에서 개발자 모드 → 압축해제된 확장 
 
 `services/<담당>/devapp.py`가 연결 시작점입니다. 실제 코드를 붙일 때 health의 business_ready와 업무 엔드포인트를 함께 변경하고 계약/테스트를 추가합니다.
 `services/dev_runtime`는 공통 연결·큐 검사용으로 실제 모델 코드를 억지로 함께 설치하지 않습니다.
-개발 틀은 소스 마운트+uvicorn reload를 지원합니다. 작업자 코드는 변경 후 `workspace.py up --scope full`로 재빌드·재생성합니다. 담당 서비스 폴더 전체가 컨테이너에 반영되지만 새 의존성은 해당 이미지의 설치 명세에도 추가해야 합니다.
+API는 소스를 마운트해 재시작만으로 반영되고, `infra/workspace/.env`에 `WORKSPACE_API_RELOAD=on`이면 고칠 때마다 자동 반영(uvicorn reload)합니다. 작업자 코드는 변경 후 `workspace.py up --scope full`로 재빌드·재생성합니다. 담당 서비스 폴더 전체가 컨테이너에 반영되지만 새 의존성은 해당 이미지의 설치 명세에도 추가해야 합니다.
 
 모델 의존성은 큰 이미지이므로 별도 CPU 환경으로 준비합니다. 처음 한 번 빌드할 때 큰 다운로드와 디스크 사용이 발생합니다.
 ```powershell

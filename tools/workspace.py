@@ -51,8 +51,15 @@ def apply_dev_billing(scope):
         os.environ['BILLING_MODE'] = 'mock'
 
 
+def apply_api_reload():
+    """API 코드 자동 반영(uvicorn --reload)은 WORKSPACE_API_RELOAD=on일 때만. 기본은 꺼서 쉬는 동안 파일 감시 부하를 없앤다."""
+    on = workspace_setting('WORKSPACE_API_RELOAD', 'off').lower() in ('on', '1', 'true', 'yes')
+    os.environ['API_RELOAD_ARGS'] = '--reload --reload-dir /srv/kkulpick' if on else ''
+
+
 def compose_command(scope='full', shared=False):
     apply_dev_url_hosts()
+    apply_api_reload()
     apply_dev_billing(scope)
     command = ['docker', 'compose']
     for relative in ['infra/db/.env', 'services/api/.env', 'infra/workspace/.env']:

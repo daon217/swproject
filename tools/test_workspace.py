@@ -85,6 +85,17 @@ class LocalWorkspaceTests(unittest.TestCase):
             self.assertIn(host, catalog)
             self.assertIn(host, affiliate)
 
+    def test_api_reload_is_opt_in(self):
+        # 기본은 자동 반영 꺼짐(쉬는 동안 파일 감시 부하 없음), WORKSPACE_API_RELOAD=on일 때만 켠다.
+        self.initialize()
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('WORKSPACE_API_RELOAD', None)
+            workspace.compose_command('core')
+            self.assertEqual(os.environ['API_RELOAD_ARGS'], '')
+            os.environ['WORKSPACE_API_RELOAD'] = 'on'
+            workspace.compose_command('core')
+            self.assertIn('--reload', os.environ['API_RELOAD_ARGS'])
+
     def test_core_omits_large_stack_and_full_retains_it(self):
         self.initialize()
         file = str(self.root / 'infra/workspace/compose.yaml')

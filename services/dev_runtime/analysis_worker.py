@@ -87,7 +87,23 @@ class Worker:
             catalog_ingredients=list(match.get('ingredients') or []) if match else []
             declared=[str(a)[:64] for a in (match.get('allergens_declared') or [])[:32]] if match else []
             ingredients=[]
-            if job.get('image_url'):
+            # 스크롤 중 Vision이 page_session_id 세션으로 성분표를 이미 찾아 둔 경우(status=success + ingredients)
+            # 같은 화면 이미지를 다시 PaddleOCR로 돌리지 않고 Vision 세션 결과를 바로 가져와 반영한다.
+            page_sid=str(job.get('page_session_id') or '').strip()
+            if page_sid:
+                try:
+                    rv=self.http.get(self.vision+'/api/v1/vision/status/'+page_sid,headers=self.service_auth)
+                    if rv.status_code==200:
+                        vv=rv.json()
+                        if vv.get('status')=='success':
+                            title=title or vv.get('product_name')
+                            if vv.get('ingredients'):
+                                ingredients=list(vv['ingredients'])
+                                log.info('analysis %s: reused vision scroll session %s (%d ingredients)',
+                                         job['analysis_id'],page_sid,len(ingredients))
+                except httpx.HTTPError:
+                    pass
+            if not ingredients and job.get('image_url'):
                 image=self.http.get(self.api+job['image_url'],headers=self.auth|{'X-Worker-Lease':job['lease_token']})
                 image.raise_for_status()
                 frame=base64.b64encode(image.content).decode()

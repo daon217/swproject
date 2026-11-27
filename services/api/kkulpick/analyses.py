@@ -347,7 +347,7 @@ async def claim(data:Claim,req:Request):
         lease=uuid4()
         result=await row(c,"""UPDATE app.analyses SET state='running',attempt=attempt+1,worker_id=:w,lease_token=:lease,
             lease_until=least(deadline,now()+interval '2 minutes'),updated_at=now() WHERE analysis_id=:id
-            RETURNING analysis_id,owner_id,guest,page_url,selected_domain,lease_token,lease_until,attempt,image_id,result_metadata""",w=data.worker_id,lease=lease,id=r['analysis_id'])
+            RETURNING analysis_id,owner_id,guest,page_url,page_session_id,selected_domain,lease_token,lease_until,attempt,image_id,result_metadata""",w=data.worker_id,lease=lease,id=r['analysis_id'])
     meta_obj=result.get('result_metadata') if isinstance(result.get('result_metadata'),dict) else {}
     page_title=meta_obj.get('page_title')
     ai_fallback=bool(meta_obj.get('ai_fallback'))

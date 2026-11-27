@@ -382,3 +382,46 @@ def test_page_own_offer_is_not_recommended():
         raise AssertionError(path)
     assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
     assert sent['complete']['offer_ids'] == [other]
+
+
+def test_worker_reuses_completed_vision_scroll_session_without_re_ocr():
+    # 스크롤 중 Vision이 page_session_id로 성분표를 이미 찾은 경우(status=success + ingredients),
+    # 이미지를 다시 다운로드해 /vision/init·/frame으로 재실행하지 않고 GET /vision/status/{page_session_id}의 성분을 바로 쓴다.
+    calls = []
+    sent = {}
+    def handle(req):
+        path = req.url.path
+        calls.append(path)
+        if path.endswith('/claim'):
+            return httpx.Response(200, json={'data': {
+                'analysis_id': 'a1', 'lease_token': 'l', 'page_url': None,
+                'page_session_id': 'scroll-session-1', 'page_title': '한방선생 볶은 메밀',
+                'selected_domain': 'food', 'image_url': '/internal/image',
+                'profile': {'user_id': 'u', 'allergens': ['buckwheat', 'wheat']},
+            }})
+        if path == '/api/v1/vision/status/scroll-session-1':
+            return httpx.Response(200, json={
+                'session_id': 'scroll-session-1',
+                'status': 'success',
+                'product_name': '한방선생 볶은 메밀',
+                'product_category': 'food_health',
+                'ingredients': ['메밀 100%', '밀 함유'],
+            })
+        if path == '/internal/process':
+            body = json.loads(req.content)
+            sent['process'] = body
+            return httpx.Response(200, json={
+                'offer_ids': [], 'reasons': {}, 'ranker': 'rule',
+                'warnings': [{'type': 'allergy', 'allergen': 'buckwheat', 'evidence': 'contains', 'message': '메밀 함유'}],
+            })
+        if path.endswith('/complete'):
+            sent['complete'] = json.loads(req.content)
+            return httpx.Response(200, json={'data': {'state': 'completed'}})
+        raise AssertionError(f'Unexpected call: {path}')
+    assert Worker(httpx.Client(transport=httpx.MockTransport(handle))).once()
+    assert '/internal/image' not in calls
+    assert '/api/v1/vision/init' not in calls
+    assert sent['process']['ingredients'] == ['메밀 100%', '밀 함유']
+    assert sent['complete']['metadata']['ingredients'] == ['메밀 100%', '밀 함유']
+    assert sent['complete']['metadata']['warnings'][0]['allergen'] == 'buckwheat'
+

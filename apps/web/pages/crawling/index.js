@@ -229,7 +229,7 @@ const crawlingPage = {
       ? this.state.crawlingData
       : (this.liveOverview?.crawlDays || []);
     // 등록 상품 수 = 그날이 확인 일자인 현재 카탈로그 상품 수. 수집 실행이 보낸 건수(같은 상품 재수집 포함)는
-    // '수집 반영' 열에 따로 보여 준다. 예전에는 상품이 없는 날의 등록 수에 수집 건수를 넣어 합계가 실제보다 컸다(#95).
+    // '수집 횟수' 열에 따로 보여 준다. 예전에는 상품이 없는 날의 등록 수에 수집 건수를 넣어 합계가 실제보다 컸다(#95).
     const demo = this.isLocalAuthDemo();
     for (const row of rawDays) {
       const dateKey = String(row.date || '').replaceAll('-', '.');
@@ -280,7 +280,7 @@ const crawlingPage = {
     const allCatalogItems = view?.items || [];
     const rows = this.getAllDateRows(allCatalogItems);
     const totalDays = rows.length;
-    // 날짜별 등록 상품 수의 합 = 확인 일자가 있는 카탈로그 상품 수(수집 반영 건수는 더하지 않는다, #95).
+    // 날짜별 등록 상품 수의 합 = 확인 일자가 있는 카탈로그 상품 수(수집 횟수는 더하지 않는다, #95).
     const totalProductCount = rows.reduce((acc, r) => acc + r.productCount, 0).toLocaleString();
 
     const sourceSet = new Set(['domeggook', '11st']);
@@ -522,8 +522,8 @@ const crawlingPage = {
         <div class="w-full">
           <div class="grid grid-cols-3 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
             <div>확인 일자</div>
-            <div>등록 상품 수</div>
-            <div title="그날 수집 실행이 보낸 상품 건수(이미 있던 상품의 재확인 포함)">수집 반영 건수</div>
+            <div title="그날 확인된 카탈로그 상품 개수입니다. 상품 하나는 한 번만 셉니다. 위의 분야(식품·일반) 필터가 적용됩니다.">등록 상품 수</div>
+            <div title="그날 수집기가 보낸 건수입니다. 같은 상품을 다시 수집하면 그때마다 셉니다. 분야 필터와 상관없이 식품·일반 상품 전체입니다.">수집 횟수 (전체·재수집 포함)</div>
           </div>
 
           <div class="space-y-2 mt-2">

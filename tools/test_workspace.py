@@ -116,7 +116,20 @@ class LocalWorkspaceTests(unittest.TestCase):
         self.assertNotIn(file, workspace.compose_command('core'))
         self.assertIn(file, workspace.compose_command('full'))
 
+    def test_up_trims_build_cache_with_limit_and_can_be_disabled(self):
+        # up 뒤에 옛 이미지와 쓰지 않는 빌드 캐시를 지운다. off면 하지 않는다.
+        self.initialize()
+        with patch.object(workspace.subprocess, 'run') as run:
+            workspace.trim_build_cache()
+            commands = [c.args[0] for c in run.call_args_list]
+        self.assertIn(['docker', 'image', 'prune', '-f'], commands)
+        self.assertIn(['docker', 'builder', 'prune', '-f'], commands)
+        with patch.dict(os.environ, {'WORKSPACE_TRIM_BUILD_CACHE': 'off'}), patch.object(workspace.subprocess, 'run') as run:
+            workspace.trim_build_cache()
+            self.assertFalse(run.called)
+
     def test_default_start_is_core_but_stop_still_stops_full_stack(self):
+        patch.object(workspace, 'trim_build_cache').start()  # 테스트에서 실제 도커 캐시를 지우지 않게
         with patch('sys.argv', ['workspace.py', 'up']), patch.object(workspace, 'compose') as call:
             self.assertEqual(workspace.main(), 0)
             self.assertEqual(call.call_args.kwargs['scope'], 'core')

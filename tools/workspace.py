@@ -57,6 +57,17 @@ def apply_api_reload():
     os.environ['API_RELOAD_ARGS'] = '--reload --reload-dir /srv/kkulpick' if on else ''
 
 
+def trim_build_cache():
+    """up은 매번 --build로 이미지를 다시 만들어 옛 레이어가 빌드 캐시에 계속 쌓인다(실측: 몇 시간 만에 3GB → 10GB,
+    도커 디스크 파일 17.6GB → 24.3GB). 빌드가 끝난 뒤 이름 없는 옛 이미지와, 지금 이미지가 쓰지 않는 빌드 캐시만 지운다
+    (실측 10.2GB → 5.8GB). 현재 이미지의 레이어는 남으므로 다음 빌드 속도는 그대로다.
+    (--max-used-space 상한 방식은 이 도커 환경에서 아무것도 지우지 않아 쓰지 않는다.) WORKSPACE_TRIM_BUILD_CACHE=off면 끔."""
+    if workspace_setting('WORKSPACE_TRIM_BUILD_CACHE', 'on').lower() in ('off', '0', 'false', 'no'):
+        return
+    for command in (['docker', 'image', 'prune', '-f'], ['docker', 'builder', 'prune', '-f']):
+        subprocess.run(command, cwd=ROOT, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def compose_command(scope='full', shared=False):
     apply_dev_url_hosts()
     apply_api_reload()
@@ -197,6 +208,7 @@ def main():
         run([sys.executable,'tools/operations.py',args.action,'--scope',args.scope])
     elif args.action in ('up', 'share'):
         compose('up', '-d', '--build', '--wait', '--wait-timeout', '1200' if args.scope == 'integrated' else '300', **options)
+        trim_build_cache()
         if args.action == 'share':
             run([sys.executable, 'infra/team/team.py', 'home'])
     elif args.action == 'check':

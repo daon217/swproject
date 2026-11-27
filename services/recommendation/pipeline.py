@@ -9,6 +9,7 @@ from .contracts import Candidate
 from .contracts import Pick, RecommendationResult, SafetyVerdict, UserProfile
 from .embedders import document_text
 from .food_types import food_type, same_kind, type_search_terms
+from .product_types import product_same_kind, product_search_terms, product_type
 from .ports import CatalogRepository, Embedder, Ranker, VectorIndex
 from .rankers import RuleRanker
 from .used_check import AVAILABLE, ListingChecker, verify_used
@@ -231,9 +232,12 @@ class Recommender:
         # (식품은 긴 상세 설명까지 벡터에 들어가 '갈비탕'과 '[소반옥] 왕갈비탕'이 0.23점에 그치던 문제,
         #  노트북은 '에이수스 비보북'과 'ASUS TUF A14 노트북'의 벡터 점수가 0.20점에 그치던 문제)
         # compact_candidates(상위 12개)와 중고 상위 창에서 잘리지 않도록 최고 점수(best)로 후보 앞에 넣는다.
-        # 식품은 보고 있는 상품과 같은 품목(대체품 포함, food_types.py)만 추천한다.
+        # 식품·일반 상품 모두 보고 있는 상품과 같은 품목만 추천한다 (food_types.py / product_types.py).
         food = domain == "food"
-        query_kind = food_type(original or "") if food else None  # 품목은 원래 상품명으로 ('매일두유'에서 두유를 빼면 품목을 잃음)
+        typed = domain in ("food", "product")
+        # 품목은 원래 상품명으로 ('매일두유'에서 두유를 빼면 품목을 잃음)
+        query_kind = food_type(original or "") if food else product_type(original or "") if typed else None
+        kind_terms = type_search_terms if food else product_search_terms
         find = getattr(self.catalog, "name_matches", None)
         if find is not None:
             have = {c.product_id for c in cands}
@@ -245,7 +249,7 @@ class Recommender:
                 raw_matched = find(core_kws, 20)
             if query_kind:
                 # 대체품(대두 알레르기면 아몬드·귀리 음료)은 벡터 상위 30개에 안 들 수 있어 품목 이름으로도 찾는다.
-                raw_matched = list(raw_matched) + list(find(list(type_search_terms(query_kind)), 20))
+                raw_matched = list(raw_matched) + list(find(list(kind_terms(query_kind)), 20))
             matched = list(dict.fromkeys(raw_matched))
             if matched:
                 extra_n = sum(1 for pid in matched if pid not in have)
@@ -266,7 +270,7 @@ class Recommender:
                 notes.append(f"인덱스에만 있고 카탈로그에 없음: {c.product_id}")
                 continue
             # 알레르기 검사로 비슷한 상품이 다 빠진 뒤 점수만 넘은 다른 품목(두유 -> 한우)이 남지 않게 먼저 거른다.
-            if food and not same_kind(query_kind, p.name, p.category, query_words):
+            if food and not same_kind(query_kind, p.name, p.category, query_words) or                     typed and not food and not product_same_kind(query_kind, p.name, p.category):
                 off_kind += 1
                 continue
             v = assess(p, profile)
@@ -275,7 +279,8 @@ class Recommender:
             else:
                 excluded.append(v)
         if off_kind:
-            notes.append(f"다른 품목 {off_kind}건 제외 (품목: {query_kind or '모름, 상품명 단어로 비교'})")
+            unknown = "모름, 상품명 단어로 비교" if food else "모름, 액세서리만 제외"
+            notes.append(f"다른 품목 {off_kind}건 제외 (품목: {query_kind or unknown})")
 
         safe, sale_excluded = self._sale_filter(profile, safe, top_k, notes)
         excluded.extend(sale_excluded)
@@ -292,9 +297,9 @@ class Recommender:
                 notes.append(f"{ranker_name} 실패 → 유사도 순으로 대체: {type(e).__name__}")
                 ranker_name = "rule-fallback"
                 picks_raw = RuleRanker().rank(profile, query, safe, top_k)
-            # 식품은 같은 품목 확인을 코드가 이미 했다. LLM이 '요청과 똑같지 않다'며 대체품을 다 버리면 유사도 순으로 보여준다.
+            # 같은 품목 확인은 코드가 이미 했다. LLM이 '요청과 똑같지 않다'며 대체품을 다 버리면 유사도 순으로 보여준다.
             safe_ids = {p.product_id for p, _ in safe}
-            if food and not any(pid in safe_ids for pid, _ in picks_raw):
+            if typed and not any(pid in safe_ids for pid, _ in picks_raw):
                 notes.append(f"{ranker_name}가 고른 후보 없음 → 같은 품목 안에서 유사도 순")
                 ranker_name = "rule-fallback"
                 picks_raw = RuleRanker().rank(profile, query, safe, top_k)

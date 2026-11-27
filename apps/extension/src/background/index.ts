@@ -10,10 +10,11 @@ import type { PageScan } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
 import { debugEnabled, dlog } from '../shared/debug';
 import {
-  foundIngredients,
+  endVisionSession,
   getVisionStatus,
   initVisionSession,
   MAX_FRAMES,
+  refreshesResult,
   sendVisionFrame,
   STATUS_POLL_MS,
   STATUS_WAIT_MS,
@@ -164,7 +165,7 @@ async function watchVisionResult(tabId: number, s: VisionStream) {
       if (!v || v.status === 'processing') continue;
       s.resolved = s.ended = true;
       dlog('vision', `Vision 결과: ${v.status}`, { category: v.product_category, ingredients: v.ingredients?.length ?? 0 });
-      if (!foundIngredients(v) || !s.lastImage) return;
+      if (!refreshesResult(v) || !s.lastImage) return;
       const tab = await chrome.tabs.get(tabId).catch(() => null);
       const state = await readState(tabId);
       if (!tab?.url || !state || !sameUrl(tab.url, s.url) || state.page_session_id !== s.sessionId) return;
@@ -175,6 +176,18 @@ async function watchVisionResult(tabId: number, s: VisionStream) {
   } finally {
     s.polling = false;
   }
+}
+
+/** 이탈(다른 페이지로 이동 · 탭 닫기): 진행 중인 Vision 세션에 마지막 프레임(이미지 없음)을 보내 마감한다 */
+function leaveVisionStream(tabId: number, nextUrl?: string) {
+  const s = visionStreams.get(tabId);
+  if (!s || (nextUrl !== undefined && sameUrl(s.url, nextUrl))) return;
+  visionStreams.delete(tabId);
+  s.resolved = true; // 결과 확인·재분석도 멈춘다
+  if (!s.inited || s.ended) return;
+  s.ended = true;
+  dlog('vision', '페이지 이탈 → Vision 세션 마감(is_last_frame)', { session: s.sessionId, frames: s.next });
+  void endVisionSession(s.sessionId, s.next).catch(() => undefined);
 }
 
 /** 스크롤 프레임 한 장을 캡처해 보낸다. 반환값: 이 페이지에서 더 보낼지(false면 content가 멈춘다) */
@@ -403,6 +416,7 @@ async function reanalyzeActive() {
 }
 
 chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+  if (info.url) leaveVisionStream(tabId, info.url); // 다른 페이지로 이동하면 진행 중인 스크롤 세션을 마감
   if (info.url || (info.status === 'complete' && tab.url)) {
     dlog('event', `tabs.onUpdated ${info.url ? 'URL 변경' : '로드 완료'}`, { tabId, url: tab.url });
     schedule(tabId, tab.url!, info.url ? '(URL 변경)' : '(로드 완료)');
@@ -427,7 +441,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   dlog('event', 'tabs.onRemoved → 탭 상태 삭제', { tabId });
   clearTimeout(timers.get(tabId));
   recommendedTabs.delete(tabId);
-  visionStreams.delete(tabId);
+  leaveVisionStream(tabId);
   void chrome.storage.session.remove(tabKey(tabId));
 });
 

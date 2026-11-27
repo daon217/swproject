@@ -17,9 +17,14 @@ const BASE = (import.meta.env.VITE_VISION_BASE_URL || 'http://127.0.0.1:8100').r
 // 로컬 개발용. 확장에 넣은 값은 누구나 볼 수 있으므로 운영 토큰을 넣지 않는다.
 const TOKEN = import.meta.env.VITE_VISION_TOKEN || '';
 
-/** 스크롤 캡처가 필요한 페이지: 분석이 끝났고 식품인데 성분표를 아직 못 찾은 경우(ingredient_status === 'not_found') */
+/**
+ * 스크롤 캡처를 할 페이지: 상품 페이지 분석이 끝났고 성분표를 아직 못 찾은 경우.
+ * - 식품인데 성분을 못 찾음(not_found), 또는 식품이 아닌 상품(not_applicable: 화장품 포함)
+ * - 식품 · 화장품 · 일반 상품 구분은 Vision이 init(1단계)에서 하고, 일반 상품이면 그 자리에서 세션을 끝낸다.
+ */
 export function wantsScrollFrames(state: TabState | null | undefined): boolean {
-  return !!state && state.status === 'done' && state.analysis?.ingredient_status === 'not_found';
+  const s = state?.analysis?.ingredient_status;
+  return !!state && state.status === 'done' && (s === 'not_found' || s === 'not_applicable');
 }
 
 export type VisionSessionStatus = 'processing' | 'success' | 'analysis_unavailable';
@@ -69,6 +74,19 @@ export function getVisionStatus(session_id: string) {
 /** 스크롤 중 성분표를 찾았는지(일반 상품 조기 종료는 success지만 성분이 비어 있다) */
 export function foundIngredients(v: VisionResult): boolean {
   return v.status === 'success' && (v.ingredients?.length ?? 0) > 0;
+}
+
+/**
+ * 찾은 성분표로 백엔드 분석을 다시 받을지. 화면의 알레르기 경고는 식품에만 뜨므로
+ * 화장품 · 일반 상품으로 분류된 결과는 다시 분석해도 화면이 바뀌지 않아 보내지 않는다.
+ */
+export function refreshesResult(v: VisionResult): boolean {
+  return foundIngredients(v) && v.product_category !== 'cosmetic' && v.product_category !== 'general_product';
+}
+
+/** 이탈(다른 페이지로 이동 · 탭 닫기): 이미지 없이 마지막 프레임을 보내 Vision이 세션을 바로 마감하게 한다 */
+export function endVisionSession(session_id: string, frame_index: number) {
+  return post('/frame', { session_id, frame_index, is_last_frame: true });
 }
 
 /** 세션 시작. 상품명이 없으면 첫 화면으로 Vision이 상품명을 찾는다 */

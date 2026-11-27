@@ -2,11 +2,12 @@ import { useEffect, useState, type ComponentRef, type RefObject } from 'react';
 import { Platform, type View } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import {
-  foundIngredients,
+  endVisionSession,
   FRAME_INTERVAL_MS,
   getVisionStatus,
   initVisionSession,
   MAX_FRAMES,
+  refreshesResult,
   SCROLL_STOP_MS,
   sendVisionFrame,
   STATUS_POLL_MS,
@@ -18,7 +19,9 @@ import type { PageScan } from './shared/pageProductScript';
 import type { PageAnalysis } from './usePageAnalysis';
 
 // 앱 안 브라우저에서 스크롤하는 동안 0.7초마다 보이는 화면을 캡처해 Vision AI로 바로 보낸다(확장과 같은 규칙).
-// - 성분표를 아직 못 찾은 식품 페이지(ingredient_status === 'not_found')에서만 동작한다.
+// - 성분표를 아직 못 찾은 상품 페이지(식품 not_found · 화장품 등 not_applicable)에서 동작한다.
+//   일반 상품이면 Vision이 init(1단계)에서 세션을 바로 끝낸다.
+// - 다른 페이지로 가거나 화면을 떠나면 진행 중인 세션에 is_last_frame을 보내 마감한다.
 // - 스크롤이 멈추면(250ms 동안 스크롤 신호 없음) 바로 멈추고 더 보내지 않는다.
 // - 페이지마다 init 한 번, frame 최대 25장. Vision이 세션을 끝내면 그 페이지에서는 멈춘다.
 // 스크롤 신호는 WebView에 주입한 스크립트(pageProductScript.ts)가 'kp-scroll'로 보낸다.
@@ -83,7 +86,7 @@ function createScrollFrames() {
         if (!v || v.status === 'processing') continue;
         s.resolved = s.ended = true;
         finishedUrl = url;
-        if (foundIngredients(v) && s.lastImage && stream === s && ctx?.url === url) ctx.page.reanalyzeWith(s.lastImage);
+        if (refreshesResult(v) && s.lastImage && stream === s && ctx?.url === url) ctx.page.reanalyzeWith(s.lastImage);
       }
     } finally {
       s.polling = false;
@@ -129,6 +132,17 @@ function createScrollFrames() {
     }
   };
 
+  /** 이탈(다른 페이지로 이동 · 화면 닫기): 진행 중인 Vision 세션에 마지막 프레임(이미지 없음)을 보내 마감한다 */
+  const leave = () => {
+    const s = stream;
+    stream = null;
+    if (!s) return;
+    s.resolved = true; // 결과 확인·재분석도 멈춘다
+    if (!s.inited || s.ended) return;
+    s.ended = true;
+    void endVisionSession(s.sessionId, s.next).catch(() => undefined);
+  };
+
   const next = () => {
     tick = setTimeout(() => {
       if (!wanted()) return stop();
@@ -148,10 +162,14 @@ function createScrollFrames() {
      */
     reset(url: string | null) {
       stop();
-      stream = null;
+      leave();
       if (url !== finishedUrl) finishedUrl = null;
     },
-    stop,
+    /** 화면을 떠날 때 */
+    dispose() {
+      stop();
+      leave();
+    },
     /** WebView가 보낸 스크롤 신호. 지금 보는 탭의 신호만 넘긴다 */
     onScroll() {
       if (!wanted()) return stop();
@@ -175,6 +193,6 @@ export function useScrollFrames(
   useEffect(() => {
     ctl.reset(url);
   }, [ctl, url, page.pageSessionId]);
-  useEffect(() => () => ctl.stop(), [ctl]);
+  useEffect(() => () => ctl.dispose(), [ctl]);
   return { onScroll: ctl.onScroll };
 }

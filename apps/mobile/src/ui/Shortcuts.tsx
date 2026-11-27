@@ -13,13 +13,45 @@ import { KEYBOARD_BEHAVIOR } from './useKeyboard';
 // 쇼핑몰 바로가기(Figma 02): 브라우저 시작 화면. 이 기기에만 저장.
 // 편집 모드에서 −로 삭제하고, ‹ › 버튼으로 순서를 바꾼다(드래그 대신 접근성 있는 방식).
 
-export function ShortcutsHome({ onOpen }: { onOpen: (url: string) => void }) {
+export function ShortcutsHome({
+  onOpen,
+  engineLabel = 'Naver',
+  onEngineToggle,
+  onSearchSubmit,
+}: {
+  onOpen: (url: string) => void;
+  engineLabel?: string;
+  onEngineToggle?: () => void;
+  onSearchSubmit?: (query: string) => void;
+}) {
   const { me, loading } = useSession();
   if (loading) return null;
-  return <AccountShortcuts key={me?.user_id ?? 'guest'} userId={me?.user_id} onOpen={onOpen} />;
+  return (
+    <AccountShortcuts
+      key={me?.user_id ?? 'guest'}
+      userId={me?.user_id}
+      onOpen={onOpen}
+      engineLabel={engineLabel}
+      onEngineToggle={onEngineToggle}
+      onSearchSubmit={onSearchSubmit}
+    />
+  );
 }
-function AccountShortcuts({ userId, onOpen }: { userId?: string; onOpen: (url: string) => void }) {
+function AccountShortcuts({
+  userId,
+  onOpen,
+  engineLabel = 'Naver',
+  onEngineToggle,
+  onSearchSubmit,
+}: {
+  userId?: string;
+  onOpen: (url: string) => void;
+  engineLabel?: string;
+  onEngineToggle?: () => void;
+  onSearchSubmit?: (query: string) => void;
+}) {
   const [list, setList] = useState<Shortcut[]>(DEFAULT_SHORTCUTS);
+  const [searchQuery, setSearchQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -39,7 +71,7 @@ function AccountShortcuts({ userId, onOpen }: { userId?: string; onOpen: (url: s
 
 
   const update = (next: Shortcut[]) => {
-    if (!userId || !ready) return;
+    if (!ready) return;
     setList(next);
     void saveShortcuts(next, userId);
   };
@@ -56,10 +88,53 @@ function AccountShortcuts({ userId, onOpen }: { userId?: string; onOpen: (url: s
       <ScrollView contentContainerStyle={{ padding: 24 }}>
         <View style={st.titleRow}>
           <Text style={st.title}>{editing ? '바로가기 편집' : '쇼핑몰 바로가기'}</Text>
-          <Button variant={editing ? 'primary' : 'pill'} disabled={!userId || !ready} label={editing ? '완료' : '편집'} onPress={() => setEditing(!editing)} style={editing ? { height: 34, borderRadius: 999 } : undefined} />
+          <Button variant={editing ? 'primary' : 'pill'} disabled={!ready} label={editing ? '완료' : '편집'} onPress={() => setEditing(!editing)} style={editing ? { height: 34, borderRadius: 999 } : undefined} />
         </View>
         <Desc>{editing ? '−를 눌러 삭제하고, 화살표로 순서를 바꿔요.' : '자주 가는 쇼핑몰을 직접 추가하고 정리할 수 있어요.'}</Desc>
-        {!userId && <Note>로그인하면 나만의 바로가기를 이 기기에 저장할 수 있어요.</Note>}
+
+        {/* 메인 화면 중앙 검색바 (Naver / Google / Daum 전환 + 검색어 입력 + 검색 버튼) */}
+        <View style={st.searchBar}>
+          <Pressable
+            onPress={onEngineToggle}
+            style={st.searchEngineBtn}
+            accessibilityRole="button"
+            accessibilityLabel={`검색엔진 변경 (현재 ${engineLabel})`}
+          >
+            <Text style={st.searchEngineText}>{engineLabel}</Text>
+          </Pressable>
+          <TextInput
+            style={st.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder={`${engineLabel} 검색 또는 쇼핑몰 주소 입력`}
+            placeholderTextColor={C.muted}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+            onSubmitEditing={() => {
+              const q = searchQuery.trim();
+              if (q && onSearchSubmit) {
+                onSearchSubmit(q);
+                setSearchQuery('');
+              }
+            }}
+          />
+          <Pressable
+            style={st.searchSubmitBtn}
+            onPress={() => {
+              const q = searchQuery.trim();
+              if (q && onSearchSubmit) {
+                onSearchSubmit(q);
+                setSearchQuery('');
+              }
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="검색 실행"
+          >
+            <Text style={st.searchSubmitText}>검색</Text>
+          </Pressable>
+        </View>
+
         <View style={st.grid}>
           {list.map((sc, i) => (
             <View key={sc.id} style={st.cell}>
@@ -92,13 +167,13 @@ function AccountShortcuts({ userId, onOpen }: { userId?: string; onOpen: (url: s
             </View>
           ))}
           <View style={st.cell}>
-            <Pressable style={[st.icon, st.iconAdd]} disabled={!userId || !ready} onPress={() => setAdding(true)} accessibilityRole="button" accessibilityLabel="바로가기 추가">
+            <Pressable style={[st.icon, st.iconAdd]} disabled={!ready} onPress={() => setAdding(true)} accessibilityRole="button" accessibilityLabel="바로가기 추가">
               <IconPlus size={22} color={C.sub} />
             </Pressable>
             <Text style={[st.name, { color: C.sub }]}>추가</Text>
           </View>
         </View>
-        <Note>{editing ? '변경한 바로가기는 현재 계정 전용으로 이 기기에 저장돼요.' : '바로가기를 누르면 앱 안 브라우저로 열리고, 상품 페이지에서 AI 추천이 화면에 표시돼요.'}</Note>
+        <Note>{editing ? '변경한 바로가기는 현재 계정 전용으로 이 기기에 저장돼요.' : '바로가기를 누르면 사이트로 이동합니다'}</Note>
       </ScrollView>
       {adding && <AddSheet
         visible={adding}
@@ -183,6 +258,49 @@ function AddSheet({ visible, onAdd, onCancel }: { visible: boolean; onAdd: (s: S
 const st = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 26, fontWeight: '800', color: C.text },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: C.surfaceMuted,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 10,
+    marginTop: 14,
+    marginBottom: 14,
+    gap: 8,
+  },
+  searchEngineBtn: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 15,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  searchEngineText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: C.primary,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: C.text,
+    padding: 0,
+  },
+  searchSubmitBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: C.primary,
+  },
+  searchSubmitText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 18, marginTop: 8 },
   cell: { width: '25%', alignItems: 'center' },
   icon: { width: 56, height: 56, borderRadius: 14, backgroundColor: C.primarySoft, alignItems: 'center', justifyContent: 'center' },

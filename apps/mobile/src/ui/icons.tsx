@@ -112,3 +112,10 @@ export const IconLock = (p: P) => (
     <Path d="M8 11V8a4 4 0 0 1 8 0v3" />
   </Icon>
 );
+export const IconMoreVert = ({ size = 20, color = '#1A2233' }: P) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <Circle cx="12" cy="5.5" r="1.8" />
+    <Circle cx="12" cy="12" r="1.8" />
+    <Circle cx="12" cy="18.5" r="1.8" />
+  </Svg>
+);

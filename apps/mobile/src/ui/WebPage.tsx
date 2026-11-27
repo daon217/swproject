@@ -43,6 +43,12 @@ export function WebPage({ uri, onNavigation, onNewWindow, onPageProduct, ref }: 
     <WebViewC
       ref={web}
       source={{ uri }}
+      sharedCookiesEnabled={true}
+      thirdPartyCookiesEnabled={true}
+      domStorageEnabled={true}
+      javaScriptEnabled={true}
+      cacheEnabled={true}
+      incognito={false}
       onNavigationStateChange={(e: WebViewNavigation) => onNavigation({ url: e.url, title: e.title ?? '', canGoBack: e.canGoBack, canGoForward: e.canGoForward, loading: e.loading })}
       onShouldStartLoadWithRequest={(r: { url: string }) => /^(https?|about|data|blob):/i.test(r.url)}
       setSupportMultipleWindows={!!onNewWindow}

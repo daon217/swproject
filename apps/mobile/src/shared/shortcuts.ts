@@ -23,11 +23,9 @@ export const DEFAULT_SHORTCUTS: Shortcut[] = [
 ];
 
 export async function loadShortcuts(userId?: string): Promise<Shortcut[]> {
-  if (!userId) return DEFAULT_SHORTCUTS;
-  return getItem<Shortcut[]>(accountKey(userId, 'shortcuts'), DEFAULT_SHORTCUTS);
+  return getItem<Shortcut[]>(accountKey(userId || 'guest', 'shortcuts'), DEFAULT_SHORTCUTS);
 }
 
 export async function saveShortcuts(list: Shortcut[], userId?: string): Promise<void> {
-  if (!userId) return;
-  await setItem(accountKey(userId, 'shortcuts'), list);
+  await setItem(accountKey(userId || 'guest', 'shortcuts'), list);
 }

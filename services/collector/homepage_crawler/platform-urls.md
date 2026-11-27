@@ -54,3 +54,12 @@
 |---|---|
 | 아마존 | www.amazon.com |
 | 알리익스프레스 | www.aliexpress.com |
+| 풀무원샵 | shop.pulmuone.co.kr |
+| 동원몰 | www.dongwonmall.com |
+| 하림몰 | www.harimmall.com |
+| 코스트코 | www.costco.co.kr |
+| 롯데하이마트 | www.e-himart.co.kr |
+| 후르츠패밀리 | fruitsfamily.com |
+| 패션플러스 | www.fashionplus.co.kr |
+| 무인양품 | www.mujikorea.net |
+| LG전자 | www.lge.co.kr |

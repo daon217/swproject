@@ -86,7 +86,8 @@ services:
     environment:
       COLLECTOR_BACKEND_BASE_URL: http://api:8000
       KKULPICK_BACKEND_TOKEN: ${COLLECTOR_TOKEN:?run workspace init}
-      HOMEPAGE_CRAWLER_ONLY: ${HOMEPAGE_CRAWLER_ONLY:-}
+      # 기본: 정적 크롤링으로 상품이 실제로 수집된 15곳만 (차단·0개 사이트는 목록에만 남김)
+      HOMEPAGE_CRAWLER_ONLY: ${HOMEPAGE_CRAWLER_ONLY:-29CM,마켓컬리,중고나라,크림,다이소몰,YES24,풀무원샵,동원몰,하림몰,코스트코,롯데하이마트,후르츠패밀리,패션플러스,무인양품,LG전자}
     depends_on:
       api: {condition: service_healthy}
     restart: unless-stopped

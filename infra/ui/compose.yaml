@@ -12,9 +12,12 @@ services:
       api: {condition: service_healthy}
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8080/backend/health"]
-      interval: 5s
+      # 시작 중에는 2초마다, 그 뒤에는 30초마다 확인(쉬는 동안 CPU·DB 부하 절감)
+      interval: 30s
+      start_interval: 2s
+      start_period: 120s
       timeout: 5s
-      retries: 30
+      retries: 5
     restart: unless-stopped
     logging:
       driver: json-file
@@ -28,9 +31,12 @@ services:
       api: {condition: service_healthy}
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, "http://127.0.0.1:8080/backend/health"]
-      interval: 5s
+      # 시작 중에는 2초마다, 그 뒤에는 30초마다 확인(쉬는 동안 CPU·DB 부하 절감)
+      interval: 30s
+      start_interval: 2s
+      start_period: 120s
       timeout: 5s
-      retries: 30
+      retries: 5
     restart: unless-stopped
     logging:
       driver: json-file

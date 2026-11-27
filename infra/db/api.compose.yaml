@@ -68,9 +68,12 @@ services:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD","python","-c","import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3).read()"]
-      interval: 4s
+      # 시작 중에는 2초마다, 그 뒤에는 30초마다 확인(쉬는 동안 CPU·DB 부하 절감)
+      interval: 30s
+      start_interval: 2s
+      start_period: 120s
       timeout: 5s
-      retries: 30
+      retries: 5
 
 volumes:
   analysis_images:

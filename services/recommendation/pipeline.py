@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import re
 
-from .allergens import assess
+from .allergens import assess, focus_query
 from .contracts import Candidate
 from .contracts import Pick, RecommendationResult, SafetyVerdict, UserProfile
 from .embedders import document_text
@@ -207,10 +207,15 @@ class Recommender:
         중고라 빠지면 남은 무관 상품(0.54)이 고정 기준점만 넘어 추천되던 문제를 막는다.
         검색어가 비어 있으면 추천하지 않는다 — 예전에는 '추천'이라는 말로 검색해 아무 상품이나 기본처럼 보여줬다."""
         notes: list[str] = []
-        text = " ".join(x for x in (query.strip() if query else "", profile.preferences) if x)
+        original = query
+        # 알레르기 단어는 검색에서 빼고 나머지에 집중 (새우 알레르기 + '새우튀김' -> '튀김' 대체품). 안전 판정은 아래 assess 가 그대로 함.
+        query, removed = focus_query(query or "", profile.allergens)
+        if removed:
+            notes.append(f"{'·'.join(dict.fromkeys(removed))} 알레르기: '{original}' 대신 '{query or '-'}' 중심으로 추천")
+        text = " ".join(x for x in (query.strip(), profile.preferences) if x)
         if not text:
             notes.append("검색어가 없어 추천하지 않음")
-            return RecommendationResult(profile.user_id, query, [], [], self.ranker.name, notes)
+            return RecommendationResult(profile.user_id, original, [], [], self.ranker.name, notes)
         cands = self.index.search(self.embedder.embed_query(text), candidate_limit)
         best = max((c.score for c in cands), default=0.0)
         cutoff = 0.0
@@ -263,7 +268,9 @@ class Recommender:
         picks_raw: list[tuple[str, str]] = []
         if safe:
             try:
-                picks_raw = self.ranker.rank(profile, query, safe, top_k)
+                # LLM 에는 원래 상품명 + 대체품이라는 사실을 줘야 '새우튀김과 다르다'며 다른 튀김을 버리지 않음
+                rank_query = f"{original} ({'·'.join(dict.fromkeys(removed))} 없는 대체품)" if removed else query
+                picks_raw = self.ranker.rank(profile, rank_query, safe, top_k)
             except Exception as e:  # LLM 장애가 추천 전체를 막지 않도록
                 log.warning("ranker 실패, 규칙 순위로 대체: %s", e)
                 notes.append(f"{ranker_name} 실패 → 유사도 순으로 대체: {type(e).__name__}")
@@ -288,7 +295,7 @@ class Recommender:
             picks.append(Pick(pid, p.name, reason, round(s, 4)))
             if len(picks) >= top_k:
                 break
-        return RecommendationResult(profile.user_id, query, picks, excluded, ranker_name, notes)
+        return RecommendationResult(profile.user_id, original, picks, excluded, ranker_name, notes)
 
     def _sale_filter(self, profile: UserProfile, safe, top_k: int, notes: list[str]):
         """판매 상태 필터. 중고는 설정·도메인 확인 후 상위 후보만 실시간 재확인."""

@@ -129,6 +129,31 @@ def _match(token: str, synonyms: list[str], code: str | None = None) -> str | No
     return None
 
 
+def focus_query(query: str, allergens: list[str]) -> tuple[str, list[str]]:
+    """검색어(상품명)에서 사용자 알레르기 단어를 빼고 나머지에 집중. '새우튀김' -> '튀김', '땅콩버터' -> '버터'.
+    반환: (새 검색어, 뺀 알레르기 이름들). 한 글자만 남으면('새우깡' -> '깡') 뜻이 바뀌므로 그 단어는 그대로 둔다."""
+    codes = [c for c in (normalize_code(a) for a in allergens) if c in ALLERGENS]
+    out, removed = [], []
+    for word in query.split():
+        for code in codes:
+            label, syn = ALLERGENS[code]
+            if any(ff in word.lower() for ff in _FALSE_FRIENDS.get(code, ())):  # 우유 알레르기의 '땅콩버터'
+                continue
+            s = next((s for s in sorted(syn, key=len, reverse=True) if len(s) > 1 and s.lower() in word.lower()), None)
+            if s is None:
+                continue
+            rest = re.sub(re.escape(s), "", word, flags=re.I)
+            if len(re.sub(r"\W", "", rest)) == 1:
+                continue
+            word = rest if re.sub(r"\W", "", rest) else ""
+            removed.append(label)
+            if not word:
+                break
+        if word:
+            out.append(word)
+    return " ".join(out), removed
+
+
 def detect(texts: list[str]) -> dict[str, str]:
     """텍스트 조각들에서 감지된 {알레르기코드: 근거 성분}."""
     found: dict[str, str] = {}

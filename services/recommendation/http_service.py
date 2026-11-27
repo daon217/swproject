@@ -235,7 +235,8 @@ def process(body:Input,authorization:str=Header(default='')):
                                              catalog,PgVectorIndex(conn,model_id),embedder)
                 if ingested:
                     fb_engine=Recommender(catalog,PgVectorIndex(conn,model_id),
-                                          embedder,make_ranker(ranker_kind,model=FALLBACK_MODEL))
+                                          # FALLBACK_MODEL 은 Claude 모델명: local(gemma) 서버에 넘기면 403 -> 규칙 순위로 떨어짐
+                                          embedder,make_ranker(ranker_kind,model=FALLBACK_MODEL if ranker_kind in ('claude','auto') else None))
                     result=fb_engine.recommend(profile,body.query,top_k=8,min_score=min_score,score_margin=margin)
             ids=catalog.offer_ids([p.product_id for p in result.picks])
         return {'offer_ids':[ids[p.product_id] for p in result.picks if p.product_id in ids],

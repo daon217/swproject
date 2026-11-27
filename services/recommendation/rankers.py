@@ -58,7 +58,7 @@ def render_candidates(fmt: str, profile: UserProfile, query: str, items, top_k: 
     else:
         raise ValueError("fmt 는 compact | json | toon")
     head = user_message(profile, query, c, top_k).split("후보:")[0]
-    return SYSTEM_PROMPT.replace('"번호|이름|분류|가격|주요성분|중고표시"', f"{fmt} 형식"), head + "후보:\n" + body, c.id_map
+    return SYSTEM_PROMPT.replace('"번호|이름|분류|가격(원)|주요성분|중고"', f"{fmt} 형식"), head + "후보:\n" + body, c.id_map
 
 
 class ClaudeRanker:

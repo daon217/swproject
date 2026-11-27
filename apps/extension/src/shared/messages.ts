@@ -26,7 +26,7 @@ export type Message =
   | { type: 'openRecommendedUrl'; url: string } // 추천 상품 클릭 시 새 탭에서 자동 재분석하지 않고 열기
   | { type: 'tabState'; state: TabState } // bg → content / sidepanel
   | { type: 'extractProduct' } // bg → content: 상품 표시 여부 + [임시] 페이지 상품명·가격 읽기(PageScan)
-  | { type: 'scrollCapture' }; // content → bg: 스크롤 후 성분표 재탐색 캡처 요청
+  | { type: 'scrollFrame' }; // content → bg: 스크롤 중 화면 한 장을 캡처해 Vision AI로 보내기. 응답 { more }
 
 export function sendMessage<T = unknown>(msg: Message): Promise<T | undefined> {
   if (typeof chrome === 'undefined' || !chrome.runtime?.id) {

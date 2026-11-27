@@ -8,6 +8,7 @@ import { scanPage } from '../shared/pageProduct';
 import { sameUrl } from '../shared/pageFilter';
 import { dlog } from '../shared/debug';
 import { useDragPosition } from './drag';
+import { FRAME_INTERVAL_MS, SCROLL_STOP_MS, wantsScrollFrames } from '../shared/api/vision';
 
 dlog('content', 'content script 주입됨', { url: location.href });
 
@@ -53,37 +54,45 @@ function ContentApp() {
     return () => chrome.runtime.onMessage.removeListener(onMsg);
   }, []);
 
-  // 식품 페이지이거나 아직 성분표를 찾지 못한 경우(ingredient_status === 'not_found')
-  // 사용자가 상세페이지를 스크롤해 멈추면 현재 화면을 다시 캡처해 성분표를 탐색하도록 요청한다.
-  // 재캡처 횟수는 페이지 주소 기준으로 유지한다. 효과 안의 지역 변수로 두면 재분석으로 state가 바뀔 때마다
-  // 0으로 돌아가 '페이지당 15회' 제한이 지켜지지 않는다(#81).
-  const scrollCaptures = useRef({ url: location.href, count: 0, lastY: window.scrollY });
+  // 성분표를 아직 못 찾은 식품 페이지(ingredient_status === 'not_found')에서는
+  // 스크롤하는 동안 0.7초마다 화면 캡처를 요청한다(백그라운드가 캡처해 Vision AI로 바로 보낸다).
+  // 스크롤이 멈추면(250ms 동안 스크롤 이벤트 없음) 바로 타이머를 끄고 더 보내지 않는다.
+  // 백그라운드가 '이 페이지는 끝(15장·Vision 종료)'이라고 답하면 같은 주소에서는 더 요청하지 않는다.
+  const framesDone = useRef<string | null>(null);
   useEffect(() => {
-    let scrollTimer: ReturnType<typeof setTimeout> | null = null;
-    const captures = scrollCaptures.current;
-    if (captures.url !== location.href) Object.assign(captures, { url: location.href, count: 0, lastY: window.scrollY });
-
+    let tick: ReturnType<typeof setTimeout> | null = null;
+    let idle: ReturnType<typeof setTimeout> | null = null;
+    const wanted = () =>
+      !!state && sameUrl(state.url, location.href) && wantsScrollFrames(state) && framesDone.current !== location.href;
+    const stop = () => {
+      if (tick) clearTimeout(tick);
+      if (idle) clearTimeout(idle);
+      tick = idle = null;
+    };
+    const next = () => {
+      tick = setTimeout(() => {
+        if (!wanted()) return stop();
+        const url = location.href;
+        void sendMessage<{ more: boolean }>({ type: 'scrollFrame' }).then((r) => {
+          if (r && !r.more) {
+            framesDone.current = url;
+            dlog('content', '스크롤 캡처 종료(15장 또는 Vision 세션 끝)');
+          }
+        });
+        next();
+      }, FRAME_INTERVAL_MS);
+    };
     const onScroll = () => {
-      if (captures.count >= 15) return; // 최대 15프레임 제한(Hard Timeout)
-      if (!state || !sameUrl(state.url, location.href)) return;
-      if (state.status !== 'done' || !state.analysis) return;
-      // 이미 성분을 찾았으면(partial/found) 더 이상 스크롤 캡처를 보내지 않음(Early Exit)
-      if (state.analysis.ingredient_status && state.analysis.ingredient_status !== 'not_found') return;
-      if (Math.abs(window.scrollY - captures.lastY) < 250) return;
-
-      if (scrollTimer) clearTimeout(scrollTimer);
-      scrollTimer = setTimeout(() => {
-        captures.lastY = window.scrollY;
-        captures.count += 1;
-        dlog('content', `스크롤 멈춤 감지(${captures.count}/15) → 성분표 탐색용 화면 재캡처 요청`);
-        void sendMessage({ type: 'scrollCapture' });
-      }, 900);
+      if (!wanted()) return stop();
+      if (idle) clearTimeout(idle);
+      idle = setTimeout(stop, SCROLL_STOP_MS); // 멈춘 순간 캡처 중단
+      if (!tick) next();
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       window.removeEventListener('scroll', onScroll);
-      if (scrollTimer) clearTimeout(scrollTimer);
+      stop();
     };
   }, [state]);
 

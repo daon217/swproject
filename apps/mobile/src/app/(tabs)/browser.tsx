@@ -14,6 +14,7 @@ import { WebPage, type WebNavState, type WebPageHandle } from '../../ui/WebPage'
 import { C } from '../../ui/theme';
 import { KEYBOARD_BEHAVIOR } from '../../ui/useKeyboard';
 import { usePageAnalysis } from '../../usePageAnalysis';
+import { useScrollFrames } from '../../useScrollFrames';
 import type { PageScan } from '../../shared/pageProductScript';
 
 // 앱 안 브라우저(Figma U16~U25). Android 화면 캡처 보안 정책 때문에 다른 앱 위 오버레이 대신
@@ -89,6 +90,8 @@ function AccountBrowser() {
   const pageKey = (u: string) => u.split('#')[0].replace(/\/+$/, '');
   const getPageScan = useCallback((u: string) => pageScans.current.get(pageKey(u)), []);
   const page = usePageAnalysis(active.url, active.nav.loading, captureTarget, getPageScan);
+  // 스크롤하는 동안 0.7초마다 화면을 캡처해 Vision AI로 보낸다(성분표를 못 찾은 식품 페이지만).
+  const scrollFrames = useScrollFrames(active.url, page, captureTarget, getPageScan);
 
   const patchTab = useCallback((id: string, patch: Partial<BrowserTab>) => {
     setTabs((ts) => ts.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -203,6 +206,7 @@ function AccountBrowser() {
                   if (pageScans.current.size > 50) pageScans.current.delete(pageScans.current.keys().next().value!);
                 }}
                 onNewWindow={openInNewTab}
+                onPageScroll={t.id === active.id ? scrollFrames.onScroll : undefined}
               />
             </View>
           ) : null,

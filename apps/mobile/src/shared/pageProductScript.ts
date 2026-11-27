@@ -135,6 +135,14 @@ export const PAGE_PRODUCT_SCRIPT = `
   send();
   setTimeout(send, 1500);
   setTimeout(send, 4000);
+  // 스크롤 중이라는 신호(최대 0.1초에 한 번). 앱은 이 신호가 오는 동안 0.7초마다 화면을 캡처해 Vision AI로 보낸다.
+  var lastScroll = 0;
+  window.addEventListener('scroll', function () {
+    var now = Date.now();
+    if (now - lastScroll < 100) return;
+    lastScroll = now;
+    try { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'kp-scroll', url: location.href })); } catch (e) {}
+  }, { passive: true });
 })();
 true;
 `;

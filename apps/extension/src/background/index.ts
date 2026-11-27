@@ -9,6 +9,7 @@ import { KEYS } from '../shared/storage';
 import type { PageScan } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
 import { debugEnabled, dlog } from '../shared/debug';
+import { initVisionSession, MAX_FRAMES, sendVisionFrame, VisionError, wantsScrollFrames } from '../shared/api/vision';
 
 if (debugEnabled) dlog('bg', '디버그 로그 켜짐', { api: import.meta.env.VITE_API_BASE_URL, mock: isMockApi });
 
@@ -115,6 +116,61 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<Blob | null> {
     dlog('capture', 'captureVisibleTab 실패 — 권한/chrome:// 페이지/창 비활성', e);
     return null;
   }
+}
+
+// ── 스크롤 중 Vision AI 직접 전송 ──────────────────────────────────────────
+// content script가 스크롤하는 동안 0.7초마다 'scrollFrame'을 보내면, 여기서 보이는 화면을 캡처해 Vision에 보낸다.
+// Vision 세션 id는 이 페이지의 page_session_id(백엔드 분석 요청과 같은 값). 페이지마다 init 한 번, frame 최대 15장.
+
+interface VisionStream {
+  sessionId: string;
+  url: string;
+  next: number;
+  inited: boolean;
+  ended: boolean;
+  busy: boolean;
+  failures: number;
+}
+const visionStreams = new Map<number, VisionStream>();
+
+/** 스크롤 프레임 한 장을 캡처해 보낸다. 반환값: 이 페이지에서 더 보낼지(false면 content가 멈춘다) */
+async function streamFrame(tab: chrome.tabs.Tab): Promise<boolean> {
+  const tabId = tab.id!;
+  if (!tab.active) return true; // 활성 탭만 캡처할 수 있다. 돌아와 다시 스크롤하면 이어서 보낸다
+  const state = await readState(tabId);
+  if (!state || !sameUrl(state.url, tab.url) || !wantsScrollFrames(state)) return true;
+  let s = visionStreams.get(tabId);
+  if (!s || s.sessionId !== state.page_session_id || !sameUrl(s.url, tab.url)) {
+    s = { sessionId: state.page_session_id, url: tab.url!, next: 0, inited: false, ended: false, busy: false, failures: 0 };
+    visionStreams.set(tabId, s);
+  }
+  if (s.ended || s.next >= MAX_FRAMES) return false;
+  if (s.busy) return true; // 앞 프레임을 아직 보내는 중이면 이번 차례는 건너뛴다(쌓아 두지 않는다)
+  s.busy = true;
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'jpeg', quality: 80 }).catch(() => null);
+    if (!dataUrl) return true;
+    const image = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    if (!s.inited) {
+      const scan = await readPageScan(tabId);
+      await initVisionSession({ session_id: s.sessionId, product_name: scan?.product?.name, price: scan?.product?.price, first_frame_image: image });
+      s.inited = true;
+    }
+    const frame_index = s.next++;
+    const is_last_frame = frame_index === MAX_FRAMES - 1;
+    dlog('vision', `스크롤 프레임 ${frame_index + 1}/${MAX_FRAMES} 전송`, { session: s.sessionId });
+    const res = await sendVisionFrame({ session_id: s.sessionId, frame_index, image, is_last_frame });
+    s.failures = 0;
+    if (is_last_frame || (res.status && res.status !== 'processing')) s.ended = true;
+  } catch (e) {
+    // 세션이 만료됐으면(404) 다음 차례에 다시 시작한다. Vision이 계속 응답하지 않으면 이 페이지에서는 멈춘다.
+    if (e instanceof VisionError && e.status === 404) s.inited = false;
+    if (++s.failures >= 3) s.ended = true;
+    dlog('vision', 'Vision 전송 실패', { error: String(e), failures: s.failures });
+  } finally {
+    s.busy = false;
+  }
+  return !s.ended && s.next < MAX_FRAMES;
 }
 
 /** 진행 중인 분석이 더 이상 유효하지 않은 이유. 유효하면 null */
@@ -319,6 +375,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   dlog('event', 'tabs.onRemoved → 탭 상태 삭제', { tabId });
   clearTimeout(timers.get(tabId));
   recommendedTabs.delete(tabId);
+  visionStreams.delete(tabId);
   void chrome.storage.session.remove(tabKey(tabId));
 });
 
@@ -363,16 +420,11 @@ chrome.runtime.onMessage.addListener((raw: Message, sender, sendResponse) => {
     case 'reanalyze':
       void reanalyzeActive();
       return false;
-    case 'scrollCapture': {
+    case 'scrollFrame': {
       const tab = sender.tab;
-      if (tab?.id !== undefined && tab.url) {
-        void readState(tab.id).then((s) => {
-          if (!s || !sameUrl(s.url, tab.url) || s.status !== 'done') return;
-          if (s.analysis?.ingredient_status && s.analysis.ingredient_status !== 'not_found') return;
-          void analyze(tab.id!, tab.url!, true);
-        });
-      }
-      return false;
+      if (tab?.id === undefined || !tab.url) return false;
+      void streamFrame(tab).then((more) => sendResponse({ more }));
+      return true;
     }
     case 'retry': {
       const p = raw.tabId !== undefined ? chrome.tabs.get(raw.tabId) : activeTab();

@@ -29,10 +29,12 @@ export interface WebPageProps {
   onNewWindow?: (url: string) => void;
   /** 페이지의 상품 표시 여부 + [임시] 상품명·가격(주입 스크립트가 보냄) */
   onPageProduct?: (url: string, scan: PageScan) => void;
+  /** 페이지를 스크롤하는 중이라는 신호(주입 스크립트가 최대 0.1초에 한 번 보냄) */
+  onPageScroll?: (url: string) => void;
   ref?: Ref<WebPageHandle>;
 }
 
-export function WebPage({ uri, onNavigation, onNewWindow, onPageProduct, ref }: WebPageProps) {
+export function WebPage({ uri, onNavigation, onNewWindow, onPageProduct, onPageScroll, ref }: WebPageProps) {
   const web = useRef<WebView>(null);
   useImperativeHandle(ref, () => ({
     goBack: () => web.current?.goBack(),
@@ -50,8 +52,9 @@ export function WebPage({ uri, onNavigation, onNewWindow, onPageProduct, ref }: 
       injectedJavaScript={PAGE_PRODUCT_SCRIPT}
       onMessage={(e: WebViewMessageEvent) => {
         try {
-          const msg = JSON.parse(e.nativeEvent.data) as PageProductMessage;
-          if (msg?.type === 'kp-product') onPageProduct?.(msg.url, { signal: !!msg.signal, product: msg.product ?? null, domain: msg.domain === 'food' ? 'food' : null });
+          const msg = JSON.parse(e.nativeEvent.data) as PageProductMessage | { type: 'kp-scroll'; url: string };
+          if (msg?.type === 'kp-scroll') onPageScroll?.(msg.url);
+          else if (msg?.type === 'kp-product') onPageProduct?.(msg.url, { signal: !!msg.signal, product: msg.product ?? null, domain: msg.domain === 'food' ? 'food' : null });
         } catch {
           /* 페이지가 보낸 다른 메시지는 무시 */
         }

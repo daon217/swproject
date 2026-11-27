@@ -116,6 +116,14 @@ npm run preview:sidepanel   # http://localhost:5174/preview.html
 - 확인: 확장 빌드·타입 검사, 모바일 타입 검사·lint, 목업 미리보기 화면, 로컬 실제 API로 회원·비회원 분석·해외/중고 구역·상담 종료·프로필 저장, 실제 Chrome에서 쿠팡·디바이스마트·컴퓨존·모다아울렛 페이지 판별.
 - 남은 것: 백엔드 pytest(DB 통합 테스트)는 이 PC에 pytest가 없어 실행하지 못함. 모바일은 실제 기기 화면 확인 전. 로컬 카탈로그에 식품이 1개뿐이라 식품 페이지는 대부분 "비슷한 상품을 찾지 못했어요"가 나온다(데이터 문제).
 
+## 스크롤 중 Vision AI 직접 전송 (확장·모바일 공통)
+
+- 캡처 시점: 페이지 로드 완료, 탭 전환, 로그인·로그아웃, 상품 추천·AI 실시간 추천 켜고 끄기, 다시 시도 → 기존처럼 백엔드 분석(`POST /analyses`).
+- **스크롤 중**: 성분표를 아직 못 찾은 식품 페이지(`ingredient_status === 'not_found'`)에서 스크롤하는 동안 **0.7초마다** 보이는 화면을 캡처해 Vision AI로 바로 보낸다(`/api/v1/vision/init` 한 번 → `/frame` 0, 1, 2 …). 백엔드를 거치지 않는다.
+- 스크롤이 멈추면(250ms 동안 스크롤 이벤트 없음) 바로 멈추고 보내지 않는다. 페이지당 최대 15장, Vision이 세션을 끝내면(`success`·`analysis_unavailable`) 그 페이지에서는 멈춘다. 연속 3번 실패해도 멈춘다.
+- Vision 세션 id는 그 페이지의 `page_session_id`(백엔드 분석 요청과 같은 값).
+- 설정: 확장 `VITE_VISION_BASE_URL`·`VITE_VISION_TOKEN`, 모바일 `EXPO_PUBLIC_VISION_BASE_URL`·`EXPO_PUBLIC_VISION_TOKEN`. 토큰은 로컬 개발용(앱에 넣은 값은 누구나 볼 수 있다). 코드: 확장 `shared/api/vision.ts`·`content/index.tsx`·`background/index.ts`(`streamFrame`), 모바일 `shared/api/vision.ts`·`useScrollFrames.ts`.
+
 ## 목업 데이터 확인 팁
 - 결제 실패 화면: 개발자 도구에서 `kp.mock.paymentFail` 값을 true로 저장(미리보기는 `localStorage.setItem('kp.mock.paymentFail','true')`).
 - 상담 종료 화면: `kp.mock.supportResolved` 값을 true로 저장하면 상담원이 상담을 종료한 상태가 된다.

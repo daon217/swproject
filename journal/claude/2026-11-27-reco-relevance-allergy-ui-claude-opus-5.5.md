@@ -103,3 +103,5 @@
 - 문서: 루트 README·실행방법.md를 integrated 실행 기준으로, 카탈로그 계약·API README에 제거 내용 반영.
 - 개발일지 구조: `journal/claude|gpt|gemini/`, `guide/`로 나누고 [SUMMARY.md](../../SUMMARY.md)(전체 작업 요약) 추가. 링크 깨짐 0건 확인.
 - 커밋 메시지·문서는 이번부터 한글로 작성.
+- 최종 검증에서 발견·수정: API 컨테이너만 다시 만들어져 내부 IP가 바뀌면 앱·확장 화면 서버(nginx)가 옛 IP(추천 서비스가 받음)로 보내 `POST /analyses` 404 → nginx가 요청마다 Docker DNS로 다시 찾도록 수정(커밋 메시지 "수정(인프라): API만 다시 만들어지면…"). API를 새 IP로 띄워 재현·해결 확인.
+- 최종 검증 결과: workspace check 정상, 통합 smoke 통과, 관리자 웹 8개 화면 정상, 모바일 앱 브라우저 분석·추천 정상, 크롤러 확장 정보 742건 적용(오류는 CJ온스타일 SSL 접속 문제뿐, 정리와 무관), 격리 DB 전체 테스트 통과.

@@ -9,7 +9,17 @@ import { KEYS } from '../shared/storage';
 import type { PageScan } from '../shared/pageProduct';
 import type { Analysis } from '../shared/types';
 import { debugEnabled, dlog } from '../shared/debug';
-import { initVisionSession, MAX_FRAMES, sendVisionFrame, VisionError, wantsScrollFrames } from '../shared/api/vision';
+import {
+  foundIngredients,
+  getVisionStatus,
+  initVisionSession,
+  MAX_FRAMES,
+  sendVisionFrame,
+  STATUS_POLL_MS,
+  STATUS_WAIT_MS,
+  VisionError,
+  wantsScrollFrames,
+} from '../shared/api/vision';
 
 if (debugEnabled) dlog('bg', '디버그 로그 켜짐', { api: import.meta.env.VITE_API_BASE_URL, mock: isMockApi });
 
@@ -130,8 +140,42 @@ interface VisionStream {
   ended: boolean;
   busy: boolean;
   failures: number;
+  /** 마지막으로 보낸 프레임(base64). 성분표를 찾으면 이 이미지로 백엔드 분석을 다시 받는다 */
+  lastImage: string | null;
+  lastFrameAt: number;
+  /** Vision 결과(status)를 확인하는 중인지 / 결과가 나왔는지 */
+  polling: boolean;
+  resolved: boolean;
 }
 const visionStreams = new Map<number, VisionStream>();
+
+/**
+ * 프레임은 접수(202)만 되고 Vision 분석은 나중에 끝난다. 마지막 프레임 뒤 20초까지 1초마다 GET /status로 확인한다.
+ * success + 성분이 나오면, 성분표가 찍힌 마지막 프레임으로 백엔드 분석을 다시 받아 알레르기 경고·추천을 갱신한다.
+ * (백엔드 분석 요청은 성분 목록을 받지 않으므로 이미지를 다시 보내 백엔드가 같은 성분표를 읽게 한다.)
+ */
+async function watchVisionResult(tabId: number, s: VisionStream) {
+  if (s.polling || s.resolved) return;
+  s.polling = true;
+  try {
+    while (visionStreams.get(tabId) === s && !s.resolved && Date.now() - s.lastFrameAt < STATUS_WAIT_MS) {
+      await new Promise((r) => setTimeout(r, STATUS_POLL_MS));
+      const v = await getVisionStatus(s.sessionId).catch(() => null);
+      if (!v || v.status === 'processing') continue;
+      s.resolved = s.ended = true;
+      dlog('vision', `Vision 결과: ${v.status}`, { category: v.product_category, ingredients: v.ingredients?.length ?? 0 });
+      if (!foundIngredients(v) || !s.lastImage) return;
+      const tab = await chrome.tabs.get(tabId).catch(() => null);
+      const state = await readState(tabId);
+      if (!tab?.url || !state || !sameUrl(tab.url, s.url) || state.page_session_id !== s.sessionId) return;
+      dlog('vision', '스크롤 중 성분표 찾음 → 그 화면으로 다시 분석');
+      const image = await (await fetch(`data:image/jpeg;base64,${s.lastImage}`)).blob();
+      void analyze(tabId, tab.url, true, image);
+    }
+  } finally {
+    s.polling = false;
+  }
+}
 
 /** 스크롤 프레임 한 장을 캡처해 보낸다. 반환값: 이 페이지에서 더 보낼지(false면 content가 멈춘다) */
 async function streamFrame(tab: chrome.tabs.Tab): Promise<boolean> {
@@ -141,7 +185,7 @@ async function streamFrame(tab: chrome.tabs.Tab): Promise<boolean> {
   if (!state || !sameUrl(state.url, tab.url) || !wantsScrollFrames(state)) return true;
   let s = visionStreams.get(tabId);
   if (!s || s.sessionId !== state.page_session_id || !sameUrl(s.url, tab.url)) {
-    s = { sessionId: state.page_session_id, url: tab.url!, next: 0, inited: false, ended: false, busy: false, failures: 0 };
+    s = { sessionId: state.page_session_id, url: tab.url!, next: 0, inited: false, ended: false, busy: false, failures: 0, lastImage: null, lastFrameAt: 0, polling: false, resolved: false };
     visionStreams.set(tabId, s);
   }
   if (s.ended || s.next >= MAX_FRAMES) return false;
@@ -164,6 +208,9 @@ async function streamFrame(tab: chrome.tabs.Tab): Promise<boolean> {
       dlog('vision', `스크롤 프레임 ${frame_index + 1}/${MAX_FRAMES} 전송`, { session: s.sessionId });
       const res = await sendVisionFrame({ session_id: s.sessionId, frame_index, image, is_last_frame });
       if (is_last_frame || (res.status && res.status !== 'processing')) s.ended = true;
+      s.lastImage = image;
+      s.lastFrameAt = Date.now();
+      void watchVisionResult(tabId, s);
     }
     s.failures = 0;
   } catch (e) {
@@ -216,8 +263,9 @@ function isSameRecommendedNavigation(entry: { initialUrl: string; settledUrl: st
  * 그대로 두면 분석을 여러 번 접수하고 앞의 것을 취소한다. 취소된 분석도 Vision 처리는 계속돼
  * 실제 분석이 밀리고 시간 초과(OCR_FAILED)로 실패한다.
  * force: 다시 시도·로그인/설정 변경처럼 결과를 새로 받아야 할 때.
+ * image: 새로 캡처하지 않고 이 화면으로 분석한다(스크롤 중 성분표를 찾은 프레임).
  */
-async function analyze(tabId: number, url: string, force = false) {
+async function analyze(tabId: number, url: string, force = false, image?: Blob) {
   if (force) {
     recommendedTabs.delete(tabId);
   } else {
@@ -239,13 +287,13 @@ async function analyze(tabId: number, url: string, force = false) {
   }
   inflight.set(tabId, url);
   try {
-    await runAnalyze(tabId, url);
+    await runAnalyze(tabId, url, image);
   } finally {
     if (sameUrl(inflight.get(tabId), url)) inflight.delete(tabId);
   }
 }
 
-async function runAnalyze(tabId: number, url: string) {
+async function runAnalyze(tabId: number, url: string, preset?: Blob) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab || !sameUrl(tab.url, url)) return;
   const token = await getAuthToken();
@@ -259,11 +307,11 @@ async function runAnalyze(tabId: number, url: string) {
   if (!rule) return skip('상품 페이지 아님(pageFilter)'); // 상품 페이지가 아니면 'none' 상태(E01 빈 화면)
 
   // 로그인하지 않아도 분석한다(서버가 기기별 비회원 키로 기본 설정 추천). 회원 전용은 개인 설정·기록뿐이다.
-  if (!tab.active) return skip('비활성 탭'); // 비활성 탭은 활성화될 때 다시 시도
-  // 쇼핑몰이 아닌 사이트는 페이지에 상품 표시가 있을 때만 캡처한다(학습포털 등 제외).
-  if (rule === 'needs-signal' && !(await confirmProductSignal(tabId))) return skip('상품 신호 없음');
+  if (!tab.active && !preset) return skip('비활성 탭'); // 비활성 탭은 활성화될 때 다시 시도
+  // 쇼핑몰이 아닌 사이트는 페이지에 상품 표시가 있을 때만 캡처한다(학습포털 등 제외). 이미 성분표를 찾은 프레임이 있으면 생략.
+  if (!preset && rule === 'needs-signal' && !(await confirmProductSignal(tabId))) return skip('상품 신호 없음');
   if (await isStale(tabId, state)) return skip('탭/URL 변경됨');
-  const image = await captureTab(tab);
+  const image = preset ?? (await captureTab(tab));
   dlog('analyze', image ? '③ 화면 캡처 완료' : '③ 화면 캡처 실패 — URL을 보내지 않으므로 분석 중단', image);
   if (!image) {
     if (!(await isStale(tabId, state))) await writeState({ ...state, status: 'error', error: '화면을 캡처하지 못했어요. 다시 시도해 주세요.' }, token);

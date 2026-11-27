@@ -39,7 +39,8 @@ export function usePageAnalysis(
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const run = useCallback(
-    async (target: string) => {
+    /** preset: 새로 캡처하지 않고 이 화면(base64)으로 분석한다(스크롤 중 성분표를 찾은 프레임) */
+    async (target: string, preset?: string) => {
       const rev = ++revision.current;
       const pageSessionId = uuid();
       current.current = { url: target, rev };
@@ -53,7 +54,7 @@ export function usePageAnalysis(
       }
       // 쇼핑몰이 아닌 사이트는 페이지에 상품 표시가 있을 때만 캡처한다(학습포털 등 제외).
       // 주입 스크립트가 0·1.5·4초에 보내므로 최대 4.5초 기다린다. 웹 미리보기(iframe)는 확인할 수 없어 제외.
-      if (rule === 'needs-signal') {
+      if (rule === 'needs-signal' && !preset) {
         let ok = !!getPageScan?.(target)?.signal;
         for (let i = 0; i < 15 && !ok && getPageScan && Platform.OS !== 'web'; i++) {
           await new Promise((r) => setTimeout(r, 300));
@@ -67,9 +68,9 @@ export function usePageAnalysis(
       }
       setState({ status: 'analyzing', analysis: null, error: null, pageSessionId });
 
-      let image: { base64: string } | null = null;
+      let image: { base64: string } | null = preset ? { base64: preset } : null;
       // 웹 미리보기(iframe)는 캡처하지 않고 주소 기준으로만 분석한다.
-      if (Platform.OS !== 'web') {
+      if (Platform.OS !== 'web' && !preset) {
         try {
           // 파일 경로(tmpfile)는 Expo fetch의 FormData가 받지 못해 base64로 받아 바이트로 업로드한다.
           const base64 = await captureRef(captureTarget as Parameters<typeof captureRef>[0], { format: 'jpg', quality: 0.8, result: 'base64' });
@@ -153,5 +154,13 @@ export function usePageAnalysis(
     if (url) void run(url);
   }, [url, run]);
 
-  return { ...state, retry };
+  /** 스크롤 중 Vision이 성분표를 찾은 화면으로 다시 분석해 알레르기 경고·추천을 갱신한다 */
+  const reanalyzeWith = useCallback(
+    (base64: string) => {
+      if (url) void run(url, base64);
+    },
+    [url, run],
+  );
+
+  return { ...state, retry, reanalyzeWith };
 }

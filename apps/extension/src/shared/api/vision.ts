@@ -30,21 +30,45 @@ export class VisionError extends Error {
   }
 }
 
-async function post(path: string, body: Record<string, unknown>): Promise<{ status?: VisionSessionStatus }> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+/** 마지막 프레임을 보낸 뒤 이 시간 동안 Vision 결과(status)를 1초마다 확인한다 */
+export const STATUS_POLL_MS = 1000;
+export const STATUS_WAIT_MS = 20_000;
+
+/** GET /status 응답. success + ingredients가 있으면 성분표를 찾은 것이다 */
+export interface VisionResult {
+  status: VisionSessionStatus;
+  product_category?: string | null;
+  ingredients?: string[];
+}
+
+async function request<T>(method: 'GET' | 'POST', path: string, body?: Record<string, unknown>): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body) headers['Content-Type'] = 'application/json';
   if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
   const t0 = Date.now();
   let res: Response;
   try {
-    res = await fetch(BASE + path, { method: 'POST', headers, body: JSON.stringify(body) });
+    res = await fetch(BASE + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   } catch (e) {
-    dlog('vision', `✕ POST ${path} 네트워크 실패 (${Date.now() - t0}ms) — Vision 꺼짐/주소 오류`, String(e));
+    dlog('vision', `✕ ${method} ${path} 네트워크 실패 (${Date.now() - t0}ms) — Vision 꺼짐/주소 오류`, String(e));
     throw new VisionError(0, 'NETWORK');
   }
   const json = await res.json().catch(() => null);
-  dlog('vision', `← ${res.status} POST ${path} (${Date.now() - t0}ms)`, json);
+  dlog('vision', `← ${res.status} ${method} ${path} (${Date.now() - t0}ms)`, json);
   if (!res.ok) throw new VisionError(res.status, json?.detail ?? 'VISION_ERROR');
-  return json ?? {};
+  return (json ?? {}) as T;
+}
+
+const post = (path: string, body: Record<string, unknown>) => request<{ status?: VisionSessionStatus }>('POST', path, body);
+
+/** 세션 결과 조회. 프레임은 접수(202)만 되고 실제 분석은 나중에 끝나므로 이걸로 끝났는지 본다 */
+export function getVisionStatus(session_id: string) {
+  return request<VisionResult>('GET', `/status/${encodeURIComponent(session_id)}`);
+}
+
+/** 스크롤 중 성분표를 찾았는지(일반 상품 조기 종료는 success지만 성분이 비어 있다) */
+export function foundIngredients(v: VisionResult): boolean {
+  return v.status === 'success' && (v.ingredients?.length ?? 0) > 0;
 }
 
 /** 세션 시작. 상품명이 없으면 첫 화면으로 Vision이 상품명을 찾는다 */

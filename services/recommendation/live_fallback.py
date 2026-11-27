@@ -15,8 +15,10 @@ import json
 import logging
 import os
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from datetime import UTC, datetime
 
 from .adapters.postgres import PgCatalog, PgVectorIndex, join_product_id
@@ -87,7 +89,9 @@ def extract_search_keywords(query: str) -> list[str]:
             client = anthropic.Anthropic(api_key=api_key, timeout=8.0, max_retries=0)
             resp = client.messages.create(
                 model=FALLBACK_MODEL,
-                max_tokens=45,
+                # 최신 모델은 생각 토큰도 max_tokens에 포함한다. 45면 답이 비었다. 과금은 실제 생성분만.
+                max_tokens=1024,
+                output_config={"effort": "low"},
                 system=(
                     "상품명에서 쇼핑몰에 검색할 '완전한 핵심 품목명' 1~2개만 한 줄에 하나씩 출력해.\n"
                     "규칙:\n"
@@ -257,7 +261,55 @@ def _search_joongna(keyword: str, limit: int = 3) -> list[dict]:
     return results
 
 
-def discover_and_ingest(conn, domain: str, query: str, include_used: bool,
+def _post(url: str, body: dict, token: str) -> int:
+    req = urllib.request.Request(url, json.dumps(body, ensure_ascii=False).encode(),
+                                 {"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))  # 환경 프록시로 토큰이 새지 않게
+    try:
+        with opener.open(req, timeout=10) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
+def deliver(items: list[dict], domain: str, post=_post) -> list[dict]:
+    """찾은 상품을 수집기와 같은 백엔드 수집 API(Observation v2)로 보낸다. DB에 직접 쓰지 않는다.
+    URL 허용 목록·중복 제거·검증은 백엔드가 맡고, 식품 성분은 비워 두어 알레르기 사용자에게는
+    '성분 정보 없음'으로 제외된다(상품명을 성분으로 넣으면 안전 확인 없이 통과했다). -> 받아들여진 상품."""
+    base = os.getenv("COLLECTOR_BACKEND_BASE_URL", "").strip().rstrip("/")
+    token = os.getenv("KKULPICK_BACKEND_TOKEN", "").strip()
+    if not base or len(token) < 32:
+        log.warning("실시간 폴백: COLLECTOR_BACKEND_BASE_URL/KKULPICK_BACKEND_TOKEN 미설정이라 적재하지 않음")
+        return []
+    runs: dict[str, str] = {}
+    accepted = []
+    for it in items:
+        if domain == "food" and it["condition"] == "used":
+            continue  # 백엔드가 중고 식품을 받지 않는다
+        observed_at = datetime.now(UTC).isoformat()
+        obs = {
+            "schema_version": 2, "source": it["source"], "observed_at": observed_at, "result": "success",
+            "selected_domain": domain, "source_listing_id": it["source_listing_id"],
+            "variant_key": it["variant_key"], "condition": it["condition"], "name": it["name"],
+            "price": it["price"], "currency": it["currency"], "availability": it["availability"], "url": it["url"],
+            "field_presence": ["name", "price", "currency", "availability", "url"],
+            "observation_key": f"live:{it['source_listing_id']}:{observed_at}"[:180],
+        }
+        run = runs.setdefault(it["source"], str(uuid.uuid4()))
+        if post(f"{base}/internal/v2/crawl-runs/{run}/observations", obs, token) not in (200, 201):
+            continue
+        accepted.append(it)
+        profile = {k: it[k] for k in ("brand", "image_url") if it.get(k)}
+        if profile:  # 이미지 호스트가 허용 목록 밖이면 422지만 상품 자체는 이미 들어갔다
+            post(f"{base}/internal/v2/crawl-runs/{run}/extensions", {
+                "schema_version": "listing-extension-v1", "source": it["source"],
+                "source_listing_id": it["source_listing_id"], "variant_key": it["variant_key"],
+                "observation_key": obs["observation_key"] + ":profile", "observed_at": observed_at,
+                "matching_profile": profile}, token)
+    return accepted
+
+
+def discover_and_ingest(domain: str, query: str, include_used: bool,
                         catalog: PgCatalog, index: PgVectorIndex, embedder) -> list[str]:
     """외부 쇼핑몰을 실시간 검색해 신규 상품을 DB 및 벡터 인덱스에 적재하고 product_id 목록을 돌려준다."""
     keywords = extract_search_keywords(query)
@@ -299,49 +351,8 @@ def discover_and_ingest(conn, domain: str, query: str, include_used: bool,
     if not discovered:
         return []
 
-    now = datetime.now(UTC)
-    subtype = "products" if domain == "product" else "foods"
-    ingested_pids: list[str] = []
-
-    for it in discovered:
-        pid = join_product_id(it["source"], it["source_listing_id"], it["variant_key"])
-        existing = conn.execute(
-            "SELECT item_id FROM app.offers WHERE source=%s AND source_listing_id=%s AND variant_key=%s",
-            (it["source"], it["source_listing_id"], it["variant_key"]),
-        ).fetchone()
-        if existing:
-            ingested_pids.append(pid)
-            continue
-
-        with conn.transaction():
-            item_row = conn.execute(
-                """INSERT INTO app.catalog_items(kind, name, brand, category, image_url)
-                   VALUES (%s, %s, %s, %s, %s) RETURNING item_id""",
-                (domain, it["name"], it.get("brand"), domain, it.get("image_url")),
-            ).fetchone()
-            item_id = item_row[0]
-            if domain == "food":
-                # 실시간 검색 식품은 알레르기 오탐 제외를 막기 위해 빈 신고 배열로 초기화
-                conn.execute("INSERT INTO app.foods(item_id, ingredients_raw, allergens_declared) VALUES (%s, %s, %s)",
-                             (item_id, it["name"], []))
-            else:
-                conn.execute(f"INSERT INTO app.{subtype}(item_id) VALUES (%s)", (item_id,))
-            conn.execute(
-                """INSERT INTO app.offers(
-                       item_id, kind, source, source_listing_id, variant_key, condition,
-                       price, currency, current_url, availability,
-                       price_observed_at, status_observed_at, url_observed_at,
-                       content_observed_at, last_seen_at, last_checked_at,
-                       condition_observed_at, last_changed_at
-                   ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (
-                    item_id, domain, it["source"], it["source_listing_id"], it["variant_key"],
-                    it["condition"], it["price"], it["currency"], it["url"], it["availability"],
-                    now, now, now, now, now, now, now, now,
-                ),
-            )
-        ingested_pids.append(pid)
-
+    ingested_pids = [join_product_id(it["source"], it["source_listing_id"], it["variant_key"])
+                     for it in deliver(discovered, domain)]
     products = list(catalog.get_many(ingested_pids).values())
     if products:
         vecs = embedder.embed_documents([document_text(p) for p in products])

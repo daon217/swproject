@@ -30,6 +30,13 @@ class Input(BaseModel):
     ai_fallback: bool = False
 
 
+def allergy_exclusions(excluded):
+    """같은 품목 후보 중 알레르기로 빠진 개수. 화면이 '비슷한 상품 없음'과 '알레르기로 다 빠짐'을 구분하게 한다."""
+    allergen=sum(1 for v in excluded if v.detected or any(r.startswith('피하는 성분') for r in v.reasons))
+    unknown=sum(1 for v in excluded if not v.detected and any(r.startswith('성분 정보 없음') for r in v.reasons))
+    return {'allergen':allergen,'unknown_ingredients':unknown}
+
+
 def authorize(authorization):
     token=os.getenv('WORKSPACE_TOKEN','')
     if len(token)<32 or not secrets.compare_digest(authorization.encode(), ('Bearer '+token).encode()):
@@ -221,27 +228,33 @@ def process(body:Input,authorization:str=Header(default='')):
                 raise HTTPException(503,'EMBEDDING_CONTRACT_UNAVAILABLE') from error
             catalog=PgCatalog(conn,body.selected_domain)
             embedder=config.embedder()
-            min_score=float(os.getenv('RECO_MIN_SCORE') or '0')
-            margin=float(os.getenv('RECO_SCORE_MARGIN') or '0')
+            # 비우면 infra/workspace/.env.example에 적힌 기본값. 0을 직접 넣어야 끈다.
+            min_score=float(os.getenv('RECO_MIN_SCORE') or '0.5')
+            margin=float(os.getenv('RECO_SCORE_MARGIN') or '0.25')
             ranker_kind=os.getenv('RECO_RANKER','rule')
             engine=Recommender(catalog,PgVectorIndex(conn,model_id),
                               embedder,make_ranker(ranker_kind))
-            result=engine.recommend(profile,body.query,top_k=8,min_score=min_score,score_margin=margin)  # 프리미엄 5개 + 중고·품절로 빠지는 여유
+            result=engine.recommend(profile,body.query,top_k=8,min_score=min_score,score_margin=margin,
+                                    domain=body.selected_domain)  # 프리미엄 5개 + 중고·품절로 빠지는 여유
             # DB에 관련 상품이 전혀 없어 추천 결과가 0건이고, 사용자가 '추천 상품 없을 시 AI 추천(ai_fallback)'을 켠 경우에만
             # 실시간 쇼핑몰 검색으로 상품을 찾아 적재한 뒤 가벼운 폴백 전용 모델(FALLBACK_MODEL)로 다시 추천한다.
-            if not result.picks and body.ai_fallback:
+            # 알레르기·기피 성분이 있는 사용자의 식품은 건너뛴다: 실시간 검색 상품은 성분을 모르므로 어차피 모두 제외된다.
+            allergic_food=body.selected_domain=='food' and bool(profile.allergens or profile.avoid_ingredients)
+            if not result.picks and body.ai_fallback and not allergic_food:
                 from .live_fallback import discover_and_ingest
-                ingested=discover_and_ingest(conn,body.selected_domain,body.query,profile.include_used,
+                ingested=discover_and_ingest(body.selected_domain,body.query,profile.include_used,
                                              catalog,PgVectorIndex(conn,model_id),embedder)
                 if ingested:
                     fb_engine=Recommender(catalog,PgVectorIndex(conn,model_id),
                                           # FALLBACK_MODEL 은 Claude 모델명: local(gemma) 서버에 넘기면 403 -> 규칙 순위로 떨어짐
                                           embedder,make_ranker(ranker_kind,model=FALLBACK_MODEL if ranker_kind in ('claude','auto') else None))
-                    result=fb_engine.recommend(profile,body.query,top_k=8,min_score=min_score,score_margin=margin)
+                    result=fb_engine.recommend(profile,body.query,top_k=8,min_score=min_score,score_margin=margin,
+                                               domain=body.selected_domain)
             ids=catalog.offer_ids([p.product_id for p in result.picks])
         return {'offer_ids':[ids[p.product_id] for p in result.picks if p.product_id in ids],
                 'reasons':{ids[p.product_id]:p.reason for p in result.picks if p.product_id in ids},
-                'ranker':result.ranker,'selected_domain':body.selected_domain,'warnings':warnings}
+                'ranker':result.ranker,'selected_domain':body.selected_domain,'warnings':warnings,
+                'exclusions':allergy_exclusions(result.excluded)}
     except HTTPException:
         raise
     except PG_ERRORS + (KeyError, OSError) as error:

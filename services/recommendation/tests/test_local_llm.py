@@ -37,6 +37,8 @@ def test_local_llm_ranker_against_fake_openai_server():
 
 
 def test_render_formats_share_same_candidates():
+    import pytest
+    pytest.importorskip("toon_format")  # 벤치마크 전용 패키지(CI는 설치함)
     items = [(CollectedProduct.from_dict({"source": "t", "source_listing_id": str(i), "name": f"상품{i}",
                                           "ingredients_raw": "쌀, 소금"}), 1 - i / 100) for i in range(20)]
     ids = [render_candidates(f, UserProfile("u"), "q", items, 3)[2] for f in ("json", "toon", "compact")]

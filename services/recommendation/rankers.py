@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from .contracts import CollectedProduct, UserProfile
 
 DEFAULT_MODEL = os.getenv("RECO_LLM_MODEL") or "claude-opus-5-5"  # 빈 값(compose 기본)도 기본 모델로
-FALLBACK_MODEL = os.getenv("RECO_FALLBACK_LLM_MODEL") or "claude-sonnet-4-6"  # DB 추천 0건 시 실시간 폴백 전용 가벼운 모델
+FALLBACK_MODEL = os.getenv("RECO_FALLBACK_LLM_MODEL") or "claude-sonnet-5-5"  # DB 추천 0건 시 실시간 폴백 전용(기본 모델보다 저렴)
 
 
 class RuleRanker:
@@ -64,7 +64,8 @@ def render_candidates(fmt: str, profile: UserProfile, query: str, items, top_k: 
 class ClaudeRanker:
     name = "claude"
 
-    def __init__(self, model: str = DEFAULT_MODEL, client=None, fmt: str = "compact", max_tokens: int = 600,
+    # 2048: 생각 토큰이 max_tokens에 포함돼 600이면 JSON이 잘릴 수 있다. 과금은 실제 생성분만.
+    def __init__(self, model: str = DEFAULT_MODEL, client=None, fmt: str = "compact", max_tokens: int = 2048,
                  **render_opts):
         import anthropic
 

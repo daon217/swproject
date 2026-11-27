@@ -54,6 +54,9 @@ services:
       LOCAL_LLM_API_KEY: ${LOCAL_LLM_API_KEY:-}
       RECO_MIN_SCORE: ${RECO_MIN_SCORE:-}
       RECO_SCORE_MARGIN: ${RECO_SCORE_MARGIN:-}
+      # 실시간 폴백이 찾은 상품을 DB에 직접 쓰지 않고 백엔드 수집 API로 보낸다(없으면 폴백 적재만 꺼짐).
+      COLLECTOR_BACKEND_BASE_URL: http://api:8000
+      KKULPICK_BACKEND_TOKEN: ${COLLECTOR_TOKEN:-}
     command: [uvicorn, services.recommendation.http_service:app, --host, 0.0.0.0, --port, "8000"]
     depends_on:
       embedding-init: {condition: service_completed_successfully}

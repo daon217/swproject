@@ -29,7 +29,6 @@ const consoleState = {
     customerSubView: 'list', // 'list' | 'detail'
     customerSearch: '',
     customerTypeFilter: '전체',
-    customerStatusFilter: '전체',
     selectedCustomerId: null,
     customers: [],
 

@@ -55,9 +55,9 @@ const affiliatePage = {
         const startDateTime = this.formatKstDateTime(row.starts_at);
         const endDateTime = this.formatKstDateTime(row.ends_at);
         const sourceLabel = offer?.source === 'domeggook' ? '도매꾹' : (offer?.source || row.partner_name || '카탈로그');
-        const name = meta.name || row.name || offer?.name || `${row.partner_name} 제휴상품`;
-        const rawPrice = meta.rawPrice ?? row.price ?? offer?.price ?? '';
-        const price = meta.price || (rawPrice !== '' ? this.formatPriceKrw(rawPrice) : '미확인');
+        const name = row.name || offer?.name || meta.name || `${row.partner_name} 제휴상품`;
+        const rawPrice = row.price ?? offer?.price ?? meta.rawPrice ?? '';
+        const price = rawPrice !== '' ? this.formatPriceKrw(rawPrice) : (meta.price || '미확인');
         // 서버에 실제로 저장된 주소를 그대로 보여 준다(사용자가 받는 링크와 같아야 잘못된 링크를 찾을 수 있음, #69).
         const url = row.affiliate_url || meta.url || offer?.current_url || '';
         const domainLabel = (offer?.selected_domain || offer?.kind) === 'food' ? '식품' : '일반 상품';
@@ -344,6 +344,10 @@ const affiliatePage = {
       this.showToast('목록에서 제휴 상품을 선택해 주세요.');
       return;
     }
+    if (!this.isLocalAuthDemo() && selected.isServer && selected.enabled === false) {
+      this.showToast('이미 비활성화된 제휴 상품입니다. 다시 활성화하려면 선택 편집에서 저장해 주세요.');
+      return;
+    }
     this.state.showDeleteModal = true;
     this.renderModal();
   },
@@ -361,7 +365,12 @@ const affiliatePage = {
       return;
     }
 
-    if (!this.isLocalAuthDemo() && item.isServer && item.enabled !== false) {
+    if (!this.isLocalAuthDemo() && item.isServer) {
+      if (item.enabled === false) {
+        this.closeDeleteModal();
+        this.showToast('이미 비활성화된 제휴 상품입니다.');
+        return;
+      }
       const button = document.getElementById('affiliate-delete-submit');
       const status = document.getElementById('affiliate-delete-status');
       if (button) button.disabled = true;
@@ -514,9 +523,10 @@ const affiliatePage = {
               <input
                 id="aff-form-name"
                 type="text"
+                ${!this.isLocalAuthDemo() ? 'readonly title="상품명은 카탈로그 원본에서 자동 연동됩니다"' : ''}
                 value="${this.escapeHtml(nameVal)}"
                 placeholder="카탈로그 판매정보 선택 시 자동 입력됩니다"
-                class="form-input w-full"
+                class="form-input w-full ${!this.isLocalAuthDemo() ? 'bg-slate-50 text-slate-600' : ''}"
               />
             </div>
           </div>

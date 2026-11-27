@@ -47,7 +47,6 @@ const customersPage = {
   getFilteredCustomers() {
     const search = this.state.customerSearch.trim().toLowerCase();
     const typeFilter = this.state.customerTypeFilter;
-    const statusFilter = this.state.customerStatusFilter;
 
     return this.getCustomerItems().filter((c) => {
       const matchSearch =
@@ -58,8 +57,7 @@ const customersPage = {
         typeFilter === '전체' ||
         (typeFilter === '구독' && c.subscribed === 'O') ||
         (typeFilter === '미구독' && c.subscribed !== 'O');
-      const matchStatus = statusFilter === '전체' || c.status === statusFilter;
-      return matchSearch && matchType && matchStatus;
+      return matchSearch && matchType;
     });
   },
 
@@ -78,7 +76,6 @@ const customersPage = {
   getCustomerListHtml() {
     const demo = this.isLocalAuthDemo();
     const typeFilter = this.state.customerTypeFilter;
-    const statusFilter = this.state.customerStatusFilter;
     const filtered = this.getFilteredCustomers();
 
     return `
@@ -97,41 +94,29 @@ const customersPage = {
             value="${this.escapeHtml(this.state.customerSearch)}"
             placeholder="로그인 아이디 또는 회원 UUID 입력"
             class="form-input max-w-full w-[320px]"
-            oninput="app.handleCustomerFilterChange(this.value, null, null)"
+            oninput="app.handleCustomerFilterChange(this.value, null)"
           />
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-600 mb-1.5">회원 유형</label>
           <select
             class="form-input max-w-full w-[190px] cursor-pointer"
-            onchange="app.handleCustomerFilterChange(null, this.value, null)"
+            onchange="app.handleCustomerFilterChange(null, this.value)"
           >
             <option value="전체" ${typeFilter === '전체' ? 'selected' : ''}>전체</option>
             <option value="구독" ${typeFilter === '구독' ? 'selected' : ''}>구독자 (O)</option>
             <option value="미구독" ${typeFilter === '미구독' ? 'selected' : ''}>미구독자</option>
           </select>
         </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-600 mb-1.5">계정 상태</label>
-          <select
-            class="form-input max-w-full w-[190px] cursor-pointer"
-            onchange="app.handleCustomerFilterChange(null, null, this.value)"
-          >
-            <option value="전체" ${statusFilter === '전체' ? 'selected' : ''}>전체</option>
-            <option value="정상" ${statusFilter === '정상' ? 'selected' : ''}>정상</option>
-            <option value="휴면" ${statusFilter === '휴면' ? 'selected' : ''}>휴면</option>
-          </select>
-        </div>
       </div>
 
       <!-- 테이블 -->
       <div class="w-full overflow-x-auto">
-        <div class="grid min-w-[680px] grid-cols-6 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
+        <div class="grid min-w-[600px] grid-cols-5 items-center px-6 py-3 text-xs font-bold text-slate-500 border-b border-slate-200">
           <div>ID</div>
           <div>구독여부</div>
           <div>성별</div>
           <div>연령대</div>
-          <div>계정 상태</div>
           <div>가입 일시 · KST</div>
         </div>
 
@@ -160,7 +145,7 @@ const customersPage = {
       .map((c) => {
         const detailKey = c.userId || c.id;
         return `
-        <div class="grid min-w-[680px] grid-cols-6 items-center bg-white border border-slate-200 rounded-lg px-6 py-3.5 text-sm">
+        <div class="grid min-w-[600px] grid-cols-5 items-center bg-white border border-slate-200 rounded-lg px-6 py-3.5 text-sm">
           <div class="truncate pr-2" title="${this.escapeHtml(c.userId || c.id)}">
             <a
               href="#/customers/detail/${this.escapeHtml(encodeURIComponent(detailKey))}"
@@ -170,7 +155,6 @@ const customersPage = {
           <div class="font-semibold text-slate-900">${this.escapeHtml(c.subscribed)}</div>
           <div class="text-slate-700">${this.escapeHtml(c.gender || '미등록')}</div>
           <div class="text-slate-700">${this.escapeHtml(c.ageGroup || '미등록')}</div>
-          <div class="text-slate-800 font-medium">${this.escapeHtml(c.status)}</div>
           <div class="text-slate-500 text-xs whitespace-nowrap">${this.escapeHtml(c.createdAt || '—')}</div>
         </div>
       `;
@@ -178,10 +162,9 @@ const customersPage = {
       .join('');
   },
 
-  handleCustomerFilterChange(searchVal, typeVal, statusVal) {
+  handleCustomerFilterChange(searchVal, typeVal) {
     if (searchVal !== null) this.state.customerSearch = searchVal;
     if (typeVal !== null) this.state.customerTypeFilter = typeVal;
-    if (statusVal !== null) this.state.customerStatusFilter = statusVal;
 
     const filtered = this.getFilteredCustomers();
     const tbody = document.getElementById('customer-table-body');

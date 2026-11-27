@@ -6,6 +6,8 @@ const dashboardPage = {
       !demo && this.liveCustomers?.phase !== 'ready' ? '조회 중' : '조회 불가';
     const todaySubscribers = metrics.todaySubscriberCount == null
       ? subscriberStatus : `${metrics.todaySubscriberCount.toLocaleString()}명`;
+    const todayChurn = metrics.todayChurnCount == null
+      ? subscriberStatus : `${metrics.todayChurnCount.toLocaleString()}명`;
     const dailyPeriod = this.getDefaultStatsPeriod('daily');
     const affiliateCount = this.getAffiliateItems().length;
     const affiliatePhase = demo ? 'ready' : this.liveAffiliates?.phase;
@@ -53,7 +55,7 @@ const dashboardPage = {
         </div>
         <div class="bg-white border border-slate-200 rounded-xl p-5 sm:p-6 shadow-sm">
           <div class="text-xs font-bold text-slate-500">당일 해지인원수</div>
-          <div class="text-3xl tabular-nums tracking-tight font-bold text-[#e11d48] mt-2">0명</div>
+          <div class="text-3xl tabular-nums tracking-tight font-bold text-[#e11d48] mt-2">${todayChurn}</div>
           <div class="text-xs text-slate-500 mt-1.5">${metrics.todayKst} 해지 완료</div>
         </div>
       </div>

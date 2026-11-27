@@ -298,7 +298,9 @@ const crawlingPage = {
       if (source && offer.source !== source) return false;
       if (availability && offer.availability !== availability) return false;
       if (searchQuery) {
-        const searchable = `${offer.name || ''} ${offer.source || ''} ${offer.offer_id || ''}`.toLowerCase();
+        const sourceLabel = sourceNames[offer.source] || '';
+        const domainLabel = offer.selected_domain === 'food' ? '식품' : '일반';
+        const searchable = `${offer.name || ''} ${offer.description || ''} ${offer.source || ''} ${sourceLabel} ${domainLabel} ${offer.offer_id || ''}`.toLowerCase();
         if (!searchable.includes(searchQuery)) return false;
       }
       if (periodRange) {

@@ -97,12 +97,23 @@ const statsPage = {
     const memberTodaySubscribers = members.filter((member) =>
       this.formatKstDateTime(member.subscription_started_at).slice(0, 10) === todayKst
     ).length;
+    const memberTodayChurn = members.filter((member) => {
+      const endSource = member.subscription_ended_at || member.subscription_canceled_at;
+      return endSource && this.formatKstDateTime(endSource).slice(0, 10) === todayKst;
+    }).length;
     let todaySubscriberCount = null;
     if (overview?.today_subscribers_date === todayKst.replaceAll('.', '-')) {
       todaySubscriberCount = Math.max(Number(overview.today_subscribers ?? 0), memberTodaySubscribers);
     } else if (this.liveCustomers?.phase === 'ready' &&
       (members.length < 100 || members.length === overview?.members)) {
       todaySubscriberCount = memberTodaySubscribers;
+    }
+
+    let todayChurnCount = null;
+    if (this.isLocalAuthDemo()) {
+      todayChurnCount = 0;
+    } else if (this.liveCustomers?.phase === 'ready') {
+      todayChurnCount = memberTodayChurn;
     }
 
     const mockRevenue = overview?.mock_revenue_krw != null ? Number(overview.mock_revenue_krw) : 0;
@@ -114,6 +125,7 @@ const statsPage = {
       memberCount,
       subscriberCount,
       todaySubscriberCount,
+      todayChurnCount,
       affiliateCount: affiliates.length,
       activeAffiliateCount: activeAffiliates.length,
       catalogCount,
@@ -194,17 +206,29 @@ const statsPage = {
     }
 
     const todayKey = this.getKstTodayDateStr().slice(0, keyLength);
-    // 날짜별 모의 결제 합계(revenue_days, #74)를 일·월·연 단위로 합친다. 예전 서버는 오늘 합계만 준다.
+    // 날짜별 모의 결제 합계(revenue_days, #74) 및 URL 로열티 매출 합계(royalty_days)를 일·월·연 단위로 합친다.
     const salesByKey = new Map(buckets.map((b) => [b.key, 0]));
+    const royaltyByKey = new Map(buckets.map((b) => [b.key, 0]));
     const revenueDays = this.liveOverview?.overview?.revenue_days;
     if (Array.isArray(revenueDays)) {
       for (const d of revenueDays) {
         const key = String(d.date || '').replaceAll('-', '.').slice(0, keyLength);
         if (salesByKey.has(key)) salesByKey.set(key, salesByKey.get(key) + Number(d.mock_revenue_krw || 0));
+        if (royaltyByKey.has(key) && d.royalty_revenue_krw != null) {
+          royaltyByKey.set(key, royaltyByKey.get(key) + Number(d.royalty_revenue_krw || 0));
+        }
       }
     } else {
       const todayMockKrw = Number(this.liveOverview?.overview?.today_mock_revenue_krw || 0);
       if (salesByKey.has(todayKey)) salesByKey.set(todayKey, todayMockKrw);
+    }
+    const royaltyDays = this.liveOverview?.overview?.royalty_days;
+    if (Array.isArray(royaltyDays)) {
+      for (const d of royaltyDays) {
+        const key = String(d.date || '').replaceAll('-', '.').slice(0, keyLength);
+        const krw = Number(d.royalty_revenue_krw ?? d.amount_krw ?? 0);
+        if (royaltyByKey.has(key)) royaltyByKey.set(key, royaltyByKey.get(key) + krw);
+      }
     }
     const toManWon = (krw) => (krw > 0 ? Number((krw / 10000).toFixed(2)) : 0);
 
@@ -215,7 +239,7 @@ const statsPage = {
       subJoin: buckets.map((b) => subJoinCounts.get(b.key) || 0),
       subLeave: buckets.map((b) => subLeaveCounts.get(b.key) || 0),
       subSales: buckets.map((b) => toManWon(salesByKey.get(b.key) || 0)),
-      royaltySales: buckets.map(() => 0),
+      royaltySales: buckets.map((b) => toManWon(royaltyByKey.get(b.key) || 0)),
     };
   },
 

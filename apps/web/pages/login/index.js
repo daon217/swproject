@@ -345,6 +345,8 @@ const loginPage = {
                 </select>
               </label>
               <button type="submit" class="btn-primary disabled:opacity-50" aria-label="${loginId} 승인">승인</button>
+              <button type="button" data-action="reject" class="btn-secondary text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50"
+                aria-label="${loginId} 거절" onclick="app.rejectAdminSignup(this.closest('form'))">거절</button>
             </form>
           </li>`;
       }).join('');
@@ -389,6 +391,40 @@ const loginPage = {
       if (form.isConnected && (error.status === 404 || error.status === 409)) await this.loadAdminSignupRequests();
     } finally {
       button.disabled = false;
+    }
+  },
+
+  async rejectAdminSignup(form) {
+    const session = this.adminSession;
+    const rejectBtn = form?.querySelector('[data-action="reject"]');
+    const approveBtn = form?.querySelector('button[type="submit"]');
+    if (!form || session?.role !== 'admin' || this.isLocalAuthDemo() || rejectBtn?.disabled || approveBtn?.disabled) return;
+    const loginId = form.dataset.loginId || '신청 계정';
+    if (!window.confirm(`${loginId} 계정의 관리자 가입 신청을 거절할까요?`)) return;
+    if (rejectBtn) rejectBtn.disabled = true;
+    if (approveBtn) approveBtn.disabled = true;
+    try {
+      const id = encodeURIComponent(form.dataset.userId);
+      const result = await this.requestAdminAuth(`/v2/admin/auth/requests/${id}/reject`, {
+        method: 'POST', token: session.token,
+      });
+      if (result?.status !== 'rejected') throw new Error('Invalid rejection response');
+      if (this.adminSession !== session) return;
+      this.showToast('관리자 가입 신청을 거절했습니다.');
+      if (form.isConnected) await this.loadAdminSignupRequests();
+    } catch (error) {
+      if (this.adminSession !== session) return;
+      const messages = {
+        401: '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
+        403: '가입 신청을 거절할 권한이 없습니다.',
+        404: '가입 신청을 찾을 수 없습니다.',
+        409: '이미 처리된 가입 신청입니다.',
+      };
+      this.showToast(messages[error.status] || '거절 결과를 확인하지 못했습니다. 목록을 새로고침해 주세요.');
+      if (form.isConnected && (error.status === 404 || error.status === 409)) await this.loadAdminSignupRequests();
+    } finally {
+      if (rejectBtn) rejectBtn.disabled = false;
+      if (approveBtn) approveBtn.disabled = false;
     }
   },
 };

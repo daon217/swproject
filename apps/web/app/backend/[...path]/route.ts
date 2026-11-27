@@ -2,7 +2,7 @@ const base = process.env.INTERNAL_API_URL || 'http://127.0.0.1:8000';
 async function proxy(req: Request) {
   const url=new URL(req.url);
   const path=url.pathname.slice('/backend'.length);
-  if (!/^\/v2\/(auth\/(login|logout|signup)|admin\/[a-z0-9/\-]+|offers)$/.test(path))
+  if (!/^\/v2\/(auth\/(login|logout|signup)|admin\/[a-z0-9/_-]+|offers)$/i.test(path))
     return new Response(null,{status:404});
   const body=['GET','HEAD'].includes(req.method)?undefined:await req.arrayBuffer();
   if(body && body.byteLength>65536)return new Response(null,{status:413});
